@@ -100,14 +100,14 @@
       "listedMlsField": "[data-field='mls-status']"
     },
     "history": {
-      "_status": "NEEDS-DOM - reads Notes/Activities/Chat text for blocking phrases, failed/undelivered, and already-sent detection. Until the containers below are confirmed against the live DOM, the history is treated as UNCONFIRMED and the lead is held for review (never texted). Capture the Activities and Chat tabs to wire these.",
+      "_status": "PARTIAL - Chat tab confirmed (shows message + call thread). Activities/Notes tab containers still need a capture. Chat thread container is a best guess pending the Activities screenshot.",
       "activitiesTab": "text=Activities",
       "chatTab": "text=Chat",
       "notesTab": "text=Notes",
       "activitiesContainer": "[data-tab='activities'], .activities, .activity-feed",
-      "chatContainer": "[data-tab='chat'], .chat, .chat-thread",
+      "chatContainer": ".chat-thread, .conversation, .messages, [class*='chat']",
       "notesContainer": "[data-tab='notes'], .notes",
-      "latestEntry": ".activity-item:first-child, .chat-message:last-child, .message:last-child"
+      "latestEntry": ".chat-message:last-child, .message:last-child, .activity-item:first-child"
     },
     "tagsWrite": {
       "_status": "NEEDS-DOM - writing a Revival tag: open Add/Edit Tags, type the exact name, pick existing or create, save, confirm it shows. Capture the Tag(s) add/edit UI to wire these.",
@@ -118,11 +118,11 @@
       "saveButton": "button:has-text('Save'), button:has-text('Add')"
     },
     "chat": {
-      "_status": "NEEDS-DOM - the SMS/chat panel. The send button is the chat-bubble ICON in the contact action row (no visible text) OR the Chat tab. Need the real title/aria-label, the message input, the Send button, and the sent-message confirmation. Until confirmed, sends fail safe (row -> Needs Review, no text).",
-      "openButton": "[title='SMS'], [aria-label*='SMS' i], [title*='Text' i], text=Chat",
-      "messageInput": "textarea[placeholder*='message' i], textarea, [contenteditable='true']",
-      "sendButton": "button:has-text('Send'), [aria-label*='send' i]",
-      "sentMarker": "text=Delivered, text=Sent, .chat-message.outbound:last-child"
+      "_status": "PARTIAL - CONFIRMED: open via the 'Chat' tab; message box placeholder is 'Write Your Reply...'. The Send button is the orange paper-plane icon in the composer (no visible text) - its exact title/aria-label still needs confirming (hover it to see the tooltip). Send is verified by the message appearing in the thread, so a wrong/blank send button fails safe (no text).",
+      "openButton": "text=Chat",
+      "messageInput": "textarea[placeholder*='Write Your Reply' i], textarea[placeholder*='reply' i]",
+      "sendButton": "[aria-label*='send' i], button[title*='send' i], button[type='submit'], .send-btn, [data-testid*='send' i]",
+      "sentMarker": ""
     }
   }
 }

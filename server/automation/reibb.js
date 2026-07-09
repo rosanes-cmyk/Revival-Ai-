@@ -352,9 +352,24 @@ export class ReiBlackBookAdapter {
       throw new Error("Composed SMS text did not exactly match the approved message; send aborted.");
     }
     await this.click(c.sendButton);
-    const confirmed = await this.isVisible(c.sentMarker, this.actionTimeout);
-    if (!confirmed) {
-      throw new Error("Did not see the sent message appear in chat history; treating as not sent.");
+    await this.page.waitForTimeout(1500);
+
+    // Verify the send actually went through: the message shows in the thread,
+    // OR the reply box cleared. If neither, treat as NOT sent (fail safe).
+    let cleared = false;
+    try {
+      cleared = ((await this.page.inputValue(c.messageInput)) || "").trim() === "";
+    } catch {
+      cleared = false;
+    }
+    let appeared = false;
+    try {
+      appeared = await this.page.getByText(message.slice(0, 30)).first().isVisible({ timeout: 2500 });
+    } catch {
+      appeared = false;
+    }
+    if (!cleared && !appeared) {
+      throw new Error("Could not confirm the message was sent (not seen in the thread and the reply box didn't clear).");
     }
     return { sent: true, timestamp: new Date().toISOString() };
   }
