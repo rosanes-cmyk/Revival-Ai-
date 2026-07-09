@@ -98,6 +98,21 @@ export class ReiBlackBookAdapter {
       };
     }
 
+    // Confirmed workflow: a Pipeline match is a PROPERTY; open its associated
+    // contact before reading compliance/history (Smart Contacts is already a
+    // contact, so it needs no hop). If the hop fails, fail safe -> uncertain.
+    if (matched && matched.searchMethod && matched.searchMethod.startsWith("Property Pipeline")) {
+      try {
+        await this.openContactFromProperty();
+      } catch (err) {
+        return {
+          searchMethod: matched.searchMethod,
+          matchStatus: matched.matchStatus,
+          facts: { matchFound: true, matchStatus: matched.matchStatus, ...uncertain(`Found the property but could not open its contact: ${err.message}`) },
+        };
+      }
+    }
+
     if (!matched) {
       return {
         searchMethod: trail.join(" -> "),
@@ -220,6 +235,18 @@ export class ReiBlackBookAdapter {
     await this.page.waitForLoadState("domcontentloaded").catch(() => {});
     await this.page.waitForTimeout(500);
     return true;
+  }
+
+  // Open the associated contact from an opened Pipeline property record.
+  async openContactFromProperty() {
+    const pr = this.selectors.propertyRecord;
+    const link = this.page.locator(pr.associatedContactLink).first();
+    if ((await link.count()) === 0) {
+      throw new Error("associated-contact link not found on property record");
+    }
+    await link.click({ timeout: this.actionTimeout });
+    await this.page.waitForLoadState("domcontentloaded").catch(() => {});
+    await this.page.waitForTimeout(500);
   }
 
   // ----- Read compliance / property status / contact history ---------------

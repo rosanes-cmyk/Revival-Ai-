@@ -54,6 +54,12 @@
     "noResultsMarker": "text=No records, text=No results"
   },
 
+  "propertyRecord": {
+    "_status": "NEEDS-DOM - after opening a Pipeline property, the automation opens its associated contact to text (confirmed workflow: Pipeline -> property -> contact). Capture the property detail page to confirm the link to its contact.",
+    "openMarker": "text=Property Details, text=Associated Contacts",
+    "associatedContactLink": "text=Associated Contacts >> xpath=following::a[1], .associated-contacts a:first-child, a:has-text('View Contact')"
+  },
+
   "contactRecord": {
     "_status": "CONFIRMED tabs: About / Chat / Activities / Notes / Tasks / Files; Tag(s) section holds chips",
     "tabs": {
