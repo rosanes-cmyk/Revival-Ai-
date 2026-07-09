@@ -31,14 +31,17 @@ export class JobStore {
     return path.join(STATE_DIR, `${jobId}.json`);
   }
 
-  static create(jobId, rows, sourceFileName) {
+  static create(jobId, parsed, sourceFileName) {
     const job = {
       jobId,
       sourceFileName,
       createdAt: new Date().toISOString(),
       status: JOB_STATUS.IDLE,
       cursor: 0,
-      rows: rows.map(normalizeRow),
+      originalHeaders: parsed.originalHeaders || [],
+      dispositionHeader: parsed.dispositionHeader || "Disposition",
+      notesHeader: parsed.notesHeader || "Notes",
+      rows: parsed.rows.map(normalizeRow),
     };
     const store = new JobStore(job);
     store.persist();
@@ -120,6 +123,7 @@ export class JobStore {
 function normalizeRow(r) {
   return {
     rowNumber: r.rowNumber,
+    original: r.original || {},
     ownerName: r.ownerName,
     propertyAddress: r.propertyAddress,
     city: r.city,

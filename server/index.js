@@ -85,9 +85,9 @@ app.post("/api/upload", upload.single("file"), (req, res) => {
       return res.status(409).json({ error: "Automation is running. Stop it before uploading a new file." });
     }
     if (!req.file) return res.status(400).json({ error: "No file uploaded." });
-    const { rows } = parseSpreadsheet(req.file.buffer);
+    const parsed = parseSpreadsheet(req.file.buffer);
     const jobId = `job-${new Date().toISOString().replace(/[:.]/g, "-")}`;
-    store = JobStore.create(jobId, rows, req.file.originalname);
+    store = JobStore.create(jobId, parsed, req.file.originalname);
     logger = new JobLogger(jobId);
     engine.attach(store, logger);
     broadcast("summary", store.summary());
@@ -133,12 +133,12 @@ app.get("/api/export", (req, res) => {
   const format = (req.query.format || "xlsx").toLowerCase();
   const base = (store.job.sourceFileName || "leads").replace(/\.[^.]+$/, "");
   if (format === "csv") {
-    const csv = exportToCsv(store.rows);
+    const csv = exportToCsv(store.job);
     res.setHeader("Content-Type", "text/csv");
     res.setHeader("Content-Disposition", `attachment; filename="${base}-updated.csv"`);
     return res.send(csv);
   }
-  const buffer = exportToXlsx(store.rows);
+  const buffer = exportToXlsx(store.job);
   res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   res.setHeader("Content-Disposition", `attachment; filename="${base}-updated.xlsx"`);
   res.send(buffer);
