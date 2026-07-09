@@ -101,7 +101,7 @@ export function parseSpreadsheet(buffer) {
 // Map any casing/wording of an existing remark to our canonical disposition so
 // summary counts and resume-skip work regardless of how the sheet spells them.
 export function normalizeDisposition(rawValue) {
-  const v = norm(rawValue);
+  const v = norm(rawValue).replace(/\s+/g, " "); // collapse "Text  Sent" -> "text sent"
   if (!v) return DISPOSITION.PENDING;
   if (v.includes("text sent") || v === "sent" || v === "texted") return DISPOSITION.TEXT_SENT;
   if (v.includes("not found") || v.includes("no match")) return DISPOSITION.LEAD_NOT_FOUND;
