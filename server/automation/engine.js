@@ -26,6 +26,7 @@ export class AutomationEngine extends EventEmitter {
     this.adapter = null;
     this._control = "stopped";
     this._loopActive = false;
+    this._runStats = { count: 0, totalMs: 0 }; // per-run timing for the ETA
     this.allowLiveSend = String(process.env.ALLOW_LIVE_SEND).toLowerCase() === "true";
     // Default company used when a lead has no (or an unrecognized) Company
     // Source. The two approved messages differ only by this name, so a sheet
@@ -108,6 +109,7 @@ export class AutomationEngine extends EventEmitter {
       this.emitState("Logged in. Processing leads.");
 
       const rows = this.store.rows;
+      this._runStats = { count: 0, totalMs: 0 };
       for (let i = this.store.job.cursor; i < rows.length; i++) {
         while (this._control === "paused") await sleep(400);
         if (this._control === "stopping") break;
@@ -120,10 +122,15 @@ export class AutomationEngine extends EventEmitter {
           continue;
         }
 
+        const t0 = Date.now();
         await this._processRow(row);
+        this._runStats.count += 1;
+        this._runStats.totalMs += Date.now() - t0;
+
         this.store.persist();
         this.emit("row", { row });
         this.emit("summary", this.store.summary());
+        this.emitProgress(i);
       }
 
       if (this._control === "stopping") {
@@ -251,6 +258,24 @@ export class AutomationEngine extends EventEmitter {
         ? `${row.errorLog}; tag apply failed: ${err.message}`
         : `Tag apply failed: ${err.message}`;
     }
+  }
+
+  // Emit avg time-per-lead and an ETA for the leads still to process.
+  emitProgress(currentIndex) {
+    const rows = this.store.rows;
+    const avgMs = this._runStats.count ? this._runStats.totalMs / this._runStats.count : 0;
+    let remaining = 0;
+    for (let j = currentIndex + 1; j < rows.length; j++) {
+      if (!this.store.isProcessed(rows[j])) remaining++;
+    }
+    this.emit("progress", {
+      processedThisRun: this._runStats.count,
+      avgMs: Math.round(avgMs),
+      remaining,
+      etaMs: Math.round(avgMs * remaining),
+      done: currentIndex + 1,
+      total: rows.length,
+    });
   }
 
   emitState(message) {

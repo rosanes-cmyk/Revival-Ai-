@@ -106,6 +106,26 @@ function setProgress(cursor, total) {
   els.progressText.textContent = `${cursor} / ${total} rows processed`;
 }
 
+function fmtDuration(ms) {
+  const s = Math.round(ms / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60), r = s % 60;
+  if (m < 60) return `${m}m ${r}s`;
+  const h = Math.floor(m / 60);
+  return `${h}h ${m % 60}m`;
+}
+
+function renderEta(d) {
+  if (!d || !d.total) return;
+  els.progressWrap.hidden = false;
+  els.progressFill.style.width = Math.min(100, Math.round((d.done / d.total) * 100)) + "%";
+  const avg = d.avgMs ? (d.avgMs / 1000).toFixed(1) : "—";
+  const parts = [`${d.done} / ${d.total} processed`];
+  if (d.avgMs) parts.push(`~${avg}s per lead`);
+  if (d.remaining > 0 && d.avgMs) parts.push(`${d.remaining} left · ETA ~${fmtDuration(d.etaMs)}`);
+  els.progressText.textContent = parts.join("  ·  ");
+}
+
 function renderFinal(d) {
   if (!d) return;
   const s = d.summary || {};
@@ -161,6 +181,7 @@ function connectSSE() {
     if (d.message) toast(d.message);
   });
   es.addEventListener("summary", (e) => renderSummary(JSON.parse(e.data)));
+  es.addEventListener("progress", (e) => renderEta(JSON.parse(e.data)));
   es.addEventListener("row", (e) => { const d = JSON.parse(e.data); if (d.row) updateRow(d.row); });
   es.addEventListener("final", (e) => renderFinal(JSON.parse(e.data)));
   es.onerror = () => {};

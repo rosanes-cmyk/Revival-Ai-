@@ -56,6 +56,7 @@ function broadcast(event, data) {
 engine.on("state", (d) => broadcast("state", d));
 engine.on("row", (d) => broadcast("row", d));
 engine.on("summary", (d) => broadcast("summary", d));
+engine.on("progress", (d) => broadcast("progress", d));
 engine.on("final", (d) => broadcast("final", d));
 engine.on("error", (err) => broadcast("state", { message: `Error: ${err.message}` }));
 
