@@ -1,0 +1,15 @@
+node_modules/
+.env
+data/uploads/*
+data/state/*
+data/exports/*
+data/logs/*
+!data/uploads/.gitkeep
+!data/state/.gitkeep
+!data/exports/.gitkeep
+!data/logs/.gitkeep
+.reibb-auth.json
+playwright-report/
+test-results/
+*.log
+.DS_Store

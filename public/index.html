@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>High Equity Lead Revival Dashboard</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="dot"></span>
+        <div>
+          <h1>High Equity Lead Revival</h1>
+          <p>Live Text Campaign · Twin Home Buyer</p>
+        </div>
+      </div>
+      <div class="status-pill" id="statusPill">
+        <span class="status-label" id="statusLabel">Idle</span>
+        <span class="live-flag" id="liveFlag" title="Live send switch"></span>
+      </div>
+    </header>
+
+    <main>
+      <!-- Approved message banner -->
+      <section class="msg-banner" id="msgBanner">
+        <div class="msg-head">Approved message (locked — cannot be edited)</div>
+        <div class="msg-body" id="approvedMessage">…</div>
+      </section>
+
+      <!-- Upload -->
+      <section class="card upload-card">
+        <div class="upload-row">
+          <div>
+            <h2>1 · Upload Lead Spreadsheet</h2>
+            <p class="muted">
+              CSV or XLSX. Required columns: Owner Name, Property Address, City, State, ZIP Code,
+              Disposition, Notes.
+            </p>
+          </div>
+          <div class="upload-actions">
+            <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" hidden />
+            <button class="btn" id="chooseBtn">Choose File</button>
+            <span class="file-name" id="fileName">No file selected</span>
+          </div>
+        </div>
+        <div class="upload-status" id="uploadStatus"></div>
+      </section>
+
+      <!-- Summary cards -->
+      <section class="cards" id="cards">
+        <div class="stat" data-k="total"><span class="stat-num">0</span><span class="stat-lbl">Total Leads</span></div>
+        <div class="stat" data-k="pending"><span class="stat-num">0</span><span class="stat-lbl">Pending</span></div>
+        <div class="stat sent" data-k="textSent"><span class="stat-num">0</span><span class="stat-lbl">Text Sent</span></div>
+        <div class="stat" data-k="leadNotFound"><span class="stat-num">0</span><span class="stat-lbl">Lead NOT Found</span></div>
+        <div class="stat" data-k="propertySold"><span class="stat-num">0</span><span class="stat-lbl">Property Sold</span></div>
+        <div class="stat" data-k="listed"><span class="stat-num">0</span><span class="stat-lbl">Listed</span></div>
+        <div class="stat" data-k="optedOut"><span class="stat-num">0</span><span class="stat-lbl">Opted Out</span></div>
+        <div class="stat review" data-k="needsReview"><span class="stat-num">0</span><span class="stat-lbl">Needs Review</span></div>
+        <div class="stat err" data-k="errors"><span class="stat-num">0</span><span class="stat-lbl">Errors</span></div>
+      </section>
+
+      <!-- Controls -->
+      <section class="controls">
+        <button class="btn btn-go" id="startBtn" disabled>▶ Start Live Automation</button>
+        <button class="btn" id="pauseBtn" disabled>⏸ Pause</button>
+        <button class="btn" id="resumeBtn" disabled>⏵ Resume</button>
+        <button class="btn btn-stop" id="stopBtn" disabled>⏹ Stop</button>
+        <span class="spacer"></span>
+        <button class="btn" id="exportXlsxBtn" disabled>⬇ Export XLSX</button>
+        <button class="btn" id="exportCsvBtn" disabled>⬇ Export CSV</button>
+        <button class="btn" id="logsBtn">🗎 View Logs</button>
+      </section>
+
+      <!-- Progress -->
+      <div class="progress-wrap" id="progressWrap" hidden>
+        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+        <div class="progress-text" id="progressText"></div>
+      </div>
+
+      <!-- Lead table -->
+      <section class="card table-card">
+        <div class="table-scroll">
+          <table id="leadTable">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Owner Name</th>
+                <th>Property Address</th>
+                <th>City</th>
+                <th>State</th>
+                <th>ZIP</th>
+                <th>REI Match Status</th>
+                <th>Last Contact</th>
+                <th>Opt-Out</th>
+                <th>Property Status</th>
+                <th>Eligibility</th>
+                <th>Disposition</th>
+                <th>Notes</th>
+                <th>Text Sent</th>
+                <th>Error Log</th>
+              </tr>
+            </thead>
+            <tbody id="leadTableBody">
+              <tr class="empty-row"><td colspan="15">Upload a spreadsheet to begin.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <!-- Logs drawer -->
+    <div class="drawer" id="logsDrawer" hidden>
+      <div class="drawer-head">
+        <h3>Automation Logs</h3>
+        <button class="btn btn-small" id="closeLogsBtn">Close</button>
+      </div>
+      <div class="drawer-body" id="logsBody"></div>
+    </div>
+
+    <div class="toast" id="toast" hidden></div>
+
+    <script src="app.js"></script>
+  </body>
+</html>

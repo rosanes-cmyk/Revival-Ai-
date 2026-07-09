@@ -1,0 +1,21 @@
+{
+  "name": "high-equity-lead-revival-dashboard",
+  "version": "1.0.0",
+  "description": "Live dashboard automation for the High Equity Lead Revival Text Campaign. Uploads old high-equity leads, searches each in REI BlackBook via browser automation, enforces the SOP compliance rules, sends the approved revival text only when eligible, and tracks disposition/notes with resume + export.",
+  "type": "module",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "postinstall": "node -e \"console.log('Reminder: run npx playwright install chromium if browser automation is not already available.')\""
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "multer": "^2.0.0",
+    "playwright": "^1.44.0",
+    "xlsx": "^0.18.5"
+  }
+}

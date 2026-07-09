@@ -1,0 +1,84 @@
+{
+  "_README": [
+    "This file maps every step of the SOP to a CSS/text selector on YOUR live",
+    "REI BlackBook account. Because REI BlackBook has no public API, the",
+    "automation drives the real UI, so these selectors MUST match what you see.",
+    "",
+    "HOW TO FILL THIS IN:",
+    "  1. Log into REI BlackBook in Chrome.",
+    "  2. Right-click the element (e.g. the Property Pipeline search box),",
+    "     choose Inspect, right-click the highlighted HTML, Copy > Copy selector.",
+    "  3. Paste it as the value below.",
+    "  4. For text-based matches (buttons/links by label) you can use Playwright",
+    "     text selectors like \"text=Property Pipeline\".",
+    "",
+    "SAFETY: If any selector below does not match at runtime, that row is marked",
+    "Needs Review or Error and NO text is sent. The system never guesses.",
+    "",
+    "The values shipped here are BEST-GUESS PLACEHOLDERS. Verify each one on a",
+    "single test lead (HEADLESS=false) before your first live campaign run."
+  ],
+
+  "login": {
+    "emailInput": "input[name='email']",
+    "passwordInput": "input[name='password']",
+    "submitButton": "button[type='submit']",
+    "loggedInMarker": "text=Dashboard"
+  },
+
+  "nav": {
+    "propertyPipelineLink": "text=Property Pipeline",
+    "contactsLink": "text=Contacts",
+    "smartContactsLink": "text=Smart Contacts"
+  },
+
+  "propertyPipeline": {
+    "filters": {
+      "feedSourceControl": "[data-filter='feed_source']",
+      "statusControl": "[data-filter='status']",
+      "dealTypeControl": "[data-filter='deal_type']",
+      "clearFiltersButton": "text=Clear Filters"
+    },
+    "searchInput": "input[placeholder*='Search']",
+    "resultRow": "table tbody tr",
+    "resultRowLink": "table tbody tr a",
+    "noResultsMarker": "text=No results"
+  },
+
+  "smartContacts": {
+    "searchInput": "input[placeholder*='Search']",
+    "resultRow": "table tbody tr",
+    "resultRowLink": "table tbody tr a",
+    "noResultsMarker": "text=No results"
+  },
+
+  "contactRecord": {
+    "tagsContainer": "[data-section='tags']",
+    "optOutBadges": {
+      "optedOut": "text=Opted Out",
+      "smsOptOut": "text=SMS Opt Out",
+      "stopRequest": "text=STOP",
+      "textOptOut": "text=Text Opt Out"
+    },
+    "doNotMailTag": "text=Do Not Mail",
+    "doNotContactTag": "text=Do Not Contact",
+    "propertyStatus": {
+      "container": "[data-section='property-status']",
+      "soldMarker": "text=Sold",
+      "soldDateField": "[data-field='sold-date']",
+      "listedMarker": "text=Active MLS Listing",
+      "listedMlsField": "[data-field='mls-status']"
+    },
+    "communicationHistory": {
+      "container": "[data-section='activity']",
+      "mostRecentEntry": "[data-section='activity'] [data-entry]:first-child",
+      "mostRecentDateField": "[data-section='activity'] [data-entry]:first-child [data-date]"
+    },
+    "sms": {
+      "openComposerButton": "text=Send SMS",
+      "messageTextarea": "textarea[name='message']",
+      "sendButton": "button:has-text('Send')",
+      "sentConfirmationMarker": "text=Message sent"
+    }
+  }
+}
