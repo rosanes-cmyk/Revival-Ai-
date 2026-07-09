@@ -13,7 +13,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { chromium } from "playwright";
-import { MATCH_STATUS, SEARCH_METHOD, OPT_OUT_REASONS } from "./constants.js";
+import { MATCH_STATUS, SEARCH_METHOD } from "./constants.js";
 import { APPROVED_MESSAGE } from "./message.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -249,21 +249,46 @@ export class ReiBlackBookAdapter {
     await this.page.waitForTimeout(500);
   }
 
+  // Read every tag chip in the contact's Tag(s) section.
+  // Returns { readable, tags[] }. `readable:false` means the section could not
+  // be confirmed, so bad tags can't be ruled out -> caller holds for review.
+  async readTags() {
+    const t = this.selectors.contactRecord.tags;
+    const headerVisible = await this.isVisible(t.sectionHeader, 1500);
+    if (!headerVisible) return { readable: false, tags: [] };
+    const chips = this.page.locator(t.chip);
+    const n = await chips.count().catch(() => 0);
+    const tags = [];
+    for (let i = 0; i < n; i++) {
+      const txt = (await chips.nth(i).innerText().catch(() => "")).trim();
+      // Strip a trailing remove-"x" that chips often render.
+      const clean = txt.replace(/\s*[×xX✕✖]\s*$/, "").trim();
+      if (clean) tags.push(clean);
+    }
+    return { readable: true, tags };
+  }
+
   // ----- Read compliance / property status / contact history ---------------
   async readRecord() {
     const cr = this.selectors.contactRecord;
 
-    // Opt-outs (SOP step D).
-    const optOutReasons = [];
-    const badges = cr.optOutBadges;
-    if (await this.isVisible(badges.optedOut, 1000)) optOutReasons.push(OPT_OUT_REASONS[0]);
-    if (await this.isVisible(badges.smsOptOut, 1000)) optOutReasons.push(OPT_OUT_REASONS[1]);
-    if (await this.isVisible(badges.stopRequest, 1000)) optOutReasons.push(OPT_OUT_REASONS[2]);
-    if (await this.isVisible(badges.textOptOut, 1000)) optOutReasons.push(OPT_OUT_REASONS[3]);
+    // Compliance (SOP step D), rebuilt as a tag rule: textable UNLESS a chip
+    // matches the configured bad-tags list. If tags can't be read, hold.
+    const { readable: tagsReadable, tags } = await this.readTags();
+    if (!tagsReadable) {
+      return {
+        ...uncertain("Could not read the contact's Tag(s) section, so a bad tag can't be ruled out. Held for review."),
+      };
+    }
+    const badList = (cr.tags.badTags || []).map((s) => s.toLowerCase());
+    const optOutReasons = tags.filter((tag) =>
+      badList.some((bad) => tag.toLowerCase().includes(bad))
+    );
 
-    // Do Not Mail / Do Not Contact (SOP step G).
-    const hasDoNotMail = await this.isVisible(cr.doNotMailTag, 800);
-    const hasDoNotContact = await this.isVisible(cr.doNotContactTag, 800);
+    // Do Not Mail / Do Not Contact (SOP step G). Do Not Mail alone never blocks;
+    // Do Not Contact only blocks if it's also configured as a bad tag above.
+    const hasDoNotMail = tags.some((tag) => tag.toLowerCase().includes(String(cr.doNotMailTag).toLowerCase()));
+    const hasDoNotContact = tags.some((tag) => /do not contact/i.test(tag));
 
     // Property status (SOP step E).
     const ps = cr.propertyStatus;

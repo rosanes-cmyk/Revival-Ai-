@@ -67,16 +67,29 @@
       "activities": "text=Activities",
       "notes": "text=Notes"
     },
-    "tagsContainer": "text=Tag(s) >> xpath=following::*[1]",
-    "optOutBadges": {
-      "_status": "VERIFY - opt-out likely shows as a Tag chip and/or a red state on the phone/SMS icon. Need an opted-out contact captured to confirm exact wording.",
-      "optedOut": "text=Opted Out",
-      "smsOptOut": "text=SMS Opt Out",
-      "stopRequest": "text=STOP",
-      "textOptOut": "text=Text Opt Out"
+    "tags": {
+      "_status": "RULE: read ALL tag chips in the Tag(s) section; the lead is textable UNLESS one of the chips matches 'badTags' below (case-insensitive, substring match). If the Tag(s) section can't be read at all, the row is held for review (never texted) because bad tags can't be ruled out.",
+      "sectionHeader": "text=Tag(s)",
+      "chip": ".tag-item, .tag, [class*='tag'] .badge, .chip, .label",
+      "badTags": [
+        "Opted Out",
+        "Opt Out",
+        "Opt-Out",
+        "SMS Opt Out",
+        "Text Opt Out",
+        "STOP",
+        "Stop Request",
+        "Do Not Text",
+        "Do Not Contact",
+        "DNC",
+        "Litigator",
+        "Attorney",
+        "Wrong Number",
+        "Deceased"
+      ],
+      "_badTags_note": "CONFIRM this list with the exact tag names used in your REI BlackBook. Add/remove freely. 'Do Not Mail' is intentionally NOT here (per SOP it does not block a text)."
     },
-    "doNotMailTag": "text=Do Not Mail",
-    "doNotContactTag": "text=Do Not Contact",
+    "doNotMailTag": "Do Not Mail",
     "propertyStatus": {
       "_status": "VERIFY - property Sold/Listed status source not yet captured (may live on the property record or an MLS/status field).",
       "container": ".property-status",
