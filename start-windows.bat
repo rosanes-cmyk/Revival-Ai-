@@ -27,7 +27,7 @@ if not exist "node_modules" (
   echo.
   call npm install
   echo.
-  echo Installing the automation browser (Chromium)...
+  echo Installing the automation browser - Chromium. Please wait...
   call npx playwright install chromium
   echo.
 )
