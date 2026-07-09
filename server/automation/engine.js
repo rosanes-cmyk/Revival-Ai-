@@ -32,6 +32,9 @@ export class AutomationEngine extends EventEmitter {
     // Source. The two approved messages differ only by this name, so a sheet
     // never needs a Company Source column — it just falls back to this.
     this.defaultCompany = normalizeCompany(process.env.DEFAULT_COMPANY) || COMPANY.TWIN_HOME_BUYER;
+    // Max texts to actually SEND per run (batching to protect the number).
+    // 0 = unlimited. Only successful sends count; skips/other outcomes don't.
+    this.maxSendsPerRun = Number(process.env.MAX_SENDS_PER_RUN || 0);
     // Optional PropertyRadar Sold/Listed verification.
     this.checkPropertyRadar = String(process.env.CHECK_PROPERTYRADAR).toLowerCase() === "true";
     this.adapterFactory = () => new ReiBlackBookAdapter();
@@ -109,12 +112,20 @@ export class AutomationEngine extends EventEmitter {
       this.emitState("Logged in. Processing leads.");
 
       const rows = this.store.rows;
-      this._runStats = { count: 0, totalMs: 0 };
+      this._runStats = { count: 0, totalMs: 0, sends: 0 };
+      let batchLimitReached = false;
       for (let i = this.store.job.cursor; i < rows.length; i++) {
         while (this._control === "paused") await sleep(400);
         if (this._control === "stopping") break;
 
         this.store.job.cursor = i;
+
+        // Stop before starting a new lead once the per-run send cap is hit.
+        if (this.maxSendsPerRun > 0 && this._runStats.sends >= this.maxSendsPerRun) {
+          batchLimitReached = true;
+          break;
+        }
+
         const row = rows[i];
 
         if (this.store.isProcessed(row)) {
@@ -136,6 +147,11 @@ export class AutomationEngine extends EventEmitter {
       if (this._control === "stopping") {
         this.store.setStatus(JOB_STATUS.STOPPED);
         this.emitState("Stopped. Progress saved — you can Resume later.");
+      } else if (batchLimitReached) {
+        this.store.setStatus(JOB_STATUS.STOPPED);
+        this.emitState(
+          `Batch limit reached: ${this._runStats.sends} text(s) sent this run. Progress saved — click Resume/Start for the next batch.`
+        );
       } else {
         this.store.job.cursor = rows.length;
         this.store.setStatus(JOB_STATUS.COMPLETED);
@@ -147,7 +163,7 @@ export class AutomationEngine extends EventEmitter {
       this.adapter = null;
       this.prAdapter = null;
       this._loopActive = false;
-      this._control = this.status === JOB_STATUS.RUNNING ? "stopped" : this._control;
+      this._control = "stopped"; // the loop has ended; ready to Start/Resume again
       this.emit("summary", this.store ? this.store.summary() : null);
     }
   }
@@ -196,6 +212,7 @@ export class AutomationEngine extends EventEmitter {
         } else {
           const result = await this.adapter.sendText(decision.message);
           textSent = result.sent;
+          if (textSent) this._runStats.sends += 1;
           row.disposition = DISPOSITION.TEXT_SENT;
           row.eligibilityStatus = ELIGIBILITY.ELIGIBLE_TEXT_SENT;
           row.textSentTimestamp = result.timestamp;
