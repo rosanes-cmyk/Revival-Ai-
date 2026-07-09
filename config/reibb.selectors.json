@@ -16,11 +16,11 @@
   ],
 
   "login": {
-    "_status": "VERIFY - login page not yet captured",
-    "emailInput": "input[type='email'], input[name='email']",
+    "_status": "URL confirmed: https://my.reiblackbook.com/services/account/login. Field selectors are tolerant guesses; login success is detected by navigating away from the login page (see adapter).",
+    "emailInput": "input[type='email'], input[name='email'], input[name='username'], input[type='text']",
     "passwordInput": "input[type='password'], input[name='password']",
-    "submitButton": "button[type='submit'], button:has-text('Log In'), button:has-text('Sign In')",
-    "loggedInMarker": "text=Property Pipeline"
+    "submitButton": "button[type='submit'], button:has-text('Log In'), button:has-text('Login'), button:has-text('Sign In'), input[type='submit']",
+    "loggedInMarker": "text=Contacts"
   },
 
   "nav": {

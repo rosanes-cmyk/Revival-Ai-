@@ -58,19 +58,31 @@ export class ReiBlackBookAdapter {
   async ensureLoggedIn() {
     const s = this.selectors.login;
     await this.page.goto(this.loginUrl, { waitUntil: "domcontentloaded" });
-    if (await this.isVisible(s.loggedInMarker, 3000)) return;
+    await this.page.waitForTimeout(800);
+
+    // Already logged in? A stored session usually redirects away from /login.
+    const onLogin = () => /login|sign[-_ ]?in/i.test(this.page.url());
+    if (!onLogin()) return;
+    if (await this.isVisible(s.loggedInMarker, 2000)) return;
+
     if (!this.email || !this.password) {
       throw new Error("REI BlackBook credentials are not set. Set REIBB_EMAIL and REIBB_PASSWORD in .env.");
     }
     await this.page.fill(s.emailInput, this.email);
     await this.page.fill(s.passwordInput, this.password);
     await this.page.click(s.submitButton);
-    await this.page.waitForSelector(s.loggedInMarker, { timeout: this.actionTimeout }).catch(() => {
-      throw new Error(
-        "Login to REI BlackBook did not reach the expected post-login page. " +
-          "Check credentials and the login selectors in config/reibb.selectors.json."
-      );
-    });
+
+    // Success = we navigate off the login page (robust to the exact landing UI).
+    try {
+      await this.page.waitForURL((u) => !/login|sign[-_ ]?in/i.test(String(u)), { timeout: this.actionTimeout });
+    } catch {
+      if (!(await this.isVisible(s.loggedInMarker, 3000))) {
+        throw new Error(
+          "Login to REI BlackBook did not complete — still on the login page. " +
+            "Check the email/password, or whether REI is asking for 2FA / a security code."
+        );
+      }
+    }
     await this.context.storageState({ path: AUTH_STATE_PATH });
   }
 
