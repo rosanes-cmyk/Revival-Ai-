@@ -25,15 +25,15 @@ const AUTH_STATE_PATH = path.join(__dirname, "..", "..", ".reibb-auth.json");
 export class ReiBlackBookAdapter {
   constructor(opts = {}) {
     this.selectors = JSON.parse(fs.readFileSync(SELECTORS_PATH, "utf8"));
-    this.loginUrl = opts.loginUrl || process.env.REIBB_LOGIN_URL;
+    this.loginUrl = opts.loginUrl || process.env.REIBB_LOGIN_URL || "https://my.reiblackbook.com/services/account/login?block=";
     this.email = opts.email || process.env.REIBB_EMAIL;
     this.password = opts.password || process.env.REIBB_PASSWORD;
     this.headless = opts.headless ?? String(process.env.HEADLESS).toLowerCase() === "true";
     this.slowMo = opts.slowMo ?? Number(process.env.SLOWMO_MS || 0);
     this.actionTimeout = opts.actionTimeout ?? Number(process.env.ACTION_TIMEOUT_MS || 15000);
     // Optional direct page URLs (far more reliable than clicking menus).
-    this.pipelineUrl = opts.pipelineUrl || process.env.REIBB_PIPELINE_URL || "";
-    this.contactsUrl = opts.contactsUrl || process.env.REIBB_CONTACTS_URL || "";
+    this.pipelineUrl = opts.pipelineUrl || process.env.REIBB_PIPELINE_URL || "https://my.reiblackbook.com/properties/inbox";
+    this.contactsUrl = opts.contactsUrl || process.env.REIBB_CONTACTS_URL || "https://my.reiblackbook.com/contacts";
     this.browser = null;
     this.context = null;
     this.page = null;
