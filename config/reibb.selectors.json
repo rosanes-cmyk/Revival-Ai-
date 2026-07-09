@@ -120,10 +120,10 @@
       "cancelButton": "button:has-text('Cancel')"
     },
     "chat": {
-      "_status": "PARTIAL - CONFIRMED: open via the 'Chat' tab; message box placeholder is 'Write Your Reply...'. The Send button is the orange paper-plane icon in the composer (no visible text) - its exact title/aria-label still needs confirming (hover it to see the tooltip). Send is verified by the message appearing in the thread, so a wrong/blank send button fails safe (no text).",
+      "_status": "CONFIRMED: open via the 'Chat' tab; message box placeholder 'Write Your Reply...'; the orange send button's tooltip is 'Send Text'. Send is also verified by the message appearing in the thread, so it fails safe if the button can't be clicked.",
       "openButton": "text=Chat",
       "messageInput": "textarea[placeholder*='Write Your Reply' i], textarea[placeholder*='reply' i]",
-      "sendButton": "[aria-label*='send' i], button[title*='send' i], button[type='submit'], .send-btn, [data-testid*='send' i]",
+      "sendButton": "[aria-label='Send Text' i], [title='Send Text' i], button:has-text('Send Text'), [aria-label*='send' i], button[title*='send' i]",
       "sentMarker": ""
     }
   }
