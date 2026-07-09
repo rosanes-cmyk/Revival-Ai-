@@ -31,6 +31,9 @@ export class ReiBlackBookAdapter {
     this.headless = opts.headless ?? String(process.env.HEADLESS).toLowerCase() === "true";
     this.slowMo = opts.slowMo ?? Number(process.env.SLOWMO_MS || 0);
     this.actionTimeout = opts.actionTimeout ?? Number(process.env.ACTION_TIMEOUT_MS || 15000);
+    // Optional direct page URLs (far more reliable than clicking menus).
+    this.pipelineUrl = opts.pipelineUrl || process.env.REIBB_PIPELINE_URL || "";
+    this.contactsUrl = opts.contactsUrl || process.env.REIBB_CONTACTS_URL || "";
     this.browser = null;
     this.context = null;
     this.page = null;
@@ -214,7 +217,13 @@ export class ReiBlackBookAdapter {
   async searchPipeline(term) {
     const nav = this.selectors.nav;
     const pp = this.selectors.propertyPipeline;
-    await this.click(nav.propertyPipelineLink).catch(() => {});
+    // Prefer navigating straight to the page by URL; fall back to the menu.
+    if (this.pipelineUrl) {
+      await this.page.goto(this.pipelineUrl, { waitUntil: "domcontentloaded" }).catch(() => {});
+      await this.page.waitForTimeout(1200);
+    } else {
+      await this.click(nav.propertyPipelineLink).catch(() => {});
+    }
     await this.clearPipelineFilters();
     return this.searchAndOpen(pp.searchInput, pp.resultRow, pp.resultRowLink, pp.noResultsMarker, term);
   }
@@ -222,7 +231,12 @@ export class ReiBlackBookAdapter {
   async searchContacts(term) {
     const nav = this.selectors.nav;
     const sc = this.selectors.smartContacts;
-    await this.click(nav.contactsLink).catch(() => {});
+    if (this.contactsUrl) {
+      await this.page.goto(this.contactsUrl, { waitUntil: "domcontentloaded" }).catch(() => {});
+      await this.page.waitForTimeout(1200);
+    } else {
+      await this.click(nav.contactsLink).catch(() => {});
+    }
     return this.searchAndOpen(sc.searchInput, sc.resultRow, sc.resultRowLink, sc.noResultsMarker, term);
   }
 

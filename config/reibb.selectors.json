@@ -39,19 +39,19 @@
       "dealTypeControl": "text=Deal Type",
       "clearFiltersButton": "text=Clear Filters"
     },
-    "searchInput": "input[placeholder='Search...']",
-    "searchButton": "button:has(svg), .search-btn",
-    "resultRow": "table tbody tr",
-    "resultRowLink": "table tbody tr td a",
-    "noResultsMarker": "text=No records, text=No results, text=No properties"
+    "searchInput": "input[placeholder*='Search' i], input[type='search'], input[aria-label*='search' i], input[name*='search' i], .search input",
+    "searchButton": "button:has(svg), .search-btn, button[type='submit']",
+    "resultRow": "table tbody tr, .list-row, [role='row']",
+    "resultRowLink": "table tbody tr td a, .list-row a, [role='row'] a",
+    "noResultsMarker": "text=No records, text=No results, text=No properties, text=No matching"
   },
 
   "smartContacts": {
     "_status": "VERIFY - Contacts area holds 7,845 contacts; many are 'Unknown' (no name), so name search is unreliable — address search in the Pipeline is primary.",
-    "searchInput": "input[placeholder='Search...']",
-    "resultRow": "table tbody tr",
-    "resultRowLink": "table tbody tr td a",
-    "noResultsMarker": "text=No records, text=No results"
+    "searchInput": "input[placeholder*='Search' i], input[type='search'], input[aria-label*='search' i], input[name*='search' i], .search input",
+    "resultRow": "table tbody tr, .list-row, [role='row']",
+    "resultRowLink": "table tbody tr td a, .list-row a, [role='row'] a",
+    "noResultsMarker": "text=No records, text=No results, text=No matching"
   },
 
   "propertyRecord": {
