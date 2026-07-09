@@ -12,6 +12,7 @@
 
 import { EventEmitter } from "events";
 import { ReiBlackBookAdapter } from "./reibb.js";
+import { PropertyRadarAdapter } from "./propertyradar.js";
 import { decide } from "./sop.js";
 import { assertMessageIntegrity, normalizeCompany, COMPANY } from "./message.js";
 import { JOB_STATUS } from "../data/store.js";
@@ -30,7 +31,11 @@ export class AutomationEngine extends EventEmitter {
     // Source. The two approved messages differ only by this name, so a sheet
     // never needs a Company Source column — it just falls back to this.
     this.defaultCompany = normalizeCompany(process.env.DEFAULT_COMPANY) || COMPANY.TWIN_HOME_BUYER;
+    // Optional PropertyRadar Sold/Listed verification.
+    this.checkPropertyRadar = String(process.env.CHECK_PROPERTYRADAR).toLowerCase() === "true";
     this.adapterFactory = () => new ReiBlackBookAdapter();
+    this.prAdapterFactory = () => new PropertyRadarAdapter();
+    this.prAdapter = null;
   }
 
   attach(store, logger) {
@@ -93,6 +98,11 @@ export class AutomationEngine extends EventEmitter {
       this.adapter = this.adapterFactory();
       this.emitState("Launching browser and logging into REI BlackBook...");
       await this.adapter.launch();
+      if (this.checkPropertyRadar) {
+        this.emitState("Logging into PropertyRadar for Sold/Listed verification...");
+        this.prAdapter = this.prAdapterFactory();
+        await this.prAdapter.launch();
+      }
       this.emitState("Logged in. Processing leads.");
 
       const rows = this.store.rows;
@@ -124,7 +134,9 @@ export class AutomationEngine extends EventEmitter {
       }
     } finally {
       if (this.adapter) await this.adapter.close();
+      if (this.prAdapter) await this.prAdapter.close();
       this.adapter = null;
+      this.prAdapter = null;
       this._loopActive = false;
       this._control = this.status === JOB_STATUS.RUNNING ? "stopped" : this._control;
       this.emit("summary", this.store ? this.store.summary() : null);
@@ -150,6 +162,18 @@ export class AutomationEngine extends EventEmitter {
 
       row.searchMethod = searchMethod;
       row.reiMatchStatus = matchStatus;
+
+      // Optional: verify Sold/Listed in PropertyRadar. Can only ADD a block,
+      // never enable a text; if PR can't be read, fall back to REI's status.
+      if (this.prAdapter && facts.matchFound && !facts.uncertain) {
+        const pr = await this.prAdapter.lookupStatus({
+          propertyAddress: row.propertyAddress, city: row.city, state: row.state, zip: row.zip,
+        }).catch((e) => ({ uncertain: true, reason: e.message }));
+        if (pr && pr.checked && !pr.uncertain) {
+          if (pr.sold && !facts.propertySold) { facts.propertySold = true; facts.soldDate = facts.soldDate || pr.soldDate; }
+          if (pr.listed && !facts.propertyListed) { facts.propertyListed = true; facts.mlsNote = facts.mlsNote || pr.listingNote; }
+        }
+      }
 
       const decision = decide(facts);
       row.propertyStatus = decision.propertyStatus;
