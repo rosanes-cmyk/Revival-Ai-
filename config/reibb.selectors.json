@@ -1,60 +1,69 @@
 {
   "_README": [
-    "This file maps every step of the SOP to a CSS/text selector on YOUR live",
-    "REI BlackBook account. Because REI BlackBook has no public API, the",
-    "automation drives the real UI, so these selectors MUST match what you see.",
+    "Maps each SOP step to a selector on the LIVE REI BlackBook account for",
+    "Twin Home Buyer (logged in as Jonathan/Juan).",
     "",
-    "HOW TO FILL THIS IN:",
-    "  1. Log into REI BlackBook in Chrome.",
-    "  2. Right-click the element (e.g. the Property Pipeline search box),",
-    "     choose Inspect, right-click the highlighted HTML, Copy > Copy selector.",
-    "  3. Paste it as the value below.",
-    "  4. For text-based matches (buttons/links by label) you can use Playwright",
-    "     text selectors like \"text=Property Pipeline\".",
+    "STATUS KEY per field:",
+    "  CONFIRMED  - matches a label visible in the account screenshots.",
+    "  VERIFY     - best guess; confirm against the live DOM before first run.",
+    "  NEEDS-DOM  - an icon/menu with no visible text; needs the real title/",
+    "               aria-label or href, captured live. Left as a safe guess.",
     "",
-    "SAFETY: If any selector below does not match at runtime, that row is marked",
-    "Needs Review or Error and NO text is sent. The system never guesses.",
+    "SAFETY: if any selector fails to match at runtime, the row is marked",
+    "Needs Review / Error and NO text is sent. Nothing is ever guessed at send.",
     "",
-    "The values shipped here are BEST-GUESS PLACEHOLDERS. Verify each one on a",
-    "single test lead (HEADLESS=false) before your first live campaign run."
+    "Selector engines allowed (Playwright): CSS, 'text=...', and ':has-text()'."
   ],
 
   "login": {
-    "emailInput": "input[name='email']",
-    "passwordInput": "input[name='password']",
-    "submitButton": "button[type='submit']",
-    "loggedInMarker": "text=Dashboard"
+    "_status": "VERIFY - login page not yet captured",
+    "emailInput": "input[type='email'], input[name='email']",
+    "passwordInput": "input[type='password'], input[name='password']",
+    "submitButton": "button[type='submit'], button:has-text('Log In'), button:has-text('Sign In')",
+    "loggedInMarker": "text=Property Pipeline"
   },
 
   "nav": {
+    "_status": "VERIFY - top menu is Contacts / Tasks / Deals / Properties / ListHQ / More. Property Pipeline lives under the Properties menu.",
+    "propertiesMenu": "text=Properties",
     "propertyPipelineLink": "text=Property Pipeline",
     "contactsLink": "text=Contacts",
     "smartContactsLink": "text=Smart Contacts"
   },
 
   "propertyPipeline": {
+    "_status": "CONFIRMED - Filter By: Feed Source, Status, Deal Type + Search box",
     "filters": {
-      "feedSourceControl": "[data-filter='feed_source']",
-      "statusControl": "[data-filter='status']",
-      "dealTypeControl": "[data-filter='deal_type']",
+      "feedSourceControl": "text=Feed Source",
+      "statusControl": ".filter-by >> text=Status",
+      "dealTypeControl": "text=Deal Type",
       "clearFiltersButton": "text=Clear Filters"
     },
-    "searchInput": "input[placeholder*='Search']",
+    "searchInput": "input[placeholder='Search...']",
+    "searchButton": "button:has(svg), .search-btn",
     "resultRow": "table tbody tr",
-    "resultRowLink": "table tbody tr a",
-    "noResultsMarker": "text=No results"
+    "resultRowLink": "table tbody tr td a",
+    "noResultsMarker": "text=No records, text=No results, text=No properties"
   },
 
   "smartContacts": {
-    "searchInput": "input[placeholder*='Search']",
+    "_status": "VERIFY - Contacts area holds 7,845 contacts; many are 'Unknown' (no name), so name search is unreliable — address search in the Pipeline is primary.",
+    "searchInput": "input[placeholder='Search...']",
     "resultRow": "table tbody tr",
-    "resultRowLink": "table tbody tr a",
-    "noResultsMarker": "text=No results"
+    "resultRowLink": "table tbody tr td a",
+    "noResultsMarker": "text=No records, text=No results"
   },
 
   "contactRecord": {
-    "tagsContainer": "[data-section='tags']",
+    "_status": "CONFIRMED tabs: About / Chat / Activities / Notes / Tasks / Files; Tag(s) section holds chips",
+    "tabs": {
+      "about": "text=About",
+      "activities": "text=Activities",
+      "notes": "text=Notes"
+    },
+    "tagsContainer": "text=Tag(s) >> xpath=following::*[1]",
     "optOutBadges": {
+      "_status": "VERIFY - opt-out likely shows as a Tag chip and/or a red state on the phone/SMS icon. Need an opted-out contact captured to confirm exact wording.",
       "optedOut": "text=Opted Out",
       "smsOptOut": "text=SMS Opt Out",
       "stopRequest": "text=STOP",
@@ -63,22 +72,26 @@
     "doNotMailTag": "text=Do Not Mail",
     "doNotContactTag": "text=Do Not Contact",
     "propertyStatus": {
-      "container": "[data-section='property-status']",
+      "_status": "VERIFY - property Sold/Listed status source not yet captured (may live on the property record or an MLS/status field).",
+      "container": ".property-status",
       "soldMarker": "text=Sold",
       "soldDateField": "[data-field='sold-date']",
-      "listedMarker": "text=Active MLS Listing",
+      "listedMarker": "text=Active MLS Listing, text=Listed",
       "listedMlsField": "[data-field='mls-status']"
     },
     "communicationHistory": {
-      "container": "[data-section='activity']",
-      "mostRecentEntry": "[data-section='activity'] [data-entry]:first-child",
-      "mostRecentDateField": "[data-section='activity'] [data-entry]:first-child [data-date]"
+      "_status": "VERIFY - read from the Activities tab; capture an example to confirm the date element.",
+      "openTab": "text=Activities",
+      "container": ".activities, [data-tab='activities']",
+      "mostRecentEntry": ".activity-item:first-child, .timeline-item:first-child",
+      "mostRecentDateField": ".activity-item:first-child .date, .timeline-item:first-child time"
     },
     "sms": {
-      "openComposerButton": "text=Send SMS",
-      "messageTextarea": "textarea[name='message']",
+      "_status": "NEEDS-DOM - the SMS button is the chat-bubble ICON in the contact action row (no visible text). Need its title/aria-label from a live capture. The composer/send button are also not yet captured.",
+      "openComposerButton": "[title='SMS'], [aria-label*='SMS'], [title*='Text'], .contact-actions button:first-child",
+      "messageTextarea": "textarea",
       "sendButton": "button:has-text('Send')",
-      "sentConfirmationMarker": "text=Message sent"
+      "sentConfirmationMarker": "text=Message sent, text=Sent"
     }
   }
 }
