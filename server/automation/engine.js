@@ -59,8 +59,10 @@ export class AutomationEngine extends EventEmitter {
     this.store.setStatus(JOB_STATUS.RUNNING);
     this.emitState("Live automation started.");
     this._run().catch((err) => {
+      if (this.store) this.store.setStatus(JOB_STATUS.STOPPED);
       this.emit("error", err);
-      this.emitState(`Fatal error: ${err.message}`);
+      this.emitState(`Stopped — ${err.message}`);
+      this.emit("summary", this.store ? this.store.summary() : null);
     });
     return { ok: true, message: "Live automation started." };
   }

@@ -37,6 +37,15 @@ export class ReiBlackBookAdapter {
   }
 
   async launch() {
+    // Preflight: don't open a browser we can't use. Fail fast with a clear
+    // message instead of hanging on an unconfigured login.
+    if (!this.loginUrl || !this.email || !this.password) {
+      throw new Error(
+        "REI BlackBook isn't set up yet. Add REIBB_LOGIN_URL, REIBB_EMAIL and " +
+          "REIBB_PASSWORD to your .env file (and verify the selectors) before running. " +
+          "No browser was opened; nothing was sent."
+      );
+    }
     this.browser = await chromium.launch({ headless: this.headless, slowMo: this.slowMo });
     const ctxOpts = { viewport: { width: 1440, height: 900 } };
     if (fs.existsSync(AUTH_STATE_PATH)) ctxOpts.storageState = AUTH_STATE_PATH;
