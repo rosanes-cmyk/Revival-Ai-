@@ -1,20 +1,22 @@
 // REI BlackBook browser-automation adapter (Playwright).
 //
-// REI BlackBook has no public API, so this drives the real web UI exactly as
-// the SOP describes: log in, search Property Pipeline (full -> partial address
-// -> owner name), then Smart Contacts (owner name); read compliance tags,
-// property status and contact history; and send the approved SMS.
+// Drives the real REI BlackBook UI exactly as the SOP describes: log in, search
+// Property Pipeline / Contacts in the required order, open the correct contact,
+// read tags + phone + notes/activity/chat history, apply the Revival tag, and
+// send the approved SMS through the Chat/Text panel — verifying it landed.
 //
-// SAFETY CONTRACT: every read returns either a confident value or marks the
-// lead `uncertain`. When uncertain, the SOP engine holds the lead for review
-// and NEVER sends a text. A mismatched selector therefore fails safe.
+// SAFETY CONTRACT: every read returns a confident value or marks the lead
+// `uncertain`. When uncertain — including any selector that does not match, or
+// history that cannot be confirmed clean — the SOP engine holds the lead for
+// review and NEVER sends a text. A mismatched selector fails safe.
 
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { chromium } from "playwright";
 import { MATCH_STATUS, SEARCH_METHOD } from "./constants.js";
-import { APPROVED_MESSAGE } from "./message.js";
+import { detectFailed } from "./sop.js";
+import { getApprovedMessage } from "./message.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SELECTORS_PATH = path.join(__dirname, "..", "..", "config", "reibb.selectors.json");
@@ -36,10 +38,9 @@ export class ReiBlackBookAdapter {
 
   async launch() {
     this.browser = await chromium.launch({ headless: this.headless, slowMo: this.slowMo });
-    const contextOpts = { viewport: { width: 1440, height: 900 } };
-    // Reuse a saved auth session if present to avoid re-login each run.
-    if (fs.existsSync(AUTH_STATE_PATH)) contextOpts.storageState = AUTH_STATE_PATH;
-    this.context = await this.browser.newContext(contextOpts);
+    const ctxOpts = { viewport: { width: 1440, height: 900 } };
+    if (fs.existsSync(AUTH_STATE_PATH)) ctxOpts.storageState = AUTH_STATE_PATH;
+    this.context = await this.browser.newContext(ctxOpts);
     this.context.setDefaultTimeout(this.actionTimeout);
     this.page = await this.context.newPage();
     await this.ensureLoggedIn();
@@ -48,13 +49,9 @@ export class ReiBlackBookAdapter {
   async ensureLoggedIn() {
     const s = this.selectors.login;
     await this.page.goto(this.loginUrl, { waitUntil: "domcontentloaded" });
-    // Already logged in via stored session?
     if (await this.isVisible(s.loggedInMarker, 3000)) return;
-
     if (!this.email || !this.password) {
-      throw new Error(
-        "REI BlackBook credentials are not set. Set REIBB_EMAIL and REIBB_PASSWORD in .env."
-      );
+      throw new Error("REI BlackBook credentials are not set. Set REIBB_EMAIL and REIBB_PASSWORD in .env.");
     }
     await this.page.fill(s.emailInput, this.email);
     await this.page.fill(s.passwordInput, this.password);
@@ -62,10 +59,9 @@ export class ReiBlackBookAdapter {
     await this.page.waitForSelector(s.loggedInMarker, { timeout: this.actionTimeout }).catch(() => {
       throw new Error(
         "Login to REI BlackBook did not reach the expected post-login page. " +
-          "Check REIBB credentials and the login selectors in config/reibb.selectors.json."
+          "Check credentials and the login selectors in config/reibb.selectors.json."
       );
     });
-    // Persist session for subsequent rows/runs.
     await this.context.storageState({ path: AUTH_STATE_PATH });
   }
 
@@ -79,18 +75,14 @@ export class ReiBlackBookAdapter {
   }
 
   // -------------------------------------------------------------------------
-  // Main entry: gather all SOP facts for one lead.
-  // Returns { facts, searchMethod, matchStatus }.
+  // Gather all SOP facts for one lead. Returns { facts, searchMethod, matchStatus }.
   // -------------------------------------------------------------------------
   async gatherFacts(lead) {
     const trail = [];
-    let matched = null; // { matchStatus, searchMethod }
-
+    let matched = null;
     try {
-      matched = await this.searchPropertyPipeline(lead, trail);
-      if (!matched) matched = await this.searchSmartContacts(lead, trail);
+      matched = await this.searchAll(lead, trail);
     } catch (err) {
-      // A hard automation failure -> uncertain, never a send.
       return {
         searchMethod: trail.join(" -> ") || "search failed",
         matchStatus: MATCH_STATUS.NOT_FOUND,
@@ -98,272 +90,262 @@ export class ReiBlackBookAdapter {
       };
     }
 
-    // Confirmed workflow: a Pipeline match is a PROPERTY; open its associated
-    // contact before reading compliance/history (Smart Contacts is already a
-    // contact, so it needs no hop). If the hop fails, fail safe -> uncertain.
-    if (matched && matched.searchMethod && matched.searchMethod.startsWith("Property Pipeline")) {
+    if (!matched) {
+      return {
+        searchMethod: trail.join(" -> "),
+        matchStatus: MATCH_STATUS.NOT_FOUND,
+        facts: notFoundFacts(),
+      };
+    }
+
+    // A Pipeline match is a PROPERTY; open its associated contact first.
+    if (matched.area === "pipeline") {
       try {
         await this.openContactFromProperty();
       } catch (err) {
         return {
           searchMethod: matched.searchMethod,
           matchStatus: matched.matchStatus,
-          facts: { matchFound: true, matchStatus: matched.matchStatus, ...uncertain(`Found the property but could not open its contact: ${err.message}`) },
+          facts: { matchFound: true, ...uncertain(`Found the property but could not open its contact: ${err.message}`) },
         };
       }
     }
 
-    if (!matched) {
-      return {
-        searchMethod: trail.join(" -> "),
-        matchStatus: MATCH_STATUS.NOT_FOUND,
-        facts: {
-          matchFound: false,
-          matchStatus: MATCH_STATUS.NOT_FOUND,
-          optOutReasons: [],
-          propertySold: false,
-          soldDate: "",
-          propertyListed: false,
-          mlsNote: "",
-          lastContactDate: null,
-          hasDoNotMail: false,
-          hasDoNotContact: false,
-          uncertain: false,
-          uncertainReason: "",
-        },
-      };
-    }
-
-    // We are on the matched record page; read compliance/status/history.
     try {
-      const record = await this.readRecord();
+      const record = await this.readContactFacts(lead);
       return {
         searchMethod: matched.searchMethod,
         matchStatus: matched.matchStatus,
-        facts: { matchFound: true, matchStatus: matched.matchStatus, ...record },
+        facts: { matchFound: true, ...record },
       };
     } catch (err) {
       return {
         searchMethod: matched.searchMethod,
         matchStatus: matched.matchStatus,
-        facts: { matchFound: true, matchStatus: matched.matchStatus, ...uncertain(`Could not read record: ${err.message}`) },
+        facts: { matchFound: true, ...uncertain(`Could not read the contact record: ${err.message}`) },
       };
     }
   }
 
-  // ----- Search: Property Pipeline (SOP step B) ----------------------------
-  async searchPropertyPipeline(lead, trail) {
-    const nav = this.selectors.nav;
-    const pp = this.selectors.propertyPipeline;
-
-    await this.click(nav.propertyPipelineLink);
-    await this.clearPipelineFilters();
-
-    // Full address.
-    const fullAddress = [lead.propertyAddress, lead.city, lead.state, lead.zip]
-      .filter(Boolean)
-      .join(", ");
-    trail.push(SEARCH_METHOD.PIPELINE_FULL_ADDRESS);
-    if (await this.pipelineSearchAndOpen(fullAddress)) {
-      return { matchStatus: MATCH_STATUS.MATCH_PIPELINE_FULL, searchMethod: SEARCH_METHOD.PIPELINE_FULL_ADDRESS };
-    }
-
-    // Partial address (street line only).
-    if (lead.propertyAddress) {
-      trail.push(SEARCH_METHOD.PIPELINE_PARTIAL_ADDRESS);
-      if (await this.pipelineSearchAndOpen(lead.propertyAddress)) {
-        return { matchStatus: MATCH_STATUS.MATCH_PIPELINE_PARTIAL, searchMethod: SEARCH_METHOD.PIPELINE_PARTIAL_ADDRESS };
-      }
-    }
-
-    // Owner name.
-    if (lead.ownerName) {
-      trail.push(SEARCH_METHOD.PIPELINE_OWNER_NAME);
-      if (await this.pipelineSearchAndOpen(lead.ownerName)) {
-        return { matchStatus: MATCH_STATUS.MATCH_PIPELINE_OWNER, searchMethod: SEARCH_METHOD.PIPELINE_OWNER_NAME };
-      }
+  // ----- Search in the required order (SOP FLOW step 3) --------------------
+  async searchAll(lead, trail) {
+    const attempts = buildSearchAttempts(lead);
+    for (const a of attempts) {
+      trail.push(a.method);
+      const opened =
+        a.area === "pipeline"
+          ? await this.searchPipeline(a.term)
+          : await this.searchContacts(a.term);
+      if (opened) return { area: a.area, searchMethod: a.method, matchStatus: a.matchStatus };
     }
     return null;
+  }
+
+  async searchPipeline(term) {
+    const nav = this.selectors.nav;
+    const pp = this.selectors.propertyPipeline;
+    await this.click(nav.propertyPipelineLink).catch(() => {});
+    await this.clearPipelineFilters();
+    return this.searchAndOpen(pp.searchInput, pp.resultRow, pp.resultRowLink, pp.noResultsMarker, term);
+  }
+
+  async searchContacts(term) {
+    const nav = this.selectors.nav;
+    const sc = this.selectors.smartContacts;
+    await this.click(nav.contactsLink).catch(() => {});
+    return this.searchAndOpen(sc.searchInput, sc.resultRow, sc.resultRowLink, sc.noResultsMarker, term);
   }
 
   async clearPipelineFilters() {
     const f = this.selectors.propertyPipeline.filters;
-    // Prefer an explicit "Clear Filters" control if present; otherwise this is
-    // a no-op and we rely on the search being global. Never throw here.
-    if (await this.isVisible(f.clearFiltersButton, 2000)) {
+    if (await this.isVisible(f.clearFiltersButton, 1500)) {
       await this.click(f.clearFiltersButton).catch(() => {});
     }
   }
 
-  async pipelineSearchAndOpen(term) {
-    const pp = this.selectors.propertyPipeline;
-    return this.searchAndOpen(pp.searchInput, pp.resultRow, pp.resultRowLink, pp.noResultsMarker, term);
-  }
-
-  // ----- Search: Smart Contacts (SOP step B) -------------------------------
-  async searchSmartContacts(lead, trail) {
-    if (!lead.ownerName) return null;
-    const nav = this.selectors.nav;
-    const sc = this.selectors.smartContacts;
-    await this.click(nav.contactsLink);
-    await this.click(nav.smartContactsLink).catch(() => {});
-    trail.push(SEARCH_METHOD.SMART_CONTACTS_OWNER_NAME);
-    if (await this.searchAndOpen(sc.searchInput, sc.resultRow, sc.resultRowLink, sc.noResultsMarker, lead.ownerName)) {
-      return { matchStatus: MATCH_STATUS.MATCH_SMART_CONTACTS, searchMethod: SEARCH_METHOD.SMART_CONTACTS_OWNER_NAME };
-    }
-    return null;
-  }
-
-  // Fill a search box, submit, and open the first result if one exists.
   async searchAndOpen(inputSel, rowSel, rowLinkSel, noResultsSel, term) {
+    if (!term) return false;
     await this.page.fill(inputSel, "");
     await this.page.fill(inputSel, term);
     await this.page.keyboard.press("Enter");
-    // Wait for either results or an explicit "no results" marker.
-    await this.page.waitForTimeout(800);
-    if (await this.isVisible(noResultsSel, 1500)) return false;
+    await this.page.waitForTimeout(900);
+    if (await this.isVisible(noResultsSel, 1200)) return false;
     const rows = this.page.locator(rowSel);
     const n = await rows.count().catch(() => 0);
     if (n === 0) return false;
-    // Open the first result.
     const link = this.page.locator(rowLinkSel).first();
-    if ((await link.count()) > 0) {
-      await link.click();
-    } else {
-      await rows.first().click();
-    }
+    if ((await link.count()) > 0) await link.click();
+    else await rows.first().click();
     await this.page.waitForLoadState("domcontentloaded").catch(() => {});
     await this.page.waitForTimeout(500);
     return true;
   }
 
-  // Open the associated contact from an opened Pipeline property record.
   async openContactFromProperty() {
     const pr = this.selectors.propertyRecord;
     const link = this.page.locator(pr.associatedContactLink).first();
-    if ((await link.count()) === 0) {
-      throw new Error("associated-contact link not found on property record");
-    }
+    if ((await link.count()) === 0) throw new Error("associated-contact link not found on property record");
     await link.click({ timeout: this.actionTimeout });
     await this.page.waitForLoadState("domcontentloaded").catch(() => {});
     await this.page.waitForTimeout(500);
   }
 
-  // Read every tag chip in the contact's Tag(s) section.
-  // Returns { readable, tags[] }. `readable:false` means the section could not
-  // be confirmed, so bad tags can't be ruled out -> caller holds for review.
-  async readTags() {
-    const t = this.selectors.contactRecord.tags;
-    const headerVisible = await this.isVisible(t.sectionHeader, 1500);
-    if (!headerVisible) return { readable: false, tags: [] };
-    const chips = this.page.locator(t.chip);
-    const n = await chips.count().catch(() => 0);
-    const tags = [];
-    for (let i = 0; i < n; i++) {
-      const txt = (await chips.nth(i).innerText().catch(() => "")).trim();
-      // Strip a trailing remove-"x" that chips often render.
-      const clean = txt.replace(/\s*[×xX✕✖]\s*$/, "").trim();
-      if (clean) tags.push(clean);
-    }
-    return { readable: true, tags };
-  }
-
-  // ----- Read compliance / property status / contact history ---------------
-  async readRecord() {
+  // ----- Read the contact record -------------------------------------------
+  async readContactFacts(lead) {
     const cr = this.selectors.contactRecord;
 
-    // Compliance (SOP step D), rebuilt as a tag rule: textable UNLESS a chip
-    // matches the configured bad-tags list. If tags can't be read, hold.
+    // Tags (SOP step 9). If unreadable, hold (bad tags can't be ruled out).
     const { readable: tagsReadable, tags } = await this.readTags();
     if (!tagsReadable) {
-      return {
-        ...uncertain("Could not read the contact's Tag(s) section, so a bad tag can't be ruled out. Held for review."),
-      };
+      return uncertain("Could not read the contact's Tag(s) section, so a bad tag can't be ruled out. Held for review.");
     }
-    const badList = (cr.tags.badTags || []).map((s) => s.toLowerCase());
-    const optOutReasons = tags.filter((tag) =>
-      badList.some((bad) => tag.toLowerCase().includes(bad))
-    );
 
-    // Do Not Mail / Do Not Contact (SOP step G). Do Not Mail alone never blocks;
-    // Do Not Contact only blocks if it's also configured as a bad tag above.
-    const hasDoNotMail = tags.some((tag) => tag.toLowerCase().includes(String(cr.doNotMailTag).toLowerCase()));
-    const hasDoNotContact = tags.some((tag) => /do not contact/i.test(tag));
+    // Phone (clean condition). Prefer REI's phone; fall back to the sheet.
+    const reiPhone = await this.textOf(cr.phone);
+    const phoneExists = looksLikePhone(reiPhone) || looksLikePhone(lead.phone);
 
-    // Property status (SOP step E).
+    // Property status (SOP steps 6-8).
     const ps = cr.propertyStatus;
     const propertySold = await this.isVisible(ps.soldMarker, 800);
     const soldDate = propertySold ? await this.textOf(ps.soldDateField) : "";
     const propertyListed = await this.isVisible(ps.listedMarker, 800);
     const mlsNote = propertyListed ? await this.textOf(ps.listedMlsField) : "";
 
-    // Contact history (SOP step F).
-    const ch = cr.communicationHistory;
-    const historyPresent = await this.isVisible(ch.container, 1200);
-    let lastContactDate = null;
-    let historyUncertain = false;
-    if (historyPresent) {
-      const dateText = await this.textOf(ch.mostRecentDateField);
-      if (dateText) {
-        const parsed = parseDateSafe(dateText);
-        if (parsed) lastContactDate = parsed;
-        else historyUncertain = true; // there IS history but we can't read the date -> hold
-      }
-      // No entries -> no prior contact; lastContactDate stays null (eligible path).
-    } else {
-      // We could not confirm the activity section at all. Fail safe.
-      historyUncertain = true;
-    }
-
-    if (historyUncertain) {
+    // History (SOP step 10). Must be CONFIRMED readable, else hold.
+    const history = await this.readHistory();
+    if (!history.readable) {
       return {
         ...uncertain(
-          "Found the lead but could not confidently read its contact history date. Held for manual review so no text is sent."
+          "Could not confirm the Notes/Activities/Chat history, so it can't be verified clean. Held for review."
         ),
-        optOutReasons,
-        hasDoNotMail,
-        hasDoNotContact,
+        tags,
+        phoneExists,
         propertySold,
         soldDate,
         propertyListed,
         mlsNote,
-        lastContactDate,
       };
     }
 
+    const lastMessageFailed = detectFailed(history.latestText);
+    const approved = getApprovedMessage(lead.companySource);
+    const alreadySentApproved = approved
+      ? history.fullText.toLowerCase().includes(approved.toLowerCase())
+      : false;
+
     return {
-      optOutReasons,
+      matchStatus: undefined,
+      tags,
       propertySold,
       soldDate,
       propertyListed,
       mlsNote,
-      lastContactDate,
-      hasDoNotMail,
-      hasDoNotContact,
+      phoneExists,
+      historyText: history.fullText,
+      lastMessageFailed,
+      alreadySentApproved,
+      companySource: lead.companySource || "",
       uncertain: false,
       uncertainReason: "",
     };
   }
 
-  // ----- Send the approved SMS (SOP step H) --------------------------------
-  // Only ever called by the engine after decide() returns shouldSendText AND
-  // the live-send switch is on. Returns { sent, timestamp }.
-  async sendText() {
-    const sms = this.selectors.contactRecord.sms;
-    await this.click(sms.openComposerButton);
-    await this.page.fill(sms.messageTextarea, "");
-    await this.page.fill(sms.messageTextarea, APPROVED_MESSAGE);
+  async readTags() {
+    const t = this.selectors.contactRecord.tags;
+    if (!(await this.isVisible(t.sectionHeader, 1500))) return { readable: false, tags: [] };
+    const chips = this.page.locator(t.chip);
+    const n = await chips.count().catch(() => 0);
+    const tags = [];
+    for (let i = 0; i < n; i++) {
+      const txt = (await chips.nth(i).innerText().catch(() => "")).trim();
+      const clean = txt.replace(/\s*[×xX✕✖]\s*$/, "").trim();
+      if (clean) tags.push(clean);
+    }
+    return { readable: true, tags };
+  }
 
-    // Verify the composed text matches the approved message EXACTLY before sending.
-    const composed = await this.page.inputValue(sms.messageTextarea);
-    if (composed !== APPROVED_MESSAGE) {
+  // Read Notes + Activities + Chat text. `readable:false` -> caller holds.
+  async readHistory() {
+    const h = this.selectors.contactRecord.history;
+    let fullText = "";
+    let latestText = "";
+    let anyContainerSeen = false;
+
+    for (const [tabSel, containerSel] of [
+      [h.activitiesTab, h.activitiesContainer],
+      [h.chatTab, h.chatContainer],
+      [h.notesTab, h.notesContainer],
+    ]) {
+      if (await this.isVisible(tabSel, 1200)) {
+        await this.click(tabSel).catch(() => {});
+        await this.page.waitForTimeout(400);
+      }
+      const text = await this.textOf(containerSel);
+      if (text) {
+        anyContainerSeen = true;
+        fullText += "\n" + text;
+      }
+    }
+    // A confirmed-empty history is fine (a brand-new lead). We only fail when we
+    // cannot confirm ANY history surface at all — then it's unverifiable.
+    const containerConfirmed =
+      anyContainerSeen ||
+      (await this.isVisible(h.activitiesContainer, 800)) ||
+      (await this.isVisible(h.chatContainer, 800)) ||
+      (await this.isVisible(h.notesContainer, 800));
+    if (!containerConfirmed) return { readable: false, fullText: "", latestText: "" };
+
+    latestText = await this.textOf(h.latestEntry);
+    return { readable: true, fullText: fullText.trim(), latestText };
+  }
+
+  // ----- Apply a Revival tag (SOP "HOW TO PUT TAGS IN REI") -----------------
+  // Returns true if the tag was applied and confirmed; throws on failure.
+  async applyTag(tagName) {
+    const w = this.selectors.contactRecord.tagsWrite;
+    await this.click(w.addTagButton);
+    await this.page.fill(w.tagInput, "");
+    await this.page.fill(w.tagInput, tagName);
+    await this.page.waitForTimeout(500);
+    // Prefer an existing matching option; otherwise create it.
+    const existing = this.page.locator(w.existingOption, { hasText: tagName }).first();
+    if ((await existing.count()) > 0) {
+      await existing.click();
+    } else if ((await this.page.locator(w.createOption).count()) > 0) {
+      await this.page.locator(w.createOption).first().click();
+    } else {
+      await this.page.keyboard.press("Enter");
+    }
+    if (await this.isVisible(w.saveButton, 1500)) await this.click(w.saveButton).catch(() => {});
+    await this.page.waitForTimeout(500);
+    // Confirm it now appears among the tag chips.
+    const { tags } = await this.readTags();
+    if (!tags.some((t) => t.toLowerCase() === tagName.toLowerCase())) {
+      throw new Error(`Tag "${tagName}" did not appear on the contact after saving.`);
+    }
+    return true;
+  }
+
+  // ----- Send the approved SMS via the Chat/Text panel (SOP SEND PROCESS) ---
+  // Returns { sent, timestamp }. Verifies the exact approved text was composed
+  // and that the message appears in the chat history after sending.
+  async sendText(message) {
+    const c = this.selectors.contactRecord.chat;
+    await this.click(c.openButton);
+    await this.page.fill(c.messageInput, "");
+    await this.page.fill(c.messageInput, message);
+
+    const composed = await this.page.inputValue(c.messageInput).catch(async () => {
+      // contenteditable fallback
+      return (await this.textOf(c.messageInput)) || "";
+    });
+    if (composed.trim() !== message.trim()) {
       throw new Error("Composed SMS text did not exactly match the approved message; send aborted.");
     }
-    await this.click(sms.sendButton);
-    // Confirm the send actually went through.
-    const confirmed = await this.isVisible(sms.sentConfirmationMarker, this.actionTimeout);
+    await this.click(c.sendButton);
+    const confirmed = await this.isVisible(c.sentMarker, this.actionTimeout);
     if (!confirmed) {
-      throw new Error("Did not see a send-confirmation from REI BlackBook; treating as not sent.");
+      throw new Error("Did not see the sent message appear in chat history; treating as not sent.");
     }
     return { sent: true, timestamp: new Date().toISOString() };
   }
@@ -373,7 +355,6 @@ export class ReiBlackBookAdapter {
     await this.page.locator(selector).first().click({ timeout: this.actionTimeout });
     await this.page.waitForTimeout(200);
   }
-
   async isVisible(selector, timeout = this.actionTimeout) {
     if (!selector) return false;
     try {
@@ -383,7 +364,6 @@ export class ReiBlackBookAdapter {
       return false;
     }
   }
-
   async textOf(selector) {
     if (!selector) return "";
     try {
@@ -396,33 +376,77 @@ export class ReiBlackBookAdapter {
   }
 }
 
+// --- pure helpers ----------------------------------------------------------
+
+// Build the ordered search attempts (SOP FLOW step 3), de-duplicating identical
+// terms. Address-based + owner -> Property Pipeline; owner/phone/email -> Contacts.
+export function buildSearchAttempts(lead) {
+  const attempts = [];
+  const seen = new Set();
+  const add = (area, method, matchStatus, term) => {
+    const t = String(term || "").trim();
+    if (!t) return;
+    const key = `${area}|${t.toLowerCase()}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    attempts.push({ area, method, matchStatus, term: t });
+  };
+
+  const full = [lead.propertyAddress, lead.city, lead.state, lead.zip].filter(Boolean).join(", ");
+  add("pipeline", SEARCH_METHOD.PIPELINE_FULL_ADDRESS, MATCH_STATUS.MATCH_PIPELINE_FULL, full);
+  add("pipeline", SEARCH_METHOD.PIPELINE_STREET_ADDRESS, MATCH_STATUS.MATCH_PIPELINE_STREET, lead.propertyAddress);
+  add("pipeline", SEARCH_METHOD.PIPELINE_HOUSE_STREET, MATCH_STATUS.MATCH_PIPELINE_HOUSE_STREET, houseAndStreet(lead.propertyAddress));
+  add("pipeline", SEARCH_METHOD.OWNER_NAME, MATCH_STATUS.MATCH_PIPELINE_OWNER, lead.ownerName);
+  add("contacts", SEARCH_METHOD.OWNER_NAME, MATCH_STATUS.MATCH_CONTACTS_OWNER, lead.ownerName);
+  add("contacts", SEARCH_METHOD.PHONE, MATCH_STATUS.MATCH_CONTACTS_PHONE, lead.phone);
+  add("contacts", SEARCH_METHOD.EMAIL, MATCH_STATUS.MATCH_CONTACTS_EMAIL, lead.email);
+  return attempts;
+}
+
+// "123 Oak Street Apt 4" -> "123 Oak Street" (drop unit designators).
+function houseAndStreet(address) {
+  if (!address) return "";
+  return String(address)
+    .replace(/\b(apt|apartment|unit|ste|suite|#)\b.*$/i, "")
+    .trim();
+}
+
+function looksLikePhone(v) {
+  return (String(v || "").replace(/\D/g, "").length >= 7);
+}
+
 function uncertain(reason) {
   return {
-    optOutReasons: [],
+    matchStatus: undefined,
+    tags: [],
     propertySold: false,
     soldDate: "",
     propertyListed: false,
     mlsNote: "",
-    lastContactDate: null,
-    hasDoNotMail: false,
-    hasDoNotContact: false,
+    phoneExists: false,
+    historyText: "",
+    lastMessageFailed: false,
+    alreadySentApproved: false,
+    companySource: "",
     uncertain: true,
     uncertainReason: reason,
   };
 }
 
-// Parse common date formats seen in CRM activity feeds without pulling in a
-// date library. Returns a Date or null.
-function parseDateSafe(text) {
-  if (!text) return null;
-  // Try "MM/DD/YYYY" and "Mon DD, YYYY" and ISO; also relative "X days ago".
-  const rel = text.match(/(\d+)\s+day/i);
-  if (rel) {
-    const d = new Date();
-    d.setDate(d.getDate() - Number(rel[1]));
-    return d;
-  }
-  const t = Date.parse(text);
-  if (!Number.isNaN(t)) return new Date(t);
-  return null;
+function notFoundFacts() {
+  return {
+    matchFound: false,
+    tags: [],
+    propertySold: false,
+    soldDate: "",
+    propertyListed: false,
+    mlsNote: "",
+    phoneExists: false,
+    historyText: "",
+    lastMessageFailed: false,
+    alreadySentApproved: false,
+    companySource: "",
+    uncertain: false,
+    uncertainReason: "",
+  };
 }

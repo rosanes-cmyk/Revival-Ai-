@@ -1,20 +1,55 @@
-// The approved revival text message.
+// Approved revival text messages — one per company source.
 //
-// DO NOT MODIFY THIS STRING. It is the exact, compliance-approved copy for the
-// High Equity Lead Revival Text Campaign. It is frozen so no other code path
-// can alter it, and its integrity is checksummed at startup.
+// DO NOT MODIFY THESE STRINGS. They are the exact, compliance-approved copy for
+// the High Equity Lead Revival Text Campaign. They are frozen so no other code
+// path can alter them, and their integrity is checksummed at startup.
 
-export const APPROVED_MESSAGE = Object.freeze(
-  "Hi, this is Juan with Twin Home Buyer. You contacted us before about selling your home. Are you still interested? Reply YES or NO. Thanks!"
-);
+export const COMPANY = Object.freeze({
+  TWIN_HOME_BUYER: "Twin Home Buyer",
+  EQUITY_TRACK: "Equity Track Inc.",
+});
 
-// Simple integrity guard so an accidental edit is caught loudly at boot.
-export const APPROVED_MESSAGE_LENGTH = 138;
+export const APPROVED_MESSAGES = Object.freeze({
+  [COMPANY.TWIN_HOME_BUYER]:
+    "Hi, this is Juan with Twin Home Buyer. You contacted us before about selling your home. Are you still interested? Reply YES or NO. Thanks!",
+  [COMPANY.EQUITY_TRACK]:
+    "Hi, this is Juan with Equity Track Inc. You contacted us before about selling your home. Are you still interested? Reply YES or NO. Thanks!",
+});
+
+// Expected lengths — an accidental edit is caught loudly at boot.
+const EXPECTED_LENGTHS = Object.freeze({
+  [COMPANY.TWIN_HOME_BUYER]: 138,
+  [COMPANY.EQUITY_TRACK]: 139,
+});
 
 export function assertMessageIntegrity() {
-  if (APPROVED_MESSAGE.length !== APPROVED_MESSAGE_LENGTH) {
-    throw new Error(
-      `Approved message integrity check FAILED. Expected length ${APPROVED_MESSAGE_LENGTH}, got ${APPROVED_MESSAGE.length}. The message must not be modified.`
-    );
+  for (const [company, msg] of Object.entries(APPROVED_MESSAGES)) {
+    if (msg.length !== EXPECTED_LENGTHS[company]) {
+      throw new Error(
+        `Approved message integrity check FAILED for "${company}". ` +
+          `Expected length ${EXPECTED_LENGTHS[company]}, got ${msg.length}. The message must not be modified.`
+      );
+    }
   }
+}
+
+/**
+ * Normalize a free-text company-source value from the spreadsheet to a known
+ * COMPANY key. Returns null if it is neither Twin Home Buyer nor Equity Track.
+ */
+export function normalizeCompany(raw) {
+  const v = String(raw || "").trim().toLowerCase();
+  if (!v) return null;
+  if (v.includes("twin home")) return COMPANY.TWIN_HOME_BUYER;
+  if (v.includes("equity track")) return COMPANY.EQUITY_TRACK;
+  return null;
+}
+
+/**
+ * Get the exact approved message for a company source, or null if the company
+ * is not one of the two approved senders (caller must then hold for review).
+ */
+export function getApprovedMessage(rawCompany) {
+  const company = normalizeCompany(rawCompany);
+  return company ? APPROVED_MESSAGES[company] : null;
 }

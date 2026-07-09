@@ -1,151 +1,194 @@
 // SOP rule engine.
 //
 // Pure decision logic: given the facts gathered from REI BlackBook for one
-// lead, decide what disposition/eligibility applies and whether a text may be
-// sent. Keeping this separate from the browser automation makes the rules
-// auditable and unit-testable, and guarantees the safety rules (SOP step 6)
-// are enforced in exactly one place.
+// lead, decide the disposition, which REI tag to apply, and whether to send —
+// and if so, which company-specific approved message. Keeping this separate
+// from the browser automation makes the rules auditable and unit-testable, and
+// concentrates every safety rule in one place.
 
 import {
   DISPOSITION,
   ELIGIBILITY,
+  REVIVAL_TAG,
+  SAFETY_TAG_RULES,
+  BLOCKING_PHRASES,
+  FAILED_MARKERS,
 } from "./constants.js";
+import { getApprovedMessage, normalizeCompany } from "./message.js";
 
 /**
  * @typedef {Object} LeadFacts
- * @property {boolean} matchFound            Whether any matching lead was found.
- * @property {string}  matchStatus          MATCH_STATUS value.
- * @property {string[]} optOutReasons       Any of OPT_OUT_REASONS found on the record.
- * @property {boolean} propertySold          Property marked sold.
- * @property {string}  soldDate             Sold date text if visible, else "".
- * @property {boolean} propertyListed        Property has an active MLS listing.
- * @property {string}  mlsNote              Listing note if visible, else "".
- * @property {Date|null} lastContactDate     Most recent communication date, or null.
- * @property {boolean} hasDoNotMail          "Do Not Mail" tag present.
- * @property {boolean} hasDoNotContact       "Do Not Contact" tag present.
- * @property {boolean} uncertain             Adapter could not confidently read the record.
- * @property {string}  uncertainReason      Why it was uncertain.
+ * @property {boolean}  matchFound
+ * @property {string}   matchStatus
+ * @property {string[]} tags               All tag chips read off the contact.
+ * @property {boolean}  propertySold
+ * @property {string}   soldDate
+ * @property {boolean}  propertyListed
+ * @property {string}   mlsNote
+ * @property {boolean}  phoneExists        A usable phone on the REI contact.
+ * @property {string}   historyText        Notes/activity/chat/SMS text (raw).
+ * @property {boolean}  lastMessageFailed  Latest outbound failed/undelivered.
+ * @property {boolean}  alreadySentApproved Approved msg already in history.
+ * @property {string}   companySource      Raw company-source from the sheet.
+ * @property {boolean}  uncertain
+ * @property {string}   uncertainReason
  */
 
 /**
- * Decide the outcome for one lead based on gathered facts.
- * Returns a decision object; it never sends anything itself.
- *
+ * Decide the outcome for one lead. Never sends anything itself.
  * @param {LeadFacts} facts
- * @param {Object} opts
- * @param {number} opts.contactWindowDays  Days that count as "recent contact".
- * @param {Date}   opts.now                Reference "now" for the window math.
- * @returns {{disposition:string, eligibility:string, notes:string,
- *            optOutStatus:string, propertyStatus:string,
- *            lastContactDate:(Date|null), shouldSendText:boolean,
- *            complianceResult:string}}
+ * @returns {{disposition:string, tag:string, eligibility:string, notes:string,
+ *            propertyStatus:string, safetySummary:string, message:(string|null),
+ *            shouldSend:boolean, complianceResult:string}}
  */
-export function decide(facts, { contactWindowDays, now }) {
+export function decide(facts) {
   const base = {
     disposition: DISPOSITION.PENDING,
+    tag: "",
     eligibility: ELIGIBILITY.PENDING,
     notes: "",
-    optOutStatus: facts.optOutReasons.length
-      ? facts.optOutReasons.join(", ")
-      : "None",
     propertyStatus: describePropertyStatus(facts),
-    lastContactDate: facts.lastContactDate,
-    shouldSendText: false,
+    safetySummary: "",
+    message: null,
+    shouldSend: false,
     complianceResult: "",
   };
+  const out = (d, extra = {}) => ({ ...base, disposition: d, tag: REVIVAL_TAG[d] || "", ...extra });
 
-  // SOP step 6 / safety: if the system is uncertain about ANY reading, never
-  // text. Hold for a human. This also covers a mismatched selector at runtime.
+  // Safety: anything uncertain is held for review — never texted (SOP step 16).
   if (facts.uncertain) {
-    return {
-      ...base,
-      disposition: DISPOSITION.NEEDS_REVIEW,
+    return out(DISPOSITION.NEEDS_REVIEW, {
       eligibility: ELIGIBILITY.NEEDS_REVIEW,
-      notes: facts.uncertainReason || "System could not confidently read the record.",
+      notes: facts.uncertainReason || "System could not confirm the record.",
       complianceResult: "Uncertain - held for review",
-    };
+    });
   }
 
-  // SOP step C: no matching lead found.
+  // Step 4: no matching lead found after all search methods.
   if (!facts.matchFound) {
-    return {
-      ...base,
-      disposition: DISPOSITION.LEAD_NOT_FOUND,
+    return out(DISPOSITION.LEAD_NOT_FOUND, {
       eligibility: ELIGIBILITY.NOT_ELIGIBLE,
-      notes: "Address searched. No matching lead found.",
+      notes: "Address/owner/phone/email searched. No matching REI lead found.",
       complianceResult: "No match",
-    };
+    });
   }
 
-  // SOP step D: opt-out of any kind is an absolute block.
-  if (facts.optOutReasons.length > 0) {
-    return {
-      ...base,
-      disposition: DISPOSITION.OPTED_OUT,
-      eligibility: ELIGIBILITY.NOT_ELIGIBLE,
-      notes: facts.optOutReasons.join("; "),
-      complianceResult: `Opt-out: ${facts.optOutReasons.join(", ")}`,
-    };
-  }
-
-  // SOP step E: property sold.
+  // Step 7: property sold.
   if (facts.propertySold) {
-    return {
-      ...base,
-      disposition: DISPOSITION.PROPERTY_SOLD,
+    return out(DISPOSITION.PROPERTY_SOLD, {
       eligibility: ELIGIBILITY.NOT_ELIGIBLE,
       notes: facts.soldDate ? `Sold date: ${facts.soldDate}` : "",
+      propertyStatus: facts.soldDate ? `Sold (${facts.soldDate})` : "Sold",
       complianceResult: "Property sold",
-    };
+    });
   }
 
-  // SOP step E: property listed for sale.
+  // Step 8: property listed.
   if (facts.propertyListed) {
-    return {
-      ...base,
-      disposition: DISPOSITION.LISTED,
+    return out(DISPOSITION.LISTED, {
       eligibility: ELIGIBILITY.NOT_ELIGIBLE,
       notes: facts.mlsNote ? `Active MLS Listing. ${facts.mlsNote}` : "Active MLS Listing",
+      propertyStatus: "Listed (Active MLS)",
       complianceResult: "Property listed",
-    };
+    });
   }
 
-  // SOP step F: contacted within the last N days -> hold for review, no text.
-  if (facts.lastContactDate) {
-    const days = daysBetween(facts.lastContactDate, now);
-    if (days <= contactWindowDays) {
-      return {
-        ...base,
-        disposition: DISPOSITION.NEEDS_REVIEW,
-        eligibility: ELIGIBILITY.NEEDS_REVIEW,
-        notes: `Contacted within last ${contactWindowDays} days.`,
-        complianceResult: `Recent contact ${days} day(s) ago`,
-      };
+  // Steps 9-13: contact safety — bad tags first, then blocking phrases in
+  // history. Precedence: opt-out > not interested > wrong number.
+  const safety = evaluateSafety(facts.tags || [], facts.historyText || "");
+  if (safety.outcome) {
+    const elig = ELIGIBILITY.NOT_ELIGIBLE;
+    if (safety.outcome === DISPOSITION.OPTED_OUT) {
+      return out(DISPOSITION.OPTED_OUT, { eligibility: elig, safetySummary: safety.reason,
+        notes: safety.reason, complianceResult: `Opt-out: ${safety.reason}` });
+    }
+    if (safety.outcome === DISPOSITION.NOT_INTERESTED) {
+      return out(DISPOSITION.NOT_INTERESTED, { eligibility: elig, safetySummary: safety.reason,
+        notes: safety.reason, complianceResult: `Not interested: ${safety.reason}` });
+    }
+    if (safety.outcome === DISPOSITION.WRONG_NUMBER) {
+      return out(DISPOSITION.WRONG_NUMBER, { eligibility: elig, safetySummary: safety.reason,
+        notes: safety.reason, complianceResult: `Wrong number: ${safety.reason}` });
     }
   }
 
-  // SOP step G: Do Not Mail / Do Not Contact WITHOUT any opt-out does not by
-  // itself block a text. We've already confirmed no opt-out and no recent
-  // contact above, so the lead remains eligible. We record the tag as a note.
-  const dncNote =
-    facts.hasDoNotMail || facts.hasDoNotContact
-      ? `Has ${[
-          facts.hasDoNotMail ? "Do Not Mail" : null,
-          facts.hasDoNotContact ? "Do Not Contact" : null,
-        ]
-          .filter(Boolean)
-          .join(" / ")} (no opt-out present; SMS still permitted per SOP).`
-      : "";
+  // Step 14: latest outbound failed / undelivered.
+  if (facts.lastMessageFailed) {
+    return out(DISPOSITION.FAILED_NUMBER, {
+      eligibility: ELIGIBILITY.NOT_ELIGIBLE,
+      notes: "Latest message failed or was undelivered.",
+      complianceResult: "Failed/undelivered number",
+    });
+  }
 
-  // SOP step H: eligible. Text may be sent.
+  // Step 15: same approved message already sent before.
+  if (facts.alreadySentApproved) {
+    return out(DISPOSITION.ALREADY_CONTACTED, {
+      eligibility: ELIGIBILITY.NOT_ELIGIBLE,
+      notes: "Approved revival message was already sent to this lead.",
+      complianceResult: "Already contacted",
+    });
+  }
+
+  // Step 17 clean conditions: a usable phone must exist and the company source
+  // must be one of the two approved senders (so we know which message to send).
+  if (!facts.phoneExists) {
+    return out(DISPOSITION.NEEDS_REVIEW, {
+      eligibility: ELIGIBILITY.NEEDS_REVIEW,
+      notes: "No usable phone number found on the REI contact.",
+      complianceResult: "No phone - held for review",
+    });
+  }
+  const company = normalizeCompany(facts.companySource);
+  const message = getApprovedMessage(facts.companySource);
+  if (!company || !message) {
+    return out(DISPOSITION.NEEDS_REVIEW, {
+      eligibility: ELIGIBILITY.NEEDS_REVIEW,
+      notes: `Company Source "${facts.companySource || "(blank)"}" is not Twin Home Buyer or Equity Track Inc.; cannot choose an approved message.`,
+      complianceResult: "Unknown company source - held for review",
+    });
+  }
+
+  // Step 18: clean — ready to text with the correct company message.
   return {
     ...base,
-    disposition: DISPOSITION.PENDING, // becomes Text Sent after a confirmed send
-    eligibility: ELIGIBILITY.PENDING,
-    notes: dncNote,
-    complianceResult: "Passed all checks - eligible",
-    shouldSendText: true,
+    disposition: DISPOSITION.READY_TO_TEXT,
+    tag: "", // the send-success tag (Revival - Text Sent) is applied after send
+    eligibility: ELIGIBILITY.READY_TO_TEXT,
+    notes: "",
+    message,
+    shouldSend: true,
+    complianceResult: `Clean - ready to text (${company})`,
   };
+}
+
+/** Evaluate bad tags then blocking history phrases. Returns {outcome, reason}. */
+export function evaluateSafety(tags, historyText) {
+  // Bad tags first (SOP step 9).
+  for (const rule of SAFETY_TAG_RULES) {
+    const hit = tags.find((t) => t.toLowerCase().includes(rule.match));
+    if (hit) return { outcome: rule.outcome, reason: `Tag: ${hit}` };
+  }
+  // Blocking phrases in history (SOP step 10), in precedence order.
+  const text = String(historyText || "").toLowerCase();
+  for (const outcome of [DISPOSITION.OPTED_OUT, DISPOSITION.NOT_INTERESTED, DISPOSITION.WRONG_NUMBER]) {
+    for (const phrase of BLOCKING_PHRASES[outcome]) {
+      if (containsPhrase(text, phrase)) return { outcome, reason: `History phrase: "${phrase}"` };
+    }
+  }
+  return { outcome: null, reason: "" };
+}
+
+/** Whole-word / phrase match to avoid false hits like "stop" in "stopwatch". */
+function containsPhrase(text, phrase) {
+  const escaped = phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`\\b${escaped}\\b`, "i").test(text);
+}
+
+/** Detect failed/undelivered markers in the latest-message text. */
+export function detectFailed(latestMessageText) {
+  const text = String(latestMessageText || "").toLowerCase();
+  return FAILED_MARKERS.some((m) => text.includes(m));
 }
 
 function describePropertyStatus(facts) {
@@ -153,9 +196,4 @@ function describePropertyStatus(facts) {
   if (facts.propertyListed) return "Listed (Active MLS)";
   if (!facts.matchFound) return "Unknown (no match)";
   return "Not sold / not listed";
-}
-
-export function daysBetween(earlier, later) {
-  const ms = later.getTime() - earlier.getTime();
-  return Math.floor(ms / (1000 * 60 * 60 * 24));
 }

@@ -1,6 +1,9 @@
-Owner Name,Property Address,City,State,ZIP Code,Disposition,Notes
-John Smith,123 Oak Street,Dallas,TX,75201,Pending,
-Maria Garcia,456 Elm Avenue,Fort Worth,TX,76102,Pending,
-Robert Johnson,789 Pine Road,Arlington,TX,76010,Pending,
-Linda Williams,321 Maple Drive,Plano,TX,75023,Text Sent,Already contacted last campaign
-David Brown,654 Cedar Lane,Irving,TX,75038,Pending,
+Owner Name,Property Address,City,State,ZIP Code,Company Source,Phone,Email,Disposition,Notes
+John Smith,123 Oak Street,Dallas,TX,75201,Twin Home Buyer,214-555-0101,,Pending,
+Maria Garcia,456 Elm Avenue,Fort Worth,TX,76102,Twin Home Buyer,817-555-0102,,Pending,
+Robert Johnson,789 Pine Road,Arlington,TX,76010,Equity Track Inc.,682-555-0103,,Pending,
+Linda Williams,321 Maple Drive,Plano,TX,75023,Twin Home Buyer,972-555-0104,,Text Sent,Already contacted last campaign
+David Brown,654 Cedar Lane,Irving,TX,75038,Twin Home Buyer,469-555-0105,,Pending,
+Patricia Davis,987 Birch Blvd,Frisco,TX,75034,Equity Track Inc.,214-555-0106,,Pending,
+Michael Miller,246 Walnut Way,McKinney,TX,75069,Twin Home Buyer,972-555-0107,,Pending,
+Jennifer Wilson,135 Ash Court,Denton,TX,76201,Equity Track Inc.,940-555-0108,,Pending,

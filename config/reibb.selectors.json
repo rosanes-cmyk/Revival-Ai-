@@ -90,6 +90,7 @@
       "_badTags_note": "CONFIRM this list with the exact tag names used in your REI BlackBook. Add/remove freely. 'Do Not Mail' is intentionally NOT here (per SOP it does not block a text)."
     },
     "doNotMailTag": "Do Not Mail",
+    "phone": "a[href^='tel:'], text=Phone (Mobile) >> xpath=following::a[1]",
     "propertyStatus": {
       "_status": "VERIFY - property Sold/Listed status source not yet captured (may live on the property record or an MLS/status field).",
       "container": ".property-status",
@@ -98,19 +99,30 @@
       "listedMarker": "text=Active MLS Listing, text=Listed",
       "listedMlsField": "[data-field='mls-status']"
     },
-    "communicationHistory": {
-      "_status": "VERIFY - read from the Activities tab; capture an example to confirm the date element.",
-      "openTab": "text=Activities",
-      "container": ".activities, [data-tab='activities']",
-      "mostRecentEntry": ".activity-item:first-child, .timeline-item:first-child",
-      "mostRecentDateField": ".activity-item:first-child .date, .timeline-item:first-child time"
+    "history": {
+      "_status": "NEEDS-DOM - reads Notes/Activities/Chat text for blocking phrases, failed/undelivered, and already-sent detection. Until the containers below are confirmed against the live DOM, the history is treated as UNCONFIRMED and the lead is held for review (never texted). Capture the Activities and Chat tabs to wire these.",
+      "activitiesTab": "text=Activities",
+      "chatTab": "text=Chat",
+      "notesTab": "text=Notes",
+      "activitiesContainer": "[data-tab='activities'], .activities, .activity-feed",
+      "chatContainer": "[data-tab='chat'], .chat, .chat-thread",
+      "notesContainer": "[data-tab='notes'], .notes",
+      "latestEntry": ".activity-item:first-child, .chat-message:last-child, .message:last-child"
     },
-    "sms": {
-      "_status": "NEEDS-DOM - the SMS button is the chat-bubble ICON in the contact action row (no visible text). Need its title/aria-label from a live capture. The composer/send button are also not yet captured.",
-      "openComposerButton": "[title='SMS'], [aria-label*='SMS'], [title*='Text'], .contact-actions button:first-child",
-      "messageTextarea": "textarea",
-      "sendButton": "button:has-text('Send')",
-      "sentConfirmationMarker": "text=Message sent, text=Sent"
+    "tagsWrite": {
+      "_status": "NEEDS-DOM - writing a Revival tag: open Add/Edit Tags, type the exact name, pick existing or create, save, confirm it shows. Capture the Tag(s) add/edit UI to wire these.",
+      "addTagButton": "text=Add Tag, text=Edit Tags, [aria-label*='tag' i]",
+      "tagInput": "input[placeholder*='tag' i]",
+      "createOption": ".tag-create, [class*='create']",
+      "existingOption": ".tag-option, [role='option']",
+      "saveButton": "button:has-text('Save'), button:has-text('Add')"
+    },
+    "chat": {
+      "_status": "NEEDS-DOM - the SMS/chat panel. The send button is the chat-bubble ICON in the contact action row (no visible text) OR the Chat tab. Need the real title/aria-label, the message input, the Send button, and the sent-message confirmation. Until confirmed, sends fail safe (row -> Needs Review, no text).",
+      "openButton": "[title='SMS'], [aria-label*='SMS' i], [title*='Text' i], text=Chat",
+      "messageInput": "textarea[placeholder*='message' i], textarea, [contenteditable='true']",
+      "sendButton": "button:has-text('Send'), [aria-label*='send' i]",
+      "sentMarker": "text=Delivered, text=Sent, .chat-message.outbound:last-child"
     }
   }
 }

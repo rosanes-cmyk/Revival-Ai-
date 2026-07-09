@@ -1,8 +1,8 @@
-// Job state persistence (SOP step 8: resume support).
+// Job state persistence (resume support).
 //
 // A "job" is one uploaded spreadsheet plus the processing state of every row.
-// State is written to disk after each row so that a stop/crash/restart can be
-// resumed without re-texting anyone (processed rows are skipped).
+// State is written after each row so a stop/crash/restart resumes without
+// re-texting anyone (processed rows are skipped).
 
 import fs from "fs";
 import path from "path";
@@ -12,7 +12,6 @@ import { DISPOSITION, ELIGIBILITY, MATCH_STATUS, TERMINAL_DISPOSITIONS } from ".
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const STATE_DIR = path.join(__dirname, "..", "..", "data", "state");
 fs.mkdirSync(STATE_DIR, { recursive: true });
-
 const CURRENT_POINTER = path.join(STATE_DIR, "current.json");
 
 export const JOB_STATUS = Object.freeze({
@@ -32,14 +31,13 @@ export class JobStore {
     return path.join(STATE_DIR, `${jobId}.json`);
   }
 
-  /** Create a fresh job from parsed rows. */
   static create(jobId, rows, sourceFileName) {
     const job = {
       jobId,
       sourceFileName,
       createdAt: new Date().toISOString(),
       status: JOB_STATUS.IDLE,
-      cursor: 0, // index of the next row to process
+      cursor: 0,
       rows: rows.map(normalizeRow),
     };
     const store = new JobStore(job);
@@ -48,15 +46,12 @@ export class JobStore {
     return store;
   }
 
-  /** Load a job by id from disk. */
   static load(jobId) {
     const file = JobStore.file(jobId);
     if (!fs.existsSync(file)) return null;
-    const job = JSON.parse(fs.readFileSync(file, "utf8"));
-    return new JobStore(job);
+    return new JobStore(JSON.parse(fs.readFileSync(file, "utf8")));
   }
 
-  /** Load the most recently active job, if any (for resume after restart). */
   static loadCurrent() {
     if (!fs.existsSync(CURRENT_POINTER)) return null;
     try {
@@ -84,23 +79,26 @@ export class JobStore {
     return this.job.rows;
   }
 
-  /** Rows that are already finished and must be skipped (SOP step A / 8). */
   isProcessed(row) {
     return TERMINAL_DISPOSITIONS.includes(row.disposition);
   }
 
-  /** Summary counts for the dashboard cards (SOP step 2). */
+  /** Summary counts for the dashboard cards and final summary. */
   summary() {
     const rows = this.job.rows;
     const count = (d) => rows.filter((r) => r.disposition === d).length;
     return {
       total: rows.length,
-      pending: count(DISPOSITION.PENDING),
+      pending: rows.filter((r) => r.disposition === DISPOSITION.PENDING || r.disposition === DISPOSITION.READY_TO_TEXT).length,
       textSent: count(DISPOSITION.TEXT_SENT),
       leadNotFound: count(DISPOSITION.LEAD_NOT_FOUND),
       propertySold: count(DISPOSITION.PROPERTY_SOLD),
       listed: count(DISPOSITION.LISTED),
       optedOut: count(DISPOSITION.OPTED_OUT),
+      notInterested: count(DISPOSITION.NOT_INTERESTED),
+      wrongNumber: count(DISPOSITION.WRONG_NUMBER),
+      failedNumber: count(DISPOSITION.FAILED_NUMBER),
+      alreadyContacted: count(DISPOSITION.ALREADY_CONTACTED),
       needsReview: count(DISPOSITION.NEEDS_REVIEW),
       errors: count(DISPOSITION.ERROR),
     };
@@ -127,14 +125,17 @@ function normalizeRow(r) {
     city: r.city,
     state: r.state,
     zip: r.zip,
+    companySource: r.companySource || "",
+    phone: r.phone || "",
+    email: r.email || "",
     disposition: r.disposition || DISPOSITION.PENDING,
     notes: r.notes || "",
     reiMatchStatus: r.reiMatchStatus || MATCH_STATUS.UNSEARCHED,
-    lastContactDate: r.lastContactDate || "",
-    optOutStatus: r.optOutStatus || "",
-    propertyStatus: r.propertyStatus || "",
-    eligibilityStatus: r.eligibilityStatus || ELIGIBILITY.PENDING,
     searchMethod: r.searchMethod || "",
+    propertyStatus: r.propertyStatus || "",
+    safetyStatus: r.safetyStatus || "",
+    eligibilityStatus: r.eligibilityStatus || ELIGIBILITY.PENDING,
+    reiTagApplied: r.reiTagApplied || "",
     textSentTimestamp: r.textSentTimestamp || "",
     errorLog: r.errorLog || "",
   };

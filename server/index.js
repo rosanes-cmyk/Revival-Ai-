@@ -20,7 +20,7 @@ import { parseSpreadsheet, exportToXlsx, exportToCsv } from "./data/spreadsheet.
 import { JobStore } from "./data/store.js";
 import { JobLogger } from "./logger.js";
 import { AutomationEngine } from "./automation/engine.js";
-import { assertMessageIntegrity, APPROVED_MESSAGE } from "./automation/message.js";
+import { assertMessageIntegrity, APPROVED_MESSAGES } from "./automation/message.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -56,6 +56,7 @@ function broadcast(event, data) {
 engine.on("state", (d) => broadcast("state", d));
 engine.on("row", (d) => broadcast("row", d));
 engine.on("summary", (d) => broadcast("summary", d));
+engine.on("final", (d) => broadcast("final", d));
 engine.on("error", (err) => broadcast("state", { message: `Error: ${err.message}` }));
 
 app.get("/api/events", (req, res) => {
@@ -72,8 +73,7 @@ app.get("/api/events", (req, res) => {
 // --- Config surface ---------------------------------------------------------
 app.get("/api/config", (req, res) => {
   res.json({
-    approvedMessage: APPROVED_MESSAGE,
-    contactWindowDays: engine.contactWindowDays,
+    approvedMessages: APPROVED_MESSAGES,
     allowLiveSend: engine.allowLiveSend,
   });
 });

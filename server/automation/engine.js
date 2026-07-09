@@ -1,23 +1,21 @@
 // Automation engine: processes an uploaded job row-by-row, live.
 //
-// Responsibilities:
-//   - Iterate rows in order, skipping already-processed ones (SOP steps A, 8).
-//   - For each pending row: search REI BlackBook, apply SOP rules, and send the
-//     approved text immediately IF and ONLY IF the lead is eligible (SOP step H)
-//     and the live-send switch is on.
-//   - Persist state after every row so Stop/crash can be resumed with no dupes.
-//   - Emit events for the live dashboard (SSE) and log every row (SOP step 7).
+// For each pending row: search REI BlackBook, apply the SOP rules, apply the
+// correct Revival tag, and — only if the lead is clean and the live-send switch
+// is on — send the company-specific approved text immediately, then tag it
+// "Revival - Text Sent". State is persisted after every row so Stop/crash can
+// be resumed with no duplicate texts. Events drive the live dashboard (SSE) and
+// every row is logged.
 //
 // Control model: Start / Pause / Resume / Stop. Pause halts BETWEEN rows (a row
-// in flight always finishes, so a send is never left half-done). Stop ends the
-// run and closes the browser; Resume/Start begins again from the cursor.
+// in flight always finishes, so a send is never left half-done).
 
 import { EventEmitter } from "events";
 import { ReiBlackBookAdapter } from "./reibb.js";
 import { decide } from "./sop.js";
 import { assertMessageIntegrity } from "./message.js";
 import { JOB_STATUS } from "../data/store.js";
-import { DISPOSITION, ELIGIBILITY } from "./constants.js";
+import { DISPOSITION, ELIGIBILITY, REVIVAL_TAG } from "./constants.js";
 
 export class AutomationEngine extends EventEmitter {
   constructor() {
@@ -25,11 +23,9 @@ export class AutomationEngine extends EventEmitter {
     this.store = null;
     this.logger = null;
     this.adapter = null;
-    this._control = "stopped"; // running | paused | stopping | stopped
+    this._control = "stopped";
     this._loopActive = false;
-    this.contactWindowDays = Number(process.env.CONTACT_WINDOW_DAYS || 90);
     this.allowLiveSend = String(process.env.ALLOW_LIVE_SEND).toLowerCase() === "true";
-    // Factory is overridable for testing; production uses the real adapter.
     this.adapterFactory = () => new ReiBlackBookAdapter();
   }
 
@@ -41,7 +37,6 @@ export class AutomationEngine extends EventEmitter {
   get status() {
     return this.store ? this.store.job.status : JOB_STATUS.IDLE;
   }
-
   isBusy() {
     return this._loopActive;
   }
@@ -77,7 +72,6 @@ export class AutomationEngine extends EventEmitter {
       this.emitState("Resumed.");
       return { ok: true, status: this.status };
     }
-    // Not mid-loop (e.g. after a restart): start a fresh loop from the cursor.
     return this.start();
   }
 
@@ -99,16 +93,12 @@ export class AutomationEngine extends EventEmitter {
 
       const rows = this.store.rows;
       for (let i = this.store.job.cursor; i < rows.length; i++) {
-        // Respect pause/stop between rows.
-        while (this._control === "paused") {
-          await sleep(400);
-        }
+        while (this._control === "paused") await sleep(400);
         if (this._control === "stopping") break;
 
         this.store.job.cursor = i;
         const row = rows[i];
 
-        // SOP step A / 8: skip already-processed rows (no duplicate texts).
         if (this.store.isProcessed(row)) {
           this.emit("row", { row, skipped: true });
           continue;
@@ -126,7 +116,7 @@ export class AutomationEngine extends EventEmitter {
       } else {
         this.store.job.cursor = rows.length;
         this.store.setStatus(JOB_STATUS.COMPLETED);
-        this.emitState("Completed. All rows processed.");
+        this.emitFinalSummary();
       }
     } finally {
       if (this.adapter) await this.adapter.close();
@@ -139,52 +129,48 @@ export class AutomationEngine extends EventEmitter {
 
   // --- Per-row SOP processing ----------------------------------------------
   async _processRow(row) {
-    const logBase = { row: row.rowNumber, owner: row.ownerName, address: row.propertyAddress };
+    const logBase = { row: row.rowNumber, owner: row.ownerName, address: row.propertyAddress, company: row.companySource };
     try {
-      // B: search REI BlackBook.
       const { facts, searchMethod, matchStatus } = await this.adapter.gatherFacts({
         ownerName: row.ownerName,
         propertyAddress: row.propertyAddress,
         city: row.city,
         state: row.state,
         zip: row.zip,
+        phone: row.phone,
+        email: row.email,
+        companySource: row.companySource,
       });
 
       row.searchMethod = searchMethod;
       row.reiMatchStatus = matchStatus;
 
-      // C–G: apply SOP rules.
-      const decision = decide(facts, { contactWindowDays: this.contactWindowDays, now: new Date() });
-
-      row.optOutStatus = decision.optOutStatus;
+      const decision = decide(facts);
       row.propertyStatus = decision.propertyStatus;
-      row.lastContactDate = decision.lastContactDate
-        ? new Date(decision.lastContactDate).toISOString().slice(0, 10)
-        : "";
+      row.safetyStatus = decision.safetySummary || "None";
       row.eligibilityStatus = decision.eligibility;
       row.notes = decision.notes;
       row.errorLog = "";
 
       let textSent = false;
 
-      if (decision.shouldSendText) {
-        // H: eligible. Send the approved text immediately (live only).
+      if (decision.shouldSend) {
         if (!this.allowLiveSend) {
-          row.disposition = DISPOSITION.PENDING;
+          row.disposition = DISPOSITION.READY_TO_TEXT;
           row.eligibilityStatus = ELIGIBILITY.ELIGIBLE_SEND_BLOCKED;
-          row.notes = "Eligible, but ALLOW_LIVE_SEND is off. No text sent.";
+          row.notes = "Clean & ready, but ALLOW_LIVE_SEND is off. No text sent.";
         } else {
-          const result = await this.adapter.sendText();
+          const result = await this.adapter.sendText(decision.message);
           textSent = result.sent;
           row.disposition = DISPOSITION.TEXT_SENT;
           row.eligibilityStatus = ELIGIBILITY.ELIGIBLE_TEXT_SENT;
           row.textSentTimestamp = result.timestamp;
-          // Leave notes blank unless an exception exists (SOP step H).
-          if (!facts.hasDoNotMail && !facts.hasDoNotContact) row.notes = "";
+          row.notes = "Live text sent successfully";
+          await this._applyTag(row, REVIVAL_TAG[DISPOSITION.TEXT_SENT]);
         }
       } else {
-        // C/D/E/F/G outcome already encoded in the decision.
         row.disposition = decision.disposition;
+        if (decision.tag) await this._applyTag(row, decision.tag);
       }
 
       this.logger.log({
@@ -194,15 +180,15 @@ export class AutomationEngine extends EventEmitter {
         matchStatus,
         complianceResult: decision.complianceResult,
         propertyStatus: row.propertyStatus,
-        lastContactDate: row.lastContactDate,
+        safety: row.safetyStatus,
         eligibility: row.eligibilityStatus,
         textSent,
         disposition: row.disposition,
+        reiTag: row.reiTagApplied,
         notes: row.notes,
-        error: "",
+        error: row.errorLog,
       });
     } catch (err) {
-      // Any unexpected failure -> Error disposition, never a blind send.
       row.disposition = DISPOSITION.ERROR;
       row.eligibilityStatus = ELIGIBILITY.NEEDS_REVIEW;
       row.errorLog = err.message;
@@ -220,6 +206,21 @@ export class AutomationEngine extends EventEmitter {
     }
   }
 
+  // Apply a Revival tag; best-effort. A tag failure is recorded but never
+  // reverses a successful send or changes the disposition.
+  async _applyTag(row, tagName) {
+    if (!tagName) return;
+    try {
+      await this.adapter.applyTag(tagName);
+      row.reiTagApplied = tagName;
+    } catch (err) {
+      row.reiTagApplied = `${tagName} (FAILED)`;
+      row.errorLog = row.errorLog
+        ? `${row.errorLog}; tag apply failed: ${err.message}`
+        : `Tag apply failed: ${err.message}`;
+    }
+  }
+
   emitState(message) {
     this.emit("state", {
       status: this.status,
@@ -228,6 +229,21 @@ export class AutomationEngine extends EventEmitter {
       allowLiveSend: this.allowLiveSend,
       message,
     });
+  }
+
+  emitFinalSummary() {
+    const s = this.store.summary();
+    const texted = this.store.rows
+      .filter((r) => r.disposition === DISPOSITION.TEXT_SENT)
+      .map((r) => `${r.ownerName || "Unknown"} — ${r.propertyAddress}`);
+    const tagsAdded = this.store.rows
+      .filter((r) => r.reiTagApplied && !r.reiTagApplied.includes("FAILED"))
+      .map((r) => r.reiTagApplied);
+    const failures = this.store.rows
+      .filter((r) => r.disposition === DISPOSITION.ERROR || (r.errorLog && r.disposition === DISPOSITION.NEEDS_REVIEW))
+      .map((r) => `row ${r.rowNumber}: ${r.errorLog}`);
+    this.emit("final", { summary: s, texted, tagsAdded, failures });
+    this.emitState("Completed. All rows processed.");
   }
 }
 

@@ -22,10 +22,11 @@
     </header>
 
     <main>
-      <!-- Approved message banner -->
+      <!-- Approved message banners (locked, one per company) -->
       <section class="msg-banner" id="msgBanner">
-        <div class="msg-head">Approved message (locked — cannot be edited)</div>
-        <div class="msg-body" id="approvedMessage">…</div>
+        <div class="msg-head">Approved messages (locked — cannot be edited · chosen by Company Source)</div>
+        <div class="msg-body" id="approvedTHB">…</div>
+        <div class="msg-body" id="approvedETI" style="margin-top:8px;">…</div>
       </section>
 
       <!-- Upload -->
@@ -56,6 +57,10 @@
         <div class="stat" data-k="propertySold"><span class="stat-num">0</span><span class="stat-lbl">Property Sold</span></div>
         <div class="stat" data-k="listed"><span class="stat-num">0</span><span class="stat-lbl">Listed</span></div>
         <div class="stat" data-k="optedOut"><span class="stat-num">0</span><span class="stat-lbl">Opted Out</span></div>
+        <div class="stat" data-k="notInterested"><span class="stat-num">0</span><span class="stat-lbl">Not Interested</span></div>
+        <div class="stat" data-k="wrongNumber"><span class="stat-num">0</span><span class="stat-lbl">Wrong Number</span></div>
+        <div class="stat" data-k="failedNumber"><span class="stat-num">0</span><span class="stat-lbl">Failed Number</span></div>
+        <div class="stat" data-k="alreadyContacted"><span class="stat-num">0</span><span class="stat-lbl">Already Contacted</span></div>
         <div class="stat review" data-k="needsReview"><span class="stat-num">0</span><span class="stat-lbl">Needs Review</span></div>
         <div class="stat err" data-k="errors"><span class="stat-num">0</span><span class="stat-lbl">Errors</span></div>
       </section>
@@ -78,6 +83,12 @@
         <div class="progress-text" id="progressText"></div>
       </div>
 
+      <!-- Final run summary -->
+      <section class="card summary-card" id="finalSummary" hidden>
+        <h2>Run Summary</h2>
+        <div class="summary-grid" id="finalSummaryBody"></div>
+      </section>
+
       <!-- Lead table -->
       <section class="card table-card">
         <div class="table-scroll">
@@ -90,19 +101,22 @@
                 <th>City</th>
                 <th>State</th>
                 <th>ZIP</th>
+                <th>Company Source</th>
+                <th>Phone</th>
                 <th>REI Match Status</th>
-                <th>Last Contact</th>
-                <th>Opt-Out</th>
+                <th>Search Method</th>
                 <th>Property Status</th>
+                <th>Opt-Out / Safety</th>
                 <th>Eligibility</th>
                 <th>Disposition</th>
+                <th>REI Tag Applied</th>
                 <th>Notes</th>
                 <th>Text Sent</th>
                 <th>Error Log</th>
               </tr>
             </thead>
             <tbody id="leadTableBody">
-              <tr class="empty-row"><td colspan="15">Upload a spreadsheet to begin.</td></tr>
+              <tr class="empty-row"><td colspan="18">Upload a spreadsheet to begin.</td></tr>
             </tbody>
           </table>
         </div>
