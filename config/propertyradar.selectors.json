@@ -23,21 +23,17 @@
   },
 
   "search": {
-    "_status": "PARTIAL - CONFIRMED: 'Full Address' quick-search tab and the search box on Discover. The property-detail page (after opening a result) still needs a capture to confirm where Sold/Listed shows.",
+    "_status": "CONFIRMED: 'Full Address' tab + address box with an autocomplete suggestion you click to open the property.",
     "fullAddressTab": "text=Full Address",
     "addressInput": "input[placeholder*='Address' i], input[placeholder*='City' i], input[placeholder*='ZIP' i]",
-    "submit": "button:has-text('Search'), .search-btn",
-    "resultRow": ".result-row, table tbody tr, .property-card",
-    "resultLink": ".result-row a, table tbody tr a, .property-card a",
+    "autocompleteOption": "[role='option'], .autocomplete-option, .dropdown-item, li[class*='option']",
     "noResultsMarker": "text=No results, text=No properties found"
   },
 
   "status": {
-    "_status": "NEEDS-DOM - property detail status. Capture a sold and a listed property to confirm.",
-    "container": ".property-status, .status-section",
-    "soldMarker": "text=Sold, text=Last Sale",
-    "soldDateField": "[data-field='sale-date'], .sale-date",
-    "listedMarker": "text=Listed, text=For Sale, text=Active Listing, text=On Market",
-    "listingField": "[data-field='listing-status'], .listing-status"
+    "_status": "PropertyRadar shows no single Sold badge. SOLD = the 'Owned Since' date is within PR_SOLD_WINDOW_MONTHS (a recent owner change = the property sold). LISTED = the Listings tab shows an active listing. NEVER use the top category tabs ('Listed','Recent Sale') - they are list filters on every property. Best-guess selectors; fail-safe means a miss just proceeds to REI (never a false Sold).",
+    "ownedSinceValue": "text=Owned Since >> xpath=following::*[normalize-space()][1]",
+    "listingsTab": "text=Listings",
+    "listingActiveMarker": "text=/active/i"
   }
 }

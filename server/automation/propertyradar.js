@@ -27,6 +27,8 @@ export class PropertyRadarAdapter {
     this.headless = opts.headless ?? String(process.env.HEADLESS).toLowerCase() === "true";
     this.slowMo = opts.slowMo ?? Number(process.env.SLOWMO_MS || 0);
     this.actionTimeout = opts.actionTimeout ?? Number(process.env.ACTION_TIMEOUT_MS || 15000);
+    // A property whose owner changed within this many months is treated as sold.
+    this.soldWindowMonths = opts.soldWindowMonths ?? Number(process.env.PR_SOLD_WINDOW_MONTHS || 18);
     this.browser = null;
     this.context = null;
     this.page = null;
@@ -81,23 +83,41 @@ export class PropertyRadarAdapter {
       if (await this.isVisible(se.fullAddressTab, 1500)) await this.click(se.fullAddressTab).catch(() => {});
       await this.page.fill(se.addressInput, "");
       await this.page.fill(se.addressInput, full);
-      await this.page.keyboard.press("Enter");
+      await this.page.waitForTimeout(1000); // let the autocomplete populate
+
+      // Click the autocomplete suggestion to open the property.
+      const option = this.page.locator(se.autocompleteOption).first();
+      if ((await option.count()) > 0) {
+        await option.click();
+      } else {
+        await this.page.keyboard.press("Enter");
+      }
       await this.page.waitForTimeout(1200);
-      if (await this.isVisible(se.noResultsMarker, 1200)) return out; // not found -> no override
-      const link = this.page.locator(se.resultLink).first();
-      const rows = this.page.locator(se.resultRow);
-      if ((await link.count()) > 0) await link.click();
-      else if ((await rows.count()) > 0) await rows.first().click();
-      else return out; // nothing to open -> no override
-      await this.page.waitForLoadState("domcontentloaded").catch(() => {});
-      await this.page.waitForTimeout(600);
-      out.found = true;
+      if (await this.isVisible(se.noResultsMarker, 1000)) return out; // not found -> no override
 
       const st = this.selectors.status;
-      out.listed = await this.isVisible(st.listedMarker, 1000);
-      if (out.listed) out.listingNote = (await this.textOf(st.listingField)) || "PropertyRadar: active listing";
-      out.sold = await this.isVisible(st.soldMarker, 1000);
-      if (out.sold) out.soldDate = await this.textOf(st.soldDateField);
+
+      // SOLD: read "Owned Since" and compare to the window.
+      const ownedSince = await this.textOf(st.ownedSinceValue);
+      const d = parseDateSafe(ownedSince);
+      if (d) {
+        out.found = true;
+        const months = monthsBetween(d, new Date());
+        if (months >= 0 && months <= this.soldWindowMonths) {
+          out.sold = true;
+          out.soldDate = ownedSince;
+        }
+      }
+
+      // LISTED: open the Listings tab and look for an active listing.
+      if (await this.isVisible(st.listingsTab, 1200)) {
+        await this.click(st.listingsTab).catch(() => {});
+        await this.page.waitForTimeout(700);
+        if (await this.isVisible(st.listingActiveMarker, 1000)) {
+          out.listed = true;
+          out.listingNote = "Active listing (PropertyRadar)";
+        }
+      }
       return out;
     } catch (err) {
       return { ...out, uncertain: true, reason: err.message };
@@ -127,4 +147,24 @@ export class PropertyRadarAdapter {
       return "";
     }
   }
+}
+
+// Parse dates like "Jul 1994", "Jul 08, 2026", "07/1994", ISO. Returns Date|null.
+function parseDateSafe(text) {
+  if (!text) return null;
+  const cleaned = String(text).trim();
+  const t = Date.parse(cleaned);
+  if (!Number.isNaN(t)) return new Date(t);
+  const m = cleaned.match(/([A-Za-z]{3,9})\s+(\d{4})/); // "Jul 1994"
+  if (m) {
+    const t2 = Date.parse(`${m[1]} 1, ${m[2]}`);
+    if (!Number.isNaN(t2)) return new Date(t2);
+  }
+  const mm = cleaned.match(/(\d{1,2})[/\-](\d{4})/); // "06/2025"
+  if (mm) return new Date(Number(mm[2]), Number(mm[1]) - 1, 1);
+  return null;
+}
+
+function monthsBetween(earlier, later) {
+  return (later.getFullYear() - earlier.getFullYear()) * 12 + (later.getMonth() - earlier.getMonth());
 }
