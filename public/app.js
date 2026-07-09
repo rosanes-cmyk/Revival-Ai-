@@ -11,10 +11,28 @@ const els = {
   approvedMessage: $("approvedMessage"),
   progressWrap: $("progressWrap"), progressFill: $("progressFill"), progressText: $("progressText"),
   finalSummary: $("finalSummary"), finalSummaryBody: $("finalSummaryBody"), toast: $("toast"),
+  filterNote: $("filterNote"),
 };
 
 let hasJob = false;
 const COLSPAN = 18;
+
+// Client-side copy of all rows + the active card filter, so cards can filter
+// the table (click a card to show only those leads; click again to clear).
+let allRows = [];
+let filterKey = null;
+
+const FILTERS = {
+  all: null,
+  textSent: (d) => d === "Text Sent",
+  soldListed: (d) => d === "Property Sold" || d === "Listed",
+  notIntOpt: (d) => d === "Not Interested" || d === "Opted Out",
+  toDelete: (d) => ["Wrong Number", "Failed Number", "Lead NOT Found"].includes(d),
+};
+const FILTER_LABEL = {
+  textSent: "Text Sent", soldListed: "Property Sold / Listed",
+  notIntOpt: "Not Interested / Opt Out", toDelete: "To Delete / Bad Leads",
+};
 
 function toast(msg, kind = "") {
   els.toast.textContent = msg;
@@ -44,6 +62,7 @@ function renderSummary(s) {
     textSent: s.textSent ?? 0,
     soldListed: (s.propertySold ?? 0) + (s.listed ?? 0),
     notIntOpt: (s.notInterested ?? 0) + (s.optedOut ?? 0),
+    toDelete: (s.wrongNumber ?? 0) + (s.failedNumber ?? 0) + (s.leadNotFound ?? 0),
   };
   document.querySelectorAll(".stat").forEach((el) => {
     const k = el.dataset.k;
@@ -76,15 +95,51 @@ function rowHtml(r) {
 }
 
 function renderRows(rows) {
-  if (!rows || rows.length === 0) {
+  allRows = rows || [];
+  renderTable();
+}
+
+function renderTable() {
+  if (!allRows.length) {
     els.tableBody.innerHTML = `<tr class="empty-row"><td colspan="${COLSPAN}">Upload a spreadsheet to begin.</td></tr>`;
+    updateFilterNote(0);
     return;
   }
-  els.tableBody.innerHTML = rows.map(rowHtml).join("");
+  const pred = filterKey ? FILTERS[filterKey] : null;
+  const list = pred ? allRows.filter((r) => pred(r.disposition)) : allRows;
+  els.tableBody.innerHTML = list.length
+    ? list.map(rowHtml).join("")
+    : `<tr class="empty-row"><td colspan="${COLSPAN}">No leads in this category yet.</td></tr>`;
+  updateFilterNote(list.length);
 }
+
+function updateFilterNote(shown) {
+  document.querySelectorAll(".stat").forEach((el) =>
+    el.classList.toggle("active", (el.dataset.filter || "") === (filterKey || "all") && filterKey)
+  );
+  if (filterKey && FILTER_LABEL[filterKey]) {
+    els.filterNote.innerHTML = `Showing <b>${shown}</b> lead(s) in <b>${FILTER_LABEL[filterKey]}</b>. <a id="clearFilter">Show all</a>`;
+    const c = $("clearFilter");
+    if (c) c.onclick = () => setFilter(null);
+  } else {
+    els.filterNote.textContent = allRows.length ? "Tip: click a card above to show only those leads." : "";
+  }
+}
+
+function setFilter(key) {
+  filterKey = key && FILTERS[key] ? key : null;
+  renderTable();
+}
+
 function updateRow(r) {
-  const tr = $(`row-${r.rowNumber}`);
-  if (tr) tr.outerHTML = rowHtml(r);
+  const idx = allRows.findIndex((x) => x.rowNumber === r.rowNumber);
+  if (idx >= 0) allRows[idx] = r;
+  if (filterKey) {
+    renderTable(); // a row may have entered/left the filtered category
+  } else {
+    const tr = $(`row-${r.rowNumber}`);
+    if (tr) tr.outerHTML = rowHtml(r); // fast path: keep scroll position
+  }
 }
 
 function setStatus(status) {
@@ -170,6 +225,15 @@ async function init() {
   } catch (e) { setStatus("idle"); }
 
   connectSSE();
+
+  // Clickable summary cards -> filter the table (click active card to clear).
+  document.querySelectorAll(".stat").forEach((el) => {
+    el.onclick = () => {
+      const f = el.dataset.filter;
+      if (!f || f === "all") return setFilter(null);
+      setFilter(filterKey === f ? null : f);
+    };
+  });
 }
 
 function connectSSE() {

@@ -91,10 +91,18 @@ h2 { margin: 0 0 4px; font-size: 15px; }
 /* Cards */
 .cards {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 14px;
-  margin-bottom: 20px;
+  margin-bottom: 10px;
 }
+.cards .stat { cursor: pointer; transition: border-color .15s, transform .05s, box-shadow .15s; }
+.cards .stat:hover { border-color: var(--accent); }
+.cards .stat:active { transform: translateY(1px); }
+.cards .stat.active { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(79,140,255,0.35); }
+.stat.del { border-color: rgba(224,83,61,0.4); }
+.stat.del .stat-num { color: var(--err); }
+.filter-note { min-height: 20px; margin-bottom: 12px; font-size: 12.5px; color: var(--muted); }
+.filter-note a { color: var(--accent); cursor: pointer; text-decoration: underline; }
 .stat {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -209,6 +217,9 @@ td.error { color: var(--err); }
 .summary-block .big { font-size: 13px; line-height: 1.9; }
 .summary-block .big b { color: var(--sent); }
 
-@media (max-width: 700px) {
+@media (max-width: 1000px) {
+  .cards { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 600px) {
   .cards { grid-template-columns: repeat(2, 1fr); }
 }

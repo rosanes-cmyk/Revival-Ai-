@@ -49,13 +49,15 @@
         <div class="upload-status" id="uploadStatus"></div>
       </section>
 
-      <!-- Summary cards -->
+      <!-- Summary cards (click a card to filter the table; click again to clear) -->
       <section class="cards" id="cards">
-        <div class="stat" data-k="total"><span class="stat-num">0</span><span class="stat-lbl">Total Leads</span></div>
-        <div class="stat sent" data-k="textSent"><span class="stat-num">0</span><span class="stat-lbl">Text Sent</span></div>
-        <div class="stat" data-k="soldListed"><span class="stat-num">0</span><span class="stat-lbl">Property Sold / Listed</span></div>
-        <div class="stat" data-k="notIntOpt"><span class="stat-num">0</span><span class="stat-lbl">Not Interested / Opt Out</span></div>
+        <div class="stat" data-k="total" data-filter="all"><span class="stat-num">0</span><span class="stat-lbl">Total Leads</span></div>
+        <div class="stat sent" data-k="textSent" data-filter="textSent"><span class="stat-num">0</span><span class="stat-lbl">Text Sent</span></div>
+        <div class="stat" data-k="soldListed" data-filter="soldListed"><span class="stat-num">0</span><span class="stat-lbl">Property Sold / Listed</span></div>
+        <div class="stat" data-k="notIntOpt" data-filter="notIntOpt"><span class="stat-num">0</span><span class="stat-lbl">Not Interested / Opt Out</span></div>
+        <div class="stat del" data-k="toDelete" data-filter="toDelete"><span class="stat-num">0</span><span class="stat-lbl">To Delete / Bad Leads</span></div>
       </section>
+      <div class="filter-note" id="filterNote"></div>
 
       <!-- Controls -->
       <section class="controls">
