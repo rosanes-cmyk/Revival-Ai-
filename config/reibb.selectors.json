@@ -104,18 +104,20 @@
       "activitiesTab": "text=Activities",
       "chatTab": "text=Chat",
       "notesTab": "text=Notes",
-      "activitiesContainer": "[data-tab='activities'], .activities, .activity-feed",
-      "chatContainer": ".chat-thread, .conversation, .messages, [class*='chat']",
-      "notesContainer": "[data-tab='notes'], .notes",
-      "latestEntry": ".chat-message:last-child, .message:last-child, .activity-item:first-child"
+      "activitiesTitle": "text=Activity History",
+      "contentArea": ".timeline, .activity-feed, .activity-history, .chat-thread, [class*='conversation'], [class*='activity']",
+      "latestEntry": ".activity-item:first-child, [class*='activity']:first-child, .chat-message:last-child"
     },
     "tagsWrite": {
-      "_status": "NEEDS-DOM - writing a Revival tag: open Add/Edit Tags, type the exact name, pick existing or create, save, confirm it shows. Capture the Tag(s) add/edit UI to wire these.",
-      "addTagButton": "text=Add Tag, text=Edit Tags, [aria-label*='tag' i]",
-      "tagInput": "input[placeholder*='tag' i]",
-      "createOption": ".tag-create, [class*='create']",
-      "existingOption": ".tag-option, [role='option']",
-      "saveButton": "button:has-text('Save'), button:has-text('Add')"
+      "_status": "CONFIRMED modal 'Add/Remove Tags': open via the '+' in the Tag(s) section; the 'Apply Tag(s)' dropdown (shows 'Select An Option'); confirm with the orange 'Add/Remove Tags' button. NOTE: the tag must be selectable in that dropdown - pre-create the 10 Revival tags once in REI so they appear, or the dropdown must allow creating on type.",
+      "addTagButton": "text=Tag(s) >> xpath=following::button[normalize-space()='+'][1]",
+      "modalMarker": "text=Add/Remove Tags",
+      "applyPlaceholder": "text=Select An Option",
+      "tagInput": "[role='dialog'] input, .modal input, input[role='combobox']",
+      "option": "[role='option'], .select__option, li[class*='option']",
+      "createOption": "[class*='create'], text=/create/i",
+      "saveButton": "button:has-text('Add/Remove Tags')",
+      "cancelButton": "button:has-text('Cancel')"
     },
     "chat": {
       "_status": "PARTIAL - CONFIRMED: open via the 'Chat' tab; message box placeholder is 'Write Your Reply...'. The Send button is the orange paper-plane icon in the composer (no visible text) - its exact title/aria-label still needs confirming (hover it to see the tooltip). Send is verified by the message appearing in the thread, so a wrong/blank send button fails safe (no text).",

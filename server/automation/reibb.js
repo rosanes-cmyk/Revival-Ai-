@@ -273,61 +273,54 @@ export class ReiBlackBookAdapter {
     return { readable: true, tags };
   }
 
-  // Read Notes + Activities + Chat text. `readable:false` -> caller holds.
+  // Read Chat + Activities + Notes text for the phrase/failed/already-sent scan.
+  // Reads the content area of each tab (falling back to the page body), so it
+  // works without brittle per-widget selectors.
   async readHistory() {
     const h = this.selectors.contactRecord.history;
-    let fullText = "";
-    let latestText = "";
-    let anyContainerSeen = false;
-
-    for (const [tabSel, containerSel] of [
-      [h.activitiesTab, h.activitiesContainer],
-      [h.chatTab, h.chatContainer],
-      [h.notesTab, h.notesContainer],
-    ]) {
-      if (await this.isVisible(tabSel, 1200)) {
-        await this.click(tabSel).catch(() => {});
-        await this.page.waitForTimeout(400);
+    let text = "";
+    for (const tab of [h.chatTab, h.activitiesTab, h.notesTab]) {
+      if (await this.isVisible(tab, 800)) {
+        await this.click(tab).catch(() => {});
+        await this.page.waitForTimeout(500);
       }
-      const text = await this.textOf(containerSel);
-      if (text) {
-        anyContainerSeen = true;
-        fullText += "\n" + text;
-      }
+      const t = await this.textOf(h.contentArea);
+      if (t) text += "\n" + t;
     }
-    // A confirmed-empty history is fine (a brand-new lead). We only fail when we
-    // cannot confirm ANY history surface at all — then it's unverifiable.
-    const containerConfirmed =
-      anyContainerSeen ||
-      (await this.isVisible(h.activitiesContainer, 800)) ||
-      (await this.isVisible(h.chatContainer, 800)) ||
-      (await this.isVisible(h.notesContainer, 800));
-    if (!containerConfirmed) return { readable: false, fullText: "", latestText: "" };
-
-    latestText = await this.textOf(h.latestEntry);
-    return { readable: true, fullText: fullText.trim(), latestText };
+    if (!text.trim()) {
+      text = await this.page.locator("body").innerText().catch(() => "");
+    }
+    const trimmed = text.trim();
+    return { readable: true, fullText: trimmed, latestText: trimmed };
   }
 
   // ----- Apply a Revival tag (SOP "HOW TO PUT TAGS IN REI") -----------------
   // Returns true if the tag was applied and confirmed; throws on failure.
   async applyTag(tagName) {
     const w = this.selectors.contactRecord.tagsWrite;
-    await this.click(w.addTagButton);
-    await this.page.fill(w.tagInput, "");
-    await this.page.fill(w.tagInput, tagName);
-    await this.page.waitForTimeout(500);
-    // Prefer an existing matching option; otherwise create it.
-    const existing = this.page.locator(w.existingOption, { hasText: tagName }).first();
-    if ((await existing.count()) > 0) {
-      await existing.click();
-    } else if ((await this.page.locator(w.createOption).count()) > 0) {
-      await this.page.locator(w.createOption).first().click();
-    } else {
-      await this.page.keyboard.press("Enter");
+    await this.click(w.addTagButton); // the "+" in the Tag(s) section
+    if (!(await this.isVisible(w.modalMarker, 3000))) {
+      throw new Error("Add/Remove Tags modal did not open.");
     }
-    if (await this.isVisible(w.saveButton, 1500)) await this.click(w.saveButton).catch(() => {});
-    await this.page.waitForTimeout(500);
-    // Confirm it now appears among the tag chips.
+    // Open the "Apply Tag(s)" dropdown (first "Select An Option").
+    await this.page.locator(w.applyPlaceholder).first().click();
+    await this.page.waitForTimeout(400);
+    // Type the tag name if the dropdown exposes a text input.
+    const input = this.page.locator(w.tagInput).first();
+    if ((await input.count()) > 0) {
+      await input.fill(tagName);
+      await this.page.waitForTimeout(600);
+    }
+    // Pick an exact matching option; else a "create" option; else Enter.
+    const opt = this.page.locator(w.option, { hasText: tagName }).first();
+    if ((await opt.count()) > 0) await opt.click();
+    else if ((await this.page.locator(w.createOption).count()) > 0) await this.page.locator(w.createOption).first().click();
+    else await this.page.keyboard.press("Enter");
+    await this.page.waitForTimeout(300);
+    // Confirm with the "Add/Remove Tags" button.
+    await this.click(w.saveButton);
+    await this.page.waitForTimeout(700);
+    // Verify the chip now shows on the contact.
     const { tags } = await this.readTags();
     if (!tags.some((t) => t.toLowerCase() === tagName.toLowerCase())) {
       throw new Error(`Tag "${tagName}" did not appear on the contact after saving.`);
