@@ -9,6 +9,7 @@ const els = {
   closeLogsBtn: $("closeLogsBtn"), logsDrawer: $("logsDrawer"), logsBody: $("logsBody"),
   tableBody: $("leadTableBody"), statusLabel: $("statusLabel"), liveFlag: $("liveFlag"),
   approvedTHB: $("approvedTHB"), approvedETI: $("approvedETI"), batchLimit: $("batchLimit"),
+  companySelect: $("companySelect"),
   schedEnabled: $("schedEnabled"), schedTime: $("schedTime"), schedNote: $("schedNote"),
   progressWrap: $("progressWrap"), progressFill: $("progressFill"), progressText: $("progressText"),
   finalSummary: $("finalSummary"), finalSummaryBody: $("finalSummaryBody"), toast: $("toast"),
@@ -213,6 +214,11 @@ async function init() {
     if (els.approvedTHB && entries[0]) els.approvedTHB.textContent = `${entries[0][0]}: “${entries[0][1]}”`;
     if (els.approvedETI && entries[1]) els.approvedETI.textContent = `${entries[1][0]}: “${entries[1][1]}”`;
     els.liveFlag.className = "live-flag " + (cfg.allowLiveSend ? "on" : "off");
+    if (els.companySelect && cfg.defaultCompany) {
+      if ([...els.companySelect.options].some((o) => o.value === cfg.defaultCompany)) {
+        els.companySelect.value = cfg.defaultCompany;
+      }
+    }
     if (els.batchLimit && cfg.maxSendsPerRun !== undefined) {
       const v = String(cfg.maxSendsPerRun);
       if ([...els.batchLimit.options].some((o) => o.value === v)) els.batchLimit.value = v;
@@ -329,6 +335,21 @@ async function saveSchedule() {
 if (els.schedEnabled) {
   els.schedEnabled.onchange = saveSchedule;
   els.schedTime.onchange = () => { if (els.schedEnabled.checked) saveSchedule(); else renderSchedNote(); };
+}
+
+if (els.companySelect) {
+  els.companySelect.onchange = async () => {
+    try {
+      const r = await api("/api/company", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ company: els.companySelect.value }),
+      });
+      toast(`Default company set to ${r.defaultCompany}.`, "ok");
+    } catch (err) {
+      toast(err.message, "error");
+    }
+  };
 }
 
 if (els.batchLimit) {

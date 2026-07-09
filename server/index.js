@@ -21,7 +21,7 @@ import { parseSpreadsheet, exportToXlsx, exportToCsv } from "./data/spreadsheet.
 import { JobStore } from "./data/store.js";
 import { JobLogger } from "./logger.js";
 import { AutomationEngine } from "./automation/engine.js";
-import { assertMessageIntegrity, APPROVED_MESSAGES } from "./automation/message.js";
+import { assertMessageIntegrity, APPROVED_MESSAGES, normalizeCompany } from "./automation/message.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -135,6 +135,14 @@ app.post("/api/schedule", (req, res) => {
   schedule = { enabled, time, lastRun: enabled ? "" : schedule.lastRun };
   saveSchedule(schedule);
   res.json({ ok: true, schedule });
+});
+
+// Set the default company (which template a sheet uses) from the dashboard.
+app.post("/api/company", (req, res) => {
+  const c = normalizeCompany(req.body && req.body.company);
+  if (!c) return res.status(400).json({ error: "Company must be Twin Home Buyer or Equity Track Inc." });
+  engine.defaultCompany = c;
+  res.json({ ok: true, defaultCompany: c });
 });
 
 // Set the per-run text cap from the dashboard dropdown.
