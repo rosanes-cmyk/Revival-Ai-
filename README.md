@@ -10,14 +10,20 @@ when the lead passes every compliance check.**
 > live. A single kill switch (`ALLOW_LIVE_SEND`) is the only thing that blocks
 > real sends, and it defaults to on in `.env.example`.
 
-## The approved message (locked)
+## The approved messages (locked)
 
-> "Hi, this is Juan with Twin Home Buyer. You contacted us before about selling
-> your home. Are you still interested? Reply YES or NO. Thanks!"
+The message is chosen by each lead's **Company Source** column:
 
-This string lives in `server/automation/message.js`, is frozen, and is checksum
--verified at startup and again immediately before every send. The code will not
-send anything that does not match it exactly.
+> **Twin Home Buyer:** "Hi, this is Juan with Twin Home Buyer. You contacted us
+> before about selling your home. Are you still interested? Reply YES or NO. Thanks!"
+
+> **Equity Track Inc.:** "Hi, this is Juan with Equity Track Inc. You contacted
+> us before about selling your home. Are you still interested? Reply YES or NO. Thanks!"
+
+Both strings live in `server/automation/message.js`, are frozen, and are
+checksum-verified at startup and again immediately before every send. The code
+will not send anything that does not match one of them exactly. A lead whose
+Company Source is neither company is held as **Needs Review** (no send).
 
 ---
 
@@ -28,16 +34,22 @@ with a headless (or visible) Chromium browser via **Playwright**, exactly as the
 SOP describes:
 
 1. **Log in** to REI BlackBook.
-2. **Property Pipeline** — clear/verify the Feed Source, Status, and Deal Type
-   filters, then search full address → partial address → owner name.
-3. **Smart Contacts** — if still no match, search the owner name.
-4. **Read** the matched record's opt-out tags, property status, and contact
+2. **Search** in order until a match is found: Property Pipeline by full address
+   → street address → house # + street → owner name; then Contacts by owner name
+   → phone → email.
+3. **Open the contact** (from the matched Pipeline property, or directly from a
+   Contacts match).
+4. **Read** the contact's tags, phone, property status, and Notes/Activities/Chat
    history.
-5. **Decide** using the SOP rule engine (`server/automation/sop.js`).
-6. **Send** the approved text through REI BlackBook's SMS composer — only if
-   eligible.
-7. **Record** disposition, notes, and a full per-row log; update the dashboard
-   and the exportable spreadsheet.
+5. **Decide** with the SOP rule engine (`server/automation/sop.js`): match,
+   sold, listed, bad tags, blocking phrases, failed/undelivered, already-sent,
+   phone present, company valid.
+6. **Apply the Revival tag** for the outcome (`Revival - Text Sent`,
+   `Revival - Do Not Text`, `Revival - Sold`, …) back onto the REI contact.
+7. **Send** the company-specific approved text through the Chat/Text panel —
+   only if the lead is clean — and verify the sent message appears in the thread.
+8. **Record** disposition, notes, tag, and a full per-row log; update the
+   dashboard and the exportable spreadsheet; save progress after every row.
 
 ### Fail-safe design
 
@@ -118,33 +130,45 @@ npm start
   never left half-done.
 - **Stop** ends the run and saves progress.
 - **Resume** (or Start again) continues from where it left off. Rows whose
-  disposition is already `Text Sent`, `Lead NOT Found`, `Property Sold`,
-  `Listed`, or `Opted Out` are **skipped**, so no one is texted twice — even
-  across a full server restart (job state is persisted to `data/state/`).
+  disposition is already finished — `Text Sent`, `Lead NOT Found`,
+  `Property Sold`, `Listed`, `Opted Out`, `Not Interested`, `Wrong Number`,
+  `Failed Number`, or `Already Contacted` — are **skipped**, so no one is texted
+  twice, even across a full server restart (state persisted to `data/state/`).
+  `Needs Review` and `Error` rows are re-attempted.
 
 ### Export
 
 **Export XLSX / CSV** downloads the updated spreadsheet with the original lead
-data plus Disposition, Notes, REI Match Status, Last Contact Date, Opt-Out
-Status, Property Status, Eligibility Status, Text Sent Timestamp, and Error Log.
+data plus Company Source, Phone, Email, Disposition, Notes, REI Match Status,
+Search Method Used, Property Status, Opt-Out / Safety, Eligibility Status,
+REI Tag Applied, Text Sent Timestamp, and Error Log.
 
 ---
 
-## SOP rules enforced (never text when…)
+## SOP outcomes (each also writes its Revival tag to the REI contact)
 
-- Opted Out / SMS Opt Out / STOP Request / Text Opt Out → **Opted Out**
-- Property sold → **Property Sold**
-- Property listed (active MLS) → **Listed**
-- Contacted within the last `CONTACT_WINDOW_DAYS` days → **Needs Review**
-- No matching lead found → **Lead NOT Found**
-- System uncertain about any reading → **Needs Review** / **Error**
+| Condition | Disposition | REI tag |
+|---|---|---|
+| No match after all searches | Lead NOT Found | `Revival - Lead Not Found` |
+| Property sold | Property Sold | `Revival - Sold` |
+| Property listed (active MLS) | Listed | `Revival - Listed` |
+| Bad tag or opt-out/stop/do-not-text phrase | Opted Out | `Revival - Do Not Text` |
+| "not interested" tag/phrase | Not Interested | `Revival - Not Interested` |
+| "wrong number" tag/phrase | Wrong Number | `Revival - Wrong Number` |
+| Latest message failed/undelivered | Failed Number | `Revival - Failed Number` |
+| Approved message already sent | Already Contacted | `Revival - Already Contacted` |
+| No phone / unknown company / anything uncertain | Needs Review | `Revival - Needs Review` |
+| **Clean** — passes every check | Text Sent | `Revival - Text Sent` |
 
-`Do Not Mail` / `Do Not Contact` tags **without** an opt-out do **not** block a
-text (per SOP step G); the tag is recorded in Notes and the lead proceeds only
-if it also passes the recent-contact check.
+**Never texts** on any of the non-clean rows above, on a sold/listed property,
+or whenever a tag or history can't be read. Compliance is tag- and phrase-based:
+a lead is textable **only** when it carries no bad tag, its history has no
+blocking phrase, its latest message didn't fail, the approved message wasn't
+already sent, it has a phone, and its Company Source is one of the two approved
+senders. `Do Not Mail` alone does **not** block a text.
 
-Only when a lead clears **all** of the above is the approved text sent, and the
-row becomes `Text Sent` / `Eligible - Text Sent` with a timestamp.
+Bad tags and blocking phrases are configurable in
+`server/automation/constants.js` (`SAFETY_TAG_RULES`, `BLOCKING_PHRASES`).
 
 ---
 
@@ -156,7 +180,8 @@ server/index.js               Express server + API + SSE live updates
 server/automation/engine.js   Row-by-row orchestrator (start/pause/resume/stop)
 server/automation/sop.js      SOP decision rules (pure, auditable)
 server/automation/reibb.js    Playwright adapter that drives REI BlackBook
-server/automation/message.js  The frozen approved message
+server/automation/message.js  The two frozen approved messages (per company)
+server/automation/constants.js Dispositions, Revival tags, bad tags, phrases
 server/data/spreadsheet.js    CSV/XLSX parse + export
 server/data/store.js          Job state persistence (resume support)
 server/logger.js              Per-row structured logging
