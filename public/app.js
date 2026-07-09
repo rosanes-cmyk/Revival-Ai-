@@ -39,9 +39,15 @@ function badgeClass(disp) { return "badge " + String(disp).replace(/[^A-Za-z]/g,
 
 function renderSummary(s) {
   if (!s) return;
+  const view = {
+    total: s.total ?? 0,
+    textSent: s.textSent ?? 0,
+    soldListed: (s.propertySold ?? 0) + (s.listed ?? 0),
+    notIntOpt: (s.notInterested ?? 0) + (s.optedOut ?? 0),
+  };
   document.querySelectorAll(".stat").forEach((el) => {
     const k = el.dataset.k;
-    if (k in s) el.querySelector(".stat-num").textContent = s[k] ?? 0;
+    if (k in view) el.querySelector(".stat-num").textContent = view[k];
   });
 }
 
