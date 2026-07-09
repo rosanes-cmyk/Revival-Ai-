@@ -14,7 +14,7 @@
   ],
 
   "login": {
-    "_status": "NEEDS-DOM - login page not captured",
+    "_status": "PARTIAL - logged-in marker confirmed ('Discover'). Login page fields still a best guess.",
     "loginUrl": "https://www.propertyradar.com/login",
     "emailInput": "input[type='email'], input[name='email']",
     "passwordInput": "input[type='password'], input[name='password']",
@@ -23,9 +23,9 @@
   },
 
   "search": {
-    "_status": "NEEDS-DOM - Discover screen shows a 'Full Address' quick search and a City/County/ZIP box",
+    "_status": "PARTIAL - CONFIRMED: 'Full Address' quick-search tab and the search box on Discover. The property-detail page (after opening a result) still needs a capture to confirm where Sold/Listed shows.",
     "fullAddressTab": "text=Full Address",
-    "addressInput": "input[placeholder*='Address' i], input[placeholder*='City' i]",
+    "addressInput": "input[placeholder*='Address' i], input[placeholder*='City' i], input[placeholder*='ZIP' i]",
     "submit": "button:has-text('Search'), .search-btn",
     "resultRow": ".result-row, table tbody tr, .property-card",
     "resultLink": ".result-row a, table tbody tr a, .property-card a",
