@@ -103,7 +103,7 @@ export class AutomationEngine extends EventEmitter {
     this._loopActive = true;
     try {
       this.adapter = this.adapterFactory();
-      this.emitState("Launching browser and logging into REI BlackBook...");
+      this.emitState("Opening REI BlackBook. If a login page appears in the browser window, log in there once — it will be remembered for next time.");
       await this.adapter.launch();
       if (this.checkPropertyRadar) {
         this.emitState("Logging into PropertyRadar for Sold/Listed verification...");

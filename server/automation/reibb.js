@@ -58,32 +58,58 @@ export class ReiBlackBookAdapter {
   async ensureLoggedIn() {
     const s = this.selectors.login;
     await this.page.goto(this.loginUrl, { waitUntil: "domcontentloaded" });
-    await this.page.waitForTimeout(800);
+    await this.page.waitForTimeout(1000);
 
-    // Already logged in? A stored session usually redirects away from /login.
     const onLogin = () => /login|sign[-_ ]?in/i.test(this.page.url());
-    if (!onLogin()) return;
-    if (await this.isVisible(s.loggedInMarker, 2000)) return;
 
-    if (!this.email || !this.password) {
-      throw new Error("REI BlackBook credentials are not set. Set REIBB_EMAIL and REIBB_PASSWORD in .env.");
+    // 1) Already logged in from a previously saved session → done.
+    if (!onLogin()) {
+      await this.saveSession();
+      return;
     }
-    await this.page.fill(s.emailInput, this.email);
-    await this.page.fill(s.passwordInput, this.password);
-    await this.page.click(s.submitButton);
 
-    // Success = we navigate off the login page (robust to the exact landing UI).
-    try {
-      await this.page.waitForURL((u) => !/login|sign[-_ ]?in/i.test(String(u)), { timeout: this.actionTimeout });
-    } catch {
-      if (!(await this.isVisible(s.loggedInMarker, 3000))) {
+    // 2) Try auto-login IF an email+password are provided (optional now).
+    if (this.email && this.password) {
+      try {
+        await this.page.fill(s.emailInput, this.email);
+        await this.page.fill(s.passwordInput, this.password);
+        await this.page.click(s.submitButton);
+        await this.page.waitForURL((u) => !/login|sign[-_ ]?in/i.test(String(u)), { timeout: 20000 }).catch(() => {});
+      } catch {
+        /* fall through to manual login */
+      }
+    }
+
+    // 3) Still on the login page → let the user log in BY HAND in the open
+    //    window (handles 2FA, odd forms, anything). We just wait, then save
+    //    the session so it's remembered and never asks again.
+    if (onLogin()) {
+      if (this.headless) {
         throw new Error(
-          "Login to REI BlackBook did not complete — still on the login page. " +
-            "Check the email/password, or whether REI is asking for 2FA / a security code."
+          "Couldn't log in automatically and the browser is hidden. Set HEADLESS=false in .env and run again, " +
+            "then log into REI in the window that opens — it will be remembered for next time."
+        );
+      }
+      const deadlineMs = 6 * 60 * 1000; // give the user up to 6 minutes
+      const start = Date.now();
+      while (onLogin() && Date.now() - start < deadlineMs) {
+        await this.page.waitForTimeout(1500);
+      }
+      if (onLogin()) {
+        throw new Error(
+          "Login wasn't completed in time. Please log into REI BlackBook in the open window, then click Start again."
         );
       }
     }
-    await this.context.storageState({ path: AUTH_STATE_PATH });
+    await this.saveSession();
+  }
+
+  async saveSession() {
+    try {
+      await this.context.storageState({ path: AUTH_STATE_PATH });
+    } catch {
+      /* non-fatal */
+    }
   }
 
   async close() {

@@ -23,6 +23,8 @@ if (fs.existsSync(envPath)) {
     ) {
       value = value.slice(1, -1);
     }
-    if (!(key in process.env)) process.env[key] = value;
+    // Last occurrence wins, so a stray duplicate line can't shadow the intended
+    // value (a common hand-editing mistake).
+    process.env[key] = value;
   }
 }
