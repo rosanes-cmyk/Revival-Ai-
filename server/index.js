@@ -14,6 +14,7 @@
 import "./loadenv.js";
 import express from "express";
 import multer from "multer";
+import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { parseSpreadsheet, exportToXlsx, exportToCsv } from "./data/spreadsheet.js";
@@ -79,7 +80,61 @@ app.get("/api/config", (req, res) => {
     approvedMessage: APPROVED_MESSAGES[engine.defaultCompany],
     allowLiveSend: engine.allowLiveSend,
     maxSendsPerRun: engine.maxSendsPerRun,
+    schedule,
   });
+});
+
+// --- Daily scheduler --------------------------------------------------------
+// Persisted {enabled, time:"HH:MM", lastRun:"YYYY-MM-DD"}. A timer auto-starts
+// the next batch once per day at the set time (the app must be running).
+const SCHEDULE_FILE = path.join(__dirname, "..", "data", "state", "schedule.json");
+
+function loadSchedule() {
+  try {
+    return JSON.parse(fs.readFileSync(SCHEDULE_FILE, "utf8"));
+  } catch {
+    return { enabled: false, time: "09:00", lastRun: "" };
+  }
+}
+function saveSchedule(s) {
+  try {
+    fs.writeFileSync(SCHEDULE_FILE, JSON.stringify(s, null, 2));
+  } catch (err) {
+    console.error("[schedule] save failed:", err.message);
+  }
+}
+let schedule = loadSchedule();
+
+function todayStr(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function nowHHMM(d = new Date()) {
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+setInterval(async () => {
+  if (!schedule.enabled || !store || engine.isBusy()) return;
+  const today = todayStr();
+  if (schedule.lastRun === today) return; // already fired today
+  if (nowHHMM() !== schedule.time) return;
+  schedule.lastRun = today;
+  saveSchedule(schedule);
+  broadcast("state", { message: `Scheduled run starting (daily at ${schedule.time}).` });
+  try {
+    await engine.start();
+  } catch (err) {
+    broadcast("state", { message: `Scheduled run could not start: ${err.message}` });
+  }
+}, 30000);
+
+app.post("/api/schedule", (req, res) => {
+  const enabled = !!(req.body && req.body.enabled);
+  const time = String((req.body && req.body.time) || "09:00");
+  if (!/^\d{2}:\d{2}$/.test(time)) return res.status(400).json({ error: "Time must be HH:MM." });
+  // Reset lastRun so it can fire today if the time hasn't passed yet.
+  schedule = { enabled, time, lastRun: enabled ? "" : schedule.lastRun };
+  saveSchedule(schedule);
+  res.json({ ok: true, schedule });
 });
 
 // Set the per-run text cap from the dashboard dropdown.

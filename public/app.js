@@ -9,6 +9,7 @@ const els = {
   closeLogsBtn: $("closeLogsBtn"), logsDrawer: $("logsDrawer"), logsBody: $("logsBody"),
   tableBody: $("leadTableBody"), statusLabel: $("statusLabel"), liveFlag: $("liveFlag"),
   approvedMessage: $("approvedMessage"), batchLimit: $("batchLimit"),
+  schedEnabled: $("schedEnabled"), schedTime: $("schedTime"), schedNote: $("schedNote"),
   progressWrap: $("progressWrap"), progressFill: $("progressFill"), progressText: $("progressText"),
   finalSummary: $("finalSummary"), finalSummaryBody: $("finalSummaryBody"), toast: $("toast"),
   filterNote: $("filterNote"),
@@ -213,6 +214,11 @@ async function init() {
       const v = String(cfg.maxSendsPerRun);
       if ([...els.batchLimit.options].some((o) => o.value === v)) els.batchLimit.value = v;
     }
+    if (cfg.schedule && els.schedEnabled) {
+      els.schedEnabled.checked = !!cfg.schedule.enabled;
+      if (cfg.schedule.time) els.schedTime.value = cfg.schedule.time;
+      renderSchedNote();
+    }
     els.liveFlag.title = cfg.allowLiveSend ? "Live send ENABLED" : "Live send DISABLED (ALLOW_LIVE_SEND is off)";
   } catch (e) { /* ignore */ }
 
@@ -289,6 +295,37 @@ els.stopBtn.onclick = () => control("/api/stop", "Stopping…");
 async function control(path, msg) {
   try { toast(msg); const r = await api(path, { method: "POST" }); if (r.status) setStatus(r.status); }
   catch (err) { toast(err.message, "error"); }
+}
+
+function to12h(hhmm) {
+  if (!hhmm) return "";
+  const [h, m] = hhmm.split(":").map(Number);
+  const ap = h >= 12 ? "PM" : "AM";
+  const h12 = ((h + 11) % 12) + 1;
+  return `${h12}:${String(m).padStart(2, "0")} ${ap}`;
+}
+function renderSchedNote() {
+  if (!els.schedNote) return;
+  els.schedNote.textContent = els.schedEnabled.checked
+    ? `On — runs daily at ${to12h(els.schedTime.value)} (app must be open)`
+    : "Off — you start each run manually";
+}
+async function saveSchedule() {
+  try {
+    await api("/api/schedule", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled: els.schedEnabled.checked, time: els.schedTime.value }),
+    });
+    renderSchedNote();
+    toast(els.schedEnabled.checked ? `Scheduled daily at ${to12h(els.schedTime.value)}.` : "Schedule turned off.", "ok");
+  } catch (err) {
+    toast(err.message, "error");
+  }
+}
+if (els.schedEnabled) {
+  els.schedEnabled.onchange = saveSchedule;
+  els.schedTime.onchange = () => { if (els.schedEnabled.checked) saveSchedule(); else renderSchedNote(); };
 }
 
 if (els.batchLimit) {

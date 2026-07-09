@@ -147,6 +147,15 @@ h2 { margin: 0 0 4px; font-size: 15px; }
 }
 .batch-picker select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
+/* Schedule bar */
+.schedule-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; font-size: 13px; color: var(--muted); }
+.sched-toggle { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; cursor: pointer; }
+.schedule-bar input[type="time"] {
+  background: var(--panel-2); color: var(--text); border: 1px solid var(--line);
+  border-radius: 10px; padding: 7px 10px; font: inherit; font-weight: 700;
+}
+.sched-note { color: var(--accent); font-weight: 600; }
+
 /* Progress */
 .progress-wrap { margin-bottom: 16px; }
 .progress-bar { height: 8px; background: var(--panel-2); border-radius: 999px; overflow: hidden; border: 1px solid var(--line); }

@@ -80,6 +80,13 @@
         <button class="btn" id="logsBtn">🗎 View Logs</button>
       </section>
 
+      <!-- Daily schedule -->
+      <div class="schedule-bar">
+        <label class="sched-toggle"><input type="checkbox" id="schedEnabled" /> Run automatically every day at</label>
+        <input type="time" id="schedTime" value="09:00" />
+        <span class="sched-note" id="schedNote"></span>
+      </div>
+
       <!-- Progress -->
       <div class="progress-wrap" id="progressWrap" hidden>
         <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
