@@ -13,7 +13,7 @@
 import { EventEmitter } from "events";
 import { ReiBlackBookAdapter } from "./reibb.js";
 import { decide } from "./sop.js";
-import { assertMessageIntegrity } from "./message.js";
+import { assertMessageIntegrity, normalizeCompany, COMPANY } from "./message.js";
 import { JOB_STATUS } from "../data/store.js";
 import { DISPOSITION, ELIGIBILITY, REVIVAL_TAG } from "./constants.js";
 
@@ -26,6 +26,10 @@ export class AutomationEngine extends EventEmitter {
     this._control = "stopped";
     this._loopActive = false;
     this.allowLiveSend = String(process.env.ALLOW_LIVE_SEND).toLowerCase() === "true";
+    // Default company used when a lead has no (or an unrecognized) Company
+    // Source. The two approved messages differ only by this name, so a sheet
+    // never needs a Company Source column — it just falls back to this.
+    this.defaultCompany = normalizeCompany(process.env.DEFAULT_COMPANY) || COMPANY.TWIN_HOME_BUYER;
     this.adapterFactory = () => new ReiBlackBookAdapter();
   }
 
@@ -139,7 +143,9 @@ export class AutomationEngine extends EventEmitter {
         zip: row.zip,
         phone: row.phone,
         email: row.email,
-        companySource: row.companySource,
+        // Fall back to the default company so a missing/unknown Company Source
+        // never blocks a send.
+        companySource: normalizeCompany(row.companySource) || this.defaultCompany,
       });
 
       row.searchMethod = searchMethod;

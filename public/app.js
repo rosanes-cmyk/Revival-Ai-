@@ -8,7 +8,7 @@ const els = {
   exportXlsxBtn: $("exportXlsxBtn"), exportCsvBtn: $("exportCsvBtn"), logsBtn: $("logsBtn"),
   closeLogsBtn: $("closeLogsBtn"), logsDrawer: $("logsDrawer"), logsBody: $("logsBody"),
   tableBody: $("leadTableBody"), statusLabel: $("statusLabel"), liveFlag: $("liveFlag"),
-  approvedTHB: $("approvedTHB"), approvedETI: $("approvedETI"),
+  approvedMessage: $("approvedMessage"),
   progressWrap: $("progressWrap"), progressFill: $("progressFill"), progressText: $("progressText"),
   finalSummary: $("finalSummary"), finalSummaryBody: $("finalSummaryBody"), toast: $("toast"),
 };
@@ -132,12 +132,7 @@ function renderFinal(d) {
 async function init() {
   try {
     const cfg = await api("/api/config");
-    const m = cfg.approvedMessages || {};
-    const entries = Object.entries(m);
-    if (entries.length) {
-      els.approvedTHB.textContent = entries[0] ? `${entries[0][0]}: “${entries[0][1]}”` : "";
-      els.approvedETI.textContent = entries[1] ? `${entries[1][0]}: “${entries[1][1]}”` : "";
-    }
+    els.approvedMessage.textContent = cfg.approvedMessage || "";
     els.liveFlag.className = "live-flag " + (cfg.allowLiveSend ? "on" : "off");
     els.liveFlag.title = cfg.allowLiveSend ? "Live send ENABLED" : "Live send DISABLED (ALLOW_LIVE_SEND is off)";
   } catch (e) { /* ignore */ }

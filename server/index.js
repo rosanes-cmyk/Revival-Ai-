@@ -74,6 +74,8 @@ app.get("/api/events", (req, res) => {
 app.get("/api/config", (req, res) => {
   res.json({
     approvedMessages: APPROVED_MESSAGES,
+    defaultCompany: engine.defaultCompany,
+    approvedMessage: APPROVED_MESSAGES[engine.defaultCompany],
     allowLiveSend: engine.allowLiveSend,
   });
 });
