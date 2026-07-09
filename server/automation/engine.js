@@ -156,6 +156,13 @@ export class AutomationEngine extends EventEmitter {
   async _processRow(row) {
     const logBase = { row: row.rowNumber, owner: row.ownerName, address: row.propertyAddress, company: row.companySource };
     try {
+      // PropertyRadar FIRST (if enabled): if it's sold/listed, skip the REI
+      // checks entirely, tag it, and move on.
+      if (this.prAdapter) {
+        const handled = await this._propertyRadarFirst(row, logBase);
+        if (handled) return;
+      }
+
       const { facts, searchMethod, matchStatus } = await this.adapter.gatherFacts({
         ownerName: row.ownerName,
         propertyAddress: row.propertyAddress,
@@ -171,18 +178,6 @@ export class AutomationEngine extends EventEmitter {
 
       row.searchMethod = searchMethod;
       row.reiMatchStatus = matchStatus;
-
-      // Optional: verify Sold/Listed in PropertyRadar. Can only ADD a block,
-      // never enable a text; if PR can't be read, fall back to REI's status.
-      if (this.prAdapter && facts.matchFound && !facts.uncertain) {
-        const pr = await this.prAdapter.lookupStatus({
-          propertyAddress: row.propertyAddress, city: row.city, state: row.state, zip: row.zip,
-        }).catch((e) => ({ uncertain: true, reason: e.message }));
-        if (pr && pr.checked && !pr.uncertain) {
-          if (pr.sold && !facts.propertySold) { facts.propertySold = true; facts.soldDate = facts.soldDate || pr.soldDate; }
-          if (pr.listed && !facts.propertyListed) { facts.propertyListed = true; facts.mlsNote = facts.mlsNote || pr.listingNote; }
-        }
-      }
 
       const decision = decide(facts);
       row.propertyStatus = decision.propertyStatus;
@@ -243,6 +238,54 @@ export class AutomationEngine extends EventEmitter {
         error: err.message,
       });
     }
+  }
+
+  // PropertyRadar-first: look the property up in PropertyRadar before touching
+  // REI. If it is sold or listed, disposition it, tag it in REI (best-effort),
+  // and skip the rest. Returns true if it handled the row.
+  async _propertyRadarFirst(row, logBase) {
+    const pr = await this.prAdapter
+      .lookupStatus({ propertyAddress: row.propertyAddress, city: row.city, state: row.state, zip: row.zip })
+      .catch((e) => ({ uncertain: true, reason: e.message }));
+    if (!pr || !pr.checked || pr.uncertain || (!pr.sold && !pr.listed)) return false;
+
+    const sold = pr.sold;
+    row.searchMethod = "PropertyRadar (checked first)";
+    row.eligibilityStatus = ELIGIBILITY.NOT_ELIGIBLE;
+    row.disposition = sold ? DISPOSITION.PROPERTY_SOLD : DISPOSITION.LISTED;
+    row.propertyStatus = sold ? (pr.soldDate ? `Sold (${pr.soldDate})` : "Sold") : "Listed (Active)";
+    row.notes = sold
+      ? (pr.soldDate ? `Sold per PropertyRadar (${pr.soldDate})` : "Sold per PropertyRadar")
+      : `Listed per PropertyRadar${pr.listingNote ? ": " + pr.listingNote : ""}`;
+    row.errorLog = "";
+
+    // Best-effort: find the REI contact and tag it Sold/Listed.
+    try {
+      const located = await this.adapter.locateContact({
+        ownerName: row.ownerName, propertyAddress: row.propertyAddress, city: row.city,
+        state: row.state, zip: row.zip, phone: row.phone, email: row.email,
+      });
+      row.reiMatchStatus = located.matchFound ? located.matchStatus : "Not Found (skipped as sold/listed)";
+      if (located.matchFound) await this._applyTag(row, REVIVAL_TAG[row.disposition]);
+    } catch (e) {
+      row.errorLog = `PropertyRadar-first tag step: ${e.message}`;
+    }
+
+    this.logger.log({
+      ...logBase,
+      searchMethod: row.searchMethod,
+      matchFound: String(row.reiMatchStatus).startsWith("Match"),
+      matchStatus: row.reiMatchStatus,
+      complianceResult: sold ? "Sold (PropertyRadar)" : "Listed (PropertyRadar)",
+      propertyStatus: row.propertyStatus,
+      eligibility: row.eligibilityStatus,
+      textSent: false,
+      disposition: row.disposition,
+      reiTag: row.reiTagApplied,
+      notes: row.notes,
+      error: row.errorLog,
+    });
+    return true;
   }
 
   // Apply a Revival tag; best-effort. A tag failure is recorded but never

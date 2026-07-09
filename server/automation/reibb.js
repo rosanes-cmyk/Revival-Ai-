@@ -136,6 +136,29 @@ export class ReiBlackBookAdapter {
     }
   }
 
+  // Lightweight: find and open the contact without reading all facts. Used by
+  // the PropertyRadar-first path to tag a sold/listed property in REI.
+  async locateContact(lead) {
+    const trail = [];
+    let matched = null;
+    try {
+      matched = await this.searchAll(lead, trail);
+    } catch {
+      return { matchFound: false, matchStatus: MATCH_STATUS.NOT_FOUND, searchMethod: trail.join(" -> ") };
+    }
+    if (!matched) {
+      return { matchFound: false, matchStatus: MATCH_STATUS.NOT_FOUND, searchMethod: trail.join(" -> ") };
+    }
+    if (matched.area === "pipeline") {
+      try {
+        await this.openContactFromProperty();
+      } catch {
+        /* still consider the property found; tagging may be skipped */
+      }
+    }
+    return { matchFound: true, matchStatus: matched.matchStatus, searchMethod: matched.searchMethod };
+  }
+
   // ----- Search in the required order (SOP FLOW step 3) --------------------
   async searchAll(lead, trail) {
     const attempts = buildSearchAttempts(lead);
