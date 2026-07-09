@@ -33,8 +33,9 @@ export class AutomationEngine extends EventEmitter {
     // never needs a Company Source column — it just falls back to this.
     this.defaultCompany = normalizeCompany(process.env.DEFAULT_COMPANY) || COMPANY.TWIN_HOME_BUYER;
     // Max texts to actually SEND per run (batching to protect the number).
-    // 0 = unlimited. Only successful sends count; skips/other outcomes don't.
-    this.maxSendsPerRun = Number(process.env.MAX_SENDS_PER_RUN || 0);
+    // Defaults to 100 even without a .env; 0 = unlimited. Only successful sends
+    // count; skips/other outcomes don't. Adjustable live from the dashboard.
+    this.maxSendsPerRun = Number(process.env.MAX_SENDS_PER_RUN ?? 100);
     // Optional PropertyRadar Sold/Listed verification.
     this.checkPropertyRadar = String(process.env.CHECK_PROPERTYRADAR).toLowerCase() === "true";
     this.adapterFactory = () => new ReiBlackBookAdapter();

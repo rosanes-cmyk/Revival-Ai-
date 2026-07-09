@@ -78,7 +78,16 @@ app.get("/api/config", (req, res) => {
     defaultCompany: engine.defaultCompany,
     approvedMessage: APPROVED_MESSAGES[engine.defaultCompany],
     allowLiveSend: engine.allowLiveSend,
+    maxSendsPerRun: engine.maxSendsPerRun,
   });
+});
+
+// Set the per-run text cap from the dashboard dropdown.
+app.post("/api/batch-limit", (req, res) => {
+  const v = Number(req.body && req.body.value);
+  if (Number.isNaN(v) || v < 0) return res.status(400).json({ error: "Invalid batch limit." });
+  engine.maxSendsPerRun = Math.floor(v);
+  res.json({ ok: true, maxSendsPerRun: engine.maxSendsPerRun });
 });
 
 // --- Upload -----------------------------------------------------------------

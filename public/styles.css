@@ -140,6 +140,12 @@ h2 { margin: 0 0 4px; font-size: 15px; }
 .btn-go { background: var(--go); border-color: var(--go-2); color: #fff; }
 .btn-stop { background: var(--stop); border-color: #c23f2b; color: #fff; }
 .btn-small { padding: 6px 12px; font-size: 12px; }
+.batch-picker { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); font-weight: 600; }
+.batch-picker select {
+  background: var(--panel-2); color: var(--text); border: 1px solid var(--line);
+  border-radius: 10px; padding: 9px 12px; font: inherit; font-weight: 700; cursor: pointer;
+}
+.batch-picker select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* Progress */
 .progress-wrap { margin-bottom: 16px; }

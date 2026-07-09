@@ -8,7 +8,7 @@ const els = {
   exportXlsxBtn: $("exportXlsxBtn"), exportCsvBtn: $("exportCsvBtn"), logsBtn: $("logsBtn"),
   closeLogsBtn: $("closeLogsBtn"), logsDrawer: $("logsDrawer"), logsBody: $("logsBody"),
   tableBody: $("leadTableBody"), statusLabel: $("statusLabel"), liveFlag: $("liveFlag"),
-  approvedMessage: $("approvedMessage"),
+  approvedMessage: $("approvedMessage"), batchLimit: $("batchLimit"),
   progressWrap: $("progressWrap"), progressFill: $("progressFill"), progressText: $("progressText"),
   finalSummary: $("finalSummary"), finalSummaryBody: $("finalSummaryBody"), toast: $("toast"),
   filterNote: $("filterNote"),
@@ -209,6 +209,10 @@ async function init() {
     const cfg = await api("/api/config");
     els.approvedMessage.textContent = cfg.approvedMessage || "";
     els.liveFlag.className = "live-flag " + (cfg.allowLiveSend ? "on" : "off");
+    if (els.batchLimit && cfg.maxSendsPerRun !== undefined) {
+      const v = String(cfg.maxSendsPerRun);
+      if ([...els.batchLimit.options].some((o) => o.value === v)) els.batchLimit.value = v;
+    }
     els.liveFlag.title = cfg.allowLiveSend ? "Live send ENABLED" : "Live send DISABLED (ALLOW_LIVE_SEND is off)";
   } catch (e) { /* ignore */ }
 
@@ -285,6 +289,21 @@ els.stopBtn.onclick = () => control("/api/stop", "Stopping…");
 async function control(path, msg) {
   try { toast(msg); const r = await api(path, { method: "POST" }); if (r.status) setStatus(r.status); }
   catch (err) { toast(err.message, "error"); }
+}
+
+if (els.batchLimit) {
+  els.batchLimit.onchange = async () => {
+    try {
+      const r = await api("/api/batch-limit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value: Number(els.batchLimit.value) }),
+      });
+      toast(r.maxSendsPerRun ? `Set to ${r.maxSendsPerRun} texts per run.` : "No per-run limit.", "ok");
+    } catch (err) {
+      toast(err.message, "error");
+    }
+  };
 }
 
 els.exportXlsxBtn.onclick = () => (window.location = "/api/export?format=xlsx");
