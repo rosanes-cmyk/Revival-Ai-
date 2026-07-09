@@ -8,7 +8,7 @@ const els = {
   exportXlsxBtn: $("exportXlsxBtn"), exportCsvBtn: $("exportCsvBtn"), logsBtn: $("logsBtn"),
   closeLogsBtn: $("closeLogsBtn"), logsDrawer: $("logsDrawer"), logsBody: $("logsBody"),
   tableBody: $("leadTableBody"), statusLabel: $("statusLabel"), liveFlag: $("liveFlag"),
-  approvedMessage: $("approvedMessage"), batchLimit: $("batchLimit"),
+  approvedTHB: $("approvedTHB"), approvedETI: $("approvedETI"), batchLimit: $("batchLimit"),
   schedEnabled: $("schedEnabled"), schedTime: $("schedTime"), schedNote: $("schedNote"),
   progressWrap: $("progressWrap"), progressFill: $("progressFill"), progressText: $("progressText"),
   finalSummary: $("finalSummary"), finalSummaryBody: $("finalSummaryBody"), toast: $("toast"),
@@ -208,7 +208,10 @@ function renderFinal(d) {
 async function init() {
   try {
     const cfg = await api("/api/config");
-    els.approvedMessage.textContent = cfg.approvedMessage || "";
+    const m = cfg.approvedMessages || {};
+    const entries = Object.entries(m);
+    if (els.approvedTHB && entries[0]) els.approvedTHB.textContent = `${entries[0][0]}: “${entries[0][1]}”`;
+    if (els.approvedETI && entries[1]) els.approvedETI.textContent = `${entries[1][0]}: “${entries[1][1]}”`;
     els.liveFlag.className = "live-flag " + (cfg.allowLiveSend ? "on" : "off");
     if (els.batchLimit && cfg.maxSendsPerRun !== undefined) {
       const v = String(cfg.maxSendsPerRun);
