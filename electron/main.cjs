@@ -20,9 +20,12 @@ const BASE_URL = `http://localhost:${PORT}`;
 let serverProc = null;
 let mainWindow = null;
 
-// The app root (where package.json + server/ live). Works in dev and when
-// packaged (electron-builder keeps the same relative layout).
-const APP_ROOT = app.getAppPath();
+// The app root (where package.json + server/ live). Derive it from this
+// file's location (electron/main.cjs -> parent), which is correct in BOTH dev
+// (`electron electron/main.cjs`) and packaged (…/app.asar/electron) modes.
+// Note: app.getAppPath() is unreliable in dev — when Electron is handed a file
+// path it reports the file's folder, not the project root.
+const APP_ROOT = path.join(__dirname, "..");
 const SERVER_ENTRY = path.join(APP_ROOT, "server", "index.js");
 
 // Start the Node server using Electron's own bundled Node runtime, so no
