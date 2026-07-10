@@ -34,6 +34,11 @@ export class PropertyRadarAdapter {
     this.page = null;
   }
 
+  // Friendly name used in dashboard notes / logs.
+  get sourceName() {
+    return "PropertyRadar";
+  }
+
   async launch() {
     this.browser = await chromium.launch({ headless: this.headless, slowMo: this.slowMo });
     const ctxOpts = { viewport: { width: 1440, height: 900 } };

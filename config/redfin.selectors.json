@@ -1,0 +1,40 @@
+{
+  "_README": [
+    "Selectors + keywords for reading a property's status on the PUBLIC Redfin",
+    "website (no login). Used only when PROPERTY_SOURCE=redfin.",
+    "",
+    "The adapter is keyword-driven on purpose: it reads the status pill and the",
+    "page body text, then classifies from 'listedKeywords' / a 'sold on <date>'",
+    "pattern. This survives Redfin's frequent CSS class-name changes.",
+    "",
+    "SAFETY: Redfin can only ADD a Sold/Listed block, never enable a text. If it",
+    "can't read confidently, the row falls back to REI BlackBook's status."
+  ],
+
+  "search": {
+    "_status": "VERIFY against live Redfin. The homepage search box; first autocomplete suggestion opens the property.",
+    "searchInput": "input[data-rf-test-id='search-box-input'], #search-box-input, input[type='search'], input[name='searchInputBox'], input[placeholder*='address' i], input[placeholder*='City, Address' i]",
+    "autocompleteOption": "[data-rf-test-id='expanded-search-result-item'] a, .item-row a, .search-result-item a, [role='option'] a, ul[role='listbox'] li a, .autocomplete-item"
+  },
+
+  "status": {
+    "_status": "VERIFY against live Redfin. statusPill is the small status label near the top of a property page.",
+    "statusPill": "[data-rf-test-id='abp-homeStatus'], .ListingStatusBannerSection, .home-main-stats-variant .statusText, [class*='homeStatus'], [class*='ListingStatus'], .status",
+    "detailMarker": "[data-rf-test-id='abp-streetLine'], .street-address, .homeAddress-V2, [class*='street-address']",
+    "noResultsMarker": "text=/no results/i, text=/didn't find/i, text=/couldn't find/i, .no-results"
+  },
+
+  "listedKeywords": [
+    "for sale",
+    "coming soon",
+    "new listing",
+    "new construction",
+    "accepting backup offers",
+    "under contract",
+    "pending",
+    "contingent",
+    "active"
+  ],
+
+  "_note": "soldKeywords are handled in code by matching 'sold on <date>' / 'last sold <date>' and checking the date is within REDFIN_SOLD_WINDOW_MONTHS (default 24). Edit listedKeywords freely."
+}

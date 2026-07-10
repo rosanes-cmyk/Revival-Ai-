@@ -13,6 +13,7 @@
 import { EventEmitter } from "events";
 import { ReiBlackBookAdapter } from "./reibb.js";
 import { PropertyRadarAdapter } from "./propertyradar.js";
+import { RedfinAdapter } from "./redfin.js";
 import { decide } from "./sop.js";
 import { assertMessageIntegrity, normalizeCompany, COMPANY } from "./message.js";
 import { JOB_STATUS } from "../data/store.js";
@@ -36,15 +37,22 @@ export class AutomationEngine extends EventEmitter {
     // Defaults to 100 even without a .env; 0 = unlimited. Only successful sends
     // count; skips/other outcomes don't. Adjustable live from the dashboard.
     this.maxSendsPerRun = Number(process.env.MAX_SENDS_PER_RUN ?? 100);
-    // Optional PropertyRadar Sold/Listed verification.
-    this.checkPropertyRadar = String(process.env.CHECK_PROPERTYRADAR).toLowerCase() === "true";
+    // Optional property Sold/Listed verification, checked FIRST for each lead.
+    // PROPERTY_SOURCE = "redfin" (free, no login) | "propertyradar" (login) |
+    // "none". Back-compat: CHECK_PROPERTYRADAR=true still selects propertyradar.
+    let source = String(process.env.PROPERTY_SOURCE || "").trim().toLowerCase();
+    if (!source && String(process.env.CHECK_PROPERTYRADAR).toLowerCase() === "true") source = "propertyradar";
+    if (!source) source = "none";
+    this.propertySource = source;
+    this.checkPropertyStatus = source === "redfin" || source === "propertyradar";
     // REI tag-writing is OFF: the outcome is recorded in the spreadsheet, so we
     // don't write Revival tags back onto REI contacts. Set WRITE_REI_TAGS=true
     // to re-enable.
     this.writeReiTags = String(process.env.WRITE_REI_TAGS).toLowerCase() === "true";
     this.adapterFactory = () => new ReiBlackBookAdapter();
-    this.prAdapterFactory = () => new PropertyRadarAdapter();
-    this.prAdapter = null;
+    this.statusAdapterFactory = () =>
+      this.propertySource === "redfin" ? new RedfinAdapter() : new PropertyRadarAdapter();
+    this.statusAdapter = null;
   }
 
   attach(store, logger) {
@@ -109,10 +117,11 @@ export class AutomationEngine extends EventEmitter {
       this.adapter = this.adapterFactory();
       this.emitState("Opening REI BlackBook. If a login page appears in the browser window, log in there once — it will be remembered for next time.");
       await this.adapter.launch();
-      if (this.checkPropertyRadar) {
-        this.emitState("Logging into PropertyRadar for Sold/Listed verification...");
-        this.prAdapter = this.prAdapterFactory();
-        await this.prAdapter.launch();
+      if (this.checkPropertyStatus) {
+        const label = this.propertySource === "redfin" ? "Redfin" : "PropertyRadar";
+        this.emitState(`Opening ${label} for Sold/Listed verification...`);
+        this.statusAdapter = this.statusAdapterFactory();
+        await this.statusAdapter.launch();
       }
       this.emitState("Logged in. Processing leads.");
 
@@ -164,9 +173,9 @@ export class AutomationEngine extends EventEmitter {
       }
     } finally {
       if (this.adapter) await this.adapter.close();
-      if (this.prAdapter) await this.prAdapter.close();
+      if (this.statusAdapter) await this.statusAdapter.close();
       this.adapter = null;
-      this.prAdapter = null;
+      this.statusAdapter = null;
       this._loopActive = false;
       this._control = "stopped"; // the loop has ended; ready to Start/Resume again
       this.emit("summary", this.store ? this.store.summary() : null);
@@ -177,10 +186,10 @@ export class AutomationEngine extends EventEmitter {
   async _processRow(row) {
     const logBase = { row: row.rowNumber, owner: row.ownerName, address: row.propertyAddress, company: row.companySource };
     try {
-      // PropertyRadar FIRST (if enabled): if it's sold/listed, skip the REI
-      // checks entirely, tag it, and move on.
-      if (this.prAdapter) {
-        const handled = await this._propertyRadarFirst(row, logBase);
+      // Property status (Redfin / PropertyRadar) FIRST (if enabled): if it's
+      // sold/listed, skip the REI checks entirely, tag it, and move on.
+      if (this.statusAdapter) {
+        const handled = await this._propertyStatusFirst(row, logBase);
         if (handled) return;
       }
 
@@ -263,23 +272,24 @@ export class AutomationEngine extends EventEmitter {
     }
   }
 
-  // PropertyRadar-first: look the property up in PropertyRadar before touching
-  // REI. If it is sold or listed, disposition it, tag it in REI (best-effort),
-  // and skip the rest. Returns true if it handled the row.
-  async _propertyRadarFirst(row, logBase) {
-    const pr = await this.prAdapter
+  // Property-status-first: look the property up in Redfin / PropertyRadar
+  // before touching REI. If it is sold or listed, disposition it, tag it in REI
+  // (best-effort), and skip the rest. Returns true if it handled the row.
+  async _propertyStatusFirst(row, logBase) {
+    const src = this.statusAdapter.sourceName || (this.propertySource === "redfin" ? "Redfin" : "PropertyRadar");
+    const pr = await this.statusAdapter
       .lookupStatus({ propertyAddress: row.propertyAddress, city: row.city, state: row.state, zip: row.zip })
       .catch((e) => ({ uncertain: true, reason: e.message }));
     if (!pr || !pr.checked || pr.uncertain || (!pr.sold && !pr.listed)) return false;
 
     const sold = pr.sold;
-    row.searchMethod = "PropertyRadar (checked first)";
+    row.searchMethod = `${src} (checked first)`;
     row.eligibilityStatus = ELIGIBILITY.NOT_ELIGIBLE;
     row.disposition = sold ? DISPOSITION.PROPERTY_SOLD : DISPOSITION.LISTED;
     row.propertyStatus = sold ? (pr.soldDate ? `Sold (${pr.soldDate})` : "Sold") : "Listed (Active)";
     row.notes = sold
-      ? (pr.soldDate ? `Sold per PropertyRadar (${pr.soldDate})` : "Sold per PropertyRadar")
-      : `Listed per PropertyRadar${pr.listingNote ? ": " + pr.listingNote : ""}`;
+      ? (pr.soldDate ? `Sold per ${src} (${pr.soldDate})` : `Sold per ${src}`)
+      : `Listed per ${src}${pr.listingNote ? ": " + pr.listingNote : ""}`;
     row.errorLog = "";
 
     // Best-effort: find the REI contact and tag it Sold/Listed.
@@ -291,7 +301,7 @@ export class AutomationEngine extends EventEmitter {
       row.reiMatchStatus = located.matchFound ? located.matchStatus : "Not Found (skipped as sold/listed)";
       if (this.writeReiTags && located.matchFound) await this._applyTag(row, REVIVAL_TAG[row.disposition]);
     } catch (e) {
-      row.errorLog = `PropertyRadar-first tag step: ${e.message}`;
+      row.errorLog = `${src}-first tag step: ${e.message}`;
     }
 
     this.logger.log({
@@ -299,7 +309,7 @@ export class AutomationEngine extends EventEmitter {
       searchMethod: row.searchMethod,
       matchFound: String(row.reiMatchStatus).startsWith("Match"),
       matchStatus: row.reiMatchStatus,
-      complianceResult: sold ? "Sold (PropertyRadar)" : "Listed (PropertyRadar)",
+      complianceResult: sold ? `Sold (${src})` : `Listed (${src})`,
       propertyStatus: row.propertyStatus,
       eligibility: row.eligibilityStatus,
       textSent: false,
