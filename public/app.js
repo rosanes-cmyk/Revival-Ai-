@@ -28,7 +28,7 @@ const FILTERS = {
   textSent: (d) => d === "Text Sent",
   soldListed: (d) => d === "Property Sold" || d === "Listed",
   notIntOpt: (d) => d === "Not Interested" || d === "Opted Out",
-  toDelete: (d) => ["Wrong Number", "Failed Number", "Lead NOT Found"].includes(d),
+  toDelete: (d) => ["Wrong Number", "Failed Number", "Lead NOT Found", "Bad Lead"].includes(d),
 };
 const FILTER_LABEL = {
   textSent: "Text Sent", soldListed: "Property Sold / Listed",
@@ -63,7 +63,7 @@ function renderSummary(s) {
     textSent: s.textSent ?? 0,
     soldListed: (s.propertySold ?? 0) + (s.listed ?? 0),
     notIntOpt: (s.notInterested ?? 0) + (s.optedOut ?? 0),
-    toDelete: (s.wrongNumber ?? 0) + (s.failedNumber ?? 0) + (s.leadNotFound ?? 0),
+    toDelete: (s.wrongNumber ?? 0) + (s.failedNumber ?? 0) + (s.leadNotFound ?? 0) + (s.badLead ?? 0),
   };
   document.querySelectorAll(".stat").forEach((el) => {
     const k = el.dataset.k;

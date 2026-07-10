@@ -14,6 +14,7 @@ export const DISPOSITION = Object.freeze({
   WRONG_NUMBER: "Wrong Number",
   FAILED_NUMBER: "Failed Number",
   ALREADY_CONTACTED: "Already Contacted",
+  BAD_LEAD: "Bad Lead",
   NEEDS_REVIEW: "Needs Review",
   ERROR: "Error",
 });
@@ -30,6 +31,7 @@ export const REVIVAL_TAG = Object.freeze({
   [DISPOSITION.LEAD_NOT_FOUND]: "Revival - Lead Not Found",
   [DISPOSITION.PROPERTY_SOLD]: "Revival - Sold",
   [DISPOSITION.LISTED]: "Revival - Listed",
+  [DISPOSITION.BAD_LEAD]: "Revival - Bad Lead",
 });
 
 // Dispositions that mean a row is finished and must be skipped on resume/re-run
@@ -45,6 +47,7 @@ export const TERMINAL_DISPOSITIONS = Object.freeze([
   DISPOSITION.WRONG_NUMBER,
   DISPOSITION.FAILED_NUMBER,
   DISPOSITION.ALREADY_CONTACTED,
+  DISPOSITION.BAD_LEAD,
 ]);
 
 export const ELIGIBILITY = Object.freeze({

@@ -102,6 +102,7 @@ export class JobStore {
       wrongNumber: count(DISPOSITION.WRONG_NUMBER),
       failedNumber: count(DISPOSITION.FAILED_NUMBER),
       alreadyContacted: count(DISPOSITION.ALREADY_CONTACTED),
+      badLead: count(DISPOSITION.BAD_LEAD),
       needsReview: count(DISPOSITION.NEEDS_REVIEW),
       errors: count(DISPOSITION.ERROR),
     };

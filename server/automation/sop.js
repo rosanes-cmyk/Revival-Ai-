@@ -106,6 +106,7 @@ export function decide(facts) {
       [DISPOSITION.WRONG_NUMBER]: "Wrong number",
       [DISPOSITION.PROPERTY_SOLD]: "Property sold",
       [DISPOSITION.LISTED]: "Property listed",
+      [DISPOSITION.BAD_LEAD]: "Bad lead",
     };
     const label = labels[safety.outcome] || "Blocked";
     const extra = { eligibility: elig, safetySummary: safety.reason, notes: safety.reason,
@@ -165,21 +166,57 @@ export function decide(facts) {
   };
 }
 
-/** Evaluate bad tags then blocking history phrases. Returns {outcome, reason}. */
+// Outcomes that mean "this contact is bad" (vs. a property-status outcome).
+// Two or more distinct bad-contact tags => the whole lead is junk (Bad Lead).
+const BAD_CONTACT_OUTCOMES = [
+  DISPOSITION.OPTED_OUT,
+  DISPOSITION.NOT_INTERESTED,
+  DISPOSITION.WRONG_NUMBER,
+];
+
+/**
+ * Evaluate bad tags then blocking history phrases.
+ * Returns {outcome, reason, badTags} where badTags lists every matched tag.
+ * If two or more distinct bad-contact tags are present, the outcome is
+ * escalated to Bad Lead (SOP: clearly a junk lead to delete).
+ */
 export function evaluateSafety(tags, historyText) {
-  // Bad tags first (SOP step 9).
+  // Collect every bad tag that matches, remembering its rule outcome.
+  const hits = [];
+  const seen = new Set();
   for (const rule of SAFETY_TAG_RULES) {
-    const hit = tags.find((t) => t.toLowerCase().includes(rule.match));
-    if (hit) return { outcome: rule.outcome, reason: `Tag: ${hit}` };
+    for (const tag of tags) {
+      if (!tag.toLowerCase().includes(rule.match)) continue;
+      const key = tag.toLowerCase();
+      if (seen.has(key)) continue; // one entry per distinct tag
+      seen.add(key);
+      hits.push({ tag, outcome: rule.outcome });
+    }
   }
+
+  if (hits.length) {
+    // Two or more distinct bad-CONTACT tags => Bad Lead (junk to delete).
+    const badContact = hits.filter((h) => BAD_CONTACT_OUTCOMES.includes(h.outcome));
+    if (badContact.length >= 2) {
+      return {
+        outcome: DISPOSITION.BAD_LEAD,
+        reason: `Multiple bad tags: ${badContact.map((h) => h.tag).join(", ")}`,
+        badTags: badContact.map((h) => h.tag),
+      };
+    }
+    // Otherwise the first matching rule wins (list is in precedence order).
+    const first = hits[0];
+    return { outcome: first.outcome, reason: `Tag: ${first.tag}`, badTags: hits.map((h) => h.tag) };
+  }
+
   // Blocking phrases in history (SOP step 10), in precedence order.
   const text = String(historyText || "").toLowerCase();
   for (const outcome of [DISPOSITION.OPTED_OUT, DISPOSITION.NOT_INTERESTED, DISPOSITION.WRONG_NUMBER]) {
     for (const phrase of BLOCKING_PHRASES[outcome]) {
-      if (containsPhrase(text, phrase)) return { outcome, reason: `History phrase: "${phrase}"` };
+      if (containsPhrase(text, phrase)) return { outcome, reason: `History phrase: "${phrase}"`, badTags: [] };
     }
   }
-  return { outcome: null, reason: "" };
+  return { outcome: null, reason: "", badTags: [] };
 }
 
 /** Whole-word / phrase match to avoid false hits like "stop" in "stopwatch". */
