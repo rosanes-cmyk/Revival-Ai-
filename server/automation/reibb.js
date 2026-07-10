@@ -356,15 +356,18 @@ export class ReiBlackBookAdapter {
 
   async readTags() {
     const t = this.selectors.contactRecord.tags;
-    if (!(await this.isVisible(t.sectionHeader, 1500))) return { readable: false, tags: [] };
+    await this.page.waitForTimeout(1000); // let the contact record finish loading
+    const headerVisible = await this.isVisible(t.sectionHeader, 4000);
     const chips = this.page.locator(t.chip);
     const n = await chips.count().catch(() => 0);
     const tags = [];
-    for (let i = 0; i < n; i++) {
+    for (let i = 0; i < Math.min(n, 80); i++) {
       const txt = (await chips.nth(i).innerText().catch(() => "")).trim();
       const clean = txt.replace(/\s*[×xX✕✖]\s*$/, "").trim();
-      if (clean) tags.push(clean);
+      if (clean && clean.length <= 40) tags.push(clean);
     }
+    // Confirmed readable if we saw the Tag(s) section OR gathered any chips.
+    if (!headerVisible && tags.length === 0) return { readable: false, tags: [] };
     return { readable: true, tags };
   }
 
@@ -513,15 +516,18 @@ export function buildSearchAttempts(lead) {
     ? lead.propertyAddress
     : [lead.propertyAddress, lead.city, lead.state, lead.zip].filter(Boolean).join(", ");
 
-  // Property Pipeline (by address, then owner).
+  // Contacts by ADDRESS first — opens the contact directly (no property->contact
+  // hop needed) and is the most reliable match key.
+  add("contacts", SEARCH_METHOD.CONTACTS_ADDRESS, MATCH_STATUS.MATCH_CONTACTS_ADDRESS, street);
+  add("contacts", SEARCH_METHOD.CONTACTS_ADDRESS, MATCH_STATUS.MATCH_CONTACTS_ADDRESS, houseStreet);
+  // Property Pipeline (by address, then owner) — a match here opens the property,
+  // then we hop to its contact.
   add("pipeline", SEARCH_METHOD.PIPELINE_FULL_ADDRESS, MATCH_STATUS.MATCH_PIPELINE_FULL, full);
   add("pipeline", SEARCH_METHOD.PIPELINE_STREET_ADDRESS, MATCH_STATUS.MATCH_PIPELINE_STREET, street);
   add("pipeline", SEARCH_METHOD.PIPELINE_HOUSE_STREET, MATCH_STATUS.MATCH_PIPELINE_HOUSE_STREET, houseStreet);
-  add("pipeline", SEARCH_METHOD.OWNER_NAME, MATCH_STATUS.MATCH_PIPELINE_OWNER, lead.ownerName);
-  // Contacts — search by ADDRESS first (most reliable), then owner/phone/email.
-  add("contacts", SEARCH_METHOD.CONTACTS_ADDRESS, MATCH_STATUS.MATCH_CONTACTS_ADDRESS, street);
-  add("contacts", SEARCH_METHOD.CONTACTS_ADDRESS, MATCH_STATUS.MATCH_CONTACTS_ADDRESS, houseStreet);
+  // Owner / phone / email as last resorts.
   add("contacts", SEARCH_METHOD.OWNER_NAME, MATCH_STATUS.MATCH_CONTACTS_OWNER, lead.ownerName);
+  add("pipeline", SEARCH_METHOD.OWNER_NAME, MATCH_STATUS.MATCH_PIPELINE_OWNER, lead.ownerName);
   add("contacts", SEARCH_METHOD.PHONE, MATCH_STATUS.MATCH_CONTACTS_PHONE, lead.phone);
   add("contacts", SEARCH_METHOD.EMAIL, MATCH_STATUS.MATCH_CONTACTS_EMAIL, lead.email);
   return attempts;
