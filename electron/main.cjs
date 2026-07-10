@@ -83,6 +83,7 @@ function createWindow() {
     minHeight: 640,
     backgroundColor: "#0b0b0d",
     title: "Revival AI — High Equity Lead Revival",
+    icon: path.join(APP_ROOT, "build", "icon.png"),
     autoHideMenuBar: true,
     webPreferences: { contextIsolation: true, nodeIntegration: false },
   });

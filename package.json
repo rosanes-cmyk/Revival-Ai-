@@ -36,6 +36,7 @@
       "public/**/*",
       "config/**/*",
       "data/**/*",
+      "build/icon.png",
       "package.json"
     ],
     "asarUnpack": [
@@ -45,6 +46,7 @@
       "node_modules/playwright-core/**/*"
     ],
     "win": {
+      "icon": "build/icon.ico",
       "target": [
         {
           "target": "nsis",
@@ -58,7 +60,10 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Revival AI"
+      "shortcutName": "Revival AI",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico"
     }
   }
 }
