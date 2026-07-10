@@ -247,22 +247,42 @@ export class ReiBlackBookAdapter {
     }
   }
 
+  // Fill a search box, submit, and open the first VISIBLE result. Never throws:
+  // returns false on any problem so the caller can try the next search method.
   async searchAndOpen(inputSel, rowSel, rowLinkSel, noResultsSel, term) {
     if (!term) return false;
-    await this.page.fill(inputSel, "");
-    await this.page.fill(inputSel, term);
-    await this.page.keyboard.press("Enter");
-    await this.page.waitForTimeout(900);
-    if (await this.isVisible(noResultsSel, 1200)) return false;
+    try {
+      await this.page.fill(inputSel, "");
+      await this.page.fill(inputSel, term);
+      await this.page.keyboard.press("Enter");
+      await this.page.waitForTimeout(1400); // let results filter in
+    } catch {
+      return false;
+    }
+    if (await this.isVisible(noResultsSel, 1000)) return false;
+
+    // Find the first VISIBLE result row (skip hidden template rows), then click
+    // its link if it has one, else the row. Try a few before giving up.
     const rows = this.page.locator(rowSel);
     const n = await rows.count().catch(() => 0);
-    if (n === 0) return false;
-    const link = this.page.locator(rowLinkSel).first();
-    if ((await link.count()) > 0) await link.click();
-    else await rows.first().click();
-    await this.page.waitForLoadState("domcontentloaded").catch(() => {});
-    await this.page.waitForTimeout(500);
-    return true;
+    for (let i = 0; i < Math.min(n, 12); i++) {
+      const row = rows.nth(i);
+      if (!(await row.isVisible().catch(() => false))) continue;
+      const link = row.locator("a").first();
+      try {
+        if ((await link.count()) > 0 && (await link.isVisible().catch(() => false))) {
+          await link.click({ timeout: 6000 });
+        } else {
+          await row.click({ timeout: 6000 });
+        }
+        await this.page.waitForLoadState("domcontentloaded").catch(() => {});
+        await this.page.waitForTimeout(700);
+        return true;
+      } catch {
+        continue; // try the next visible row
+      }
+    }
+    return false;
   }
 
   async openContactFromProperty() {
