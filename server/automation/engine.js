@@ -38,6 +38,10 @@ export class AutomationEngine extends EventEmitter {
     this.maxSendsPerRun = Number(process.env.MAX_SENDS_PER_RUN ?? 100);
     // Optional PropertyRadar Sold/Listed verification.
     this.checkPropertyRadar = String(process.env.CHECK_PROPERTYRADAR).toLowerCase() === "true";
+    // REI tag-writing is OFF: the outcome is recorded in the spreadsheet, so we
+    // don't write Revival tags back onto REI contacts. Set WRITE_REI_TAGS=true
+    // to re-enable.
+    this.writeReiTags = String(process.env.WRITE_REI_TAGS).toLowerCase() === "true";
     this.adapterFactory = () => new ReiBlackBookAdapter();
     this.prAdapterFactory = () => new PropertyRadarAdapter();
     this.prAdapter = null;
@@ -219,11 +223,11 @@ export class AutomationEngine extends EventEmitter {
           row.eligibilityStatus = ELIGIBILITY.ELIGIBLE_TEXT_SENT;
           row.textSentTimestamp = result.timestamp;
           row.notes = "Live text sent successfully";
-          await this._applyTag(row, REVIVAL_TAG[DISPOSITION.TEXT_SENT]);
+          if (this.writeReiTags) await this._applyTag(row, REVIVAL_TAG[DISPOSITION.TEXT_SENT]);
         }
       } else {
         row.disposition = decision.disposition;
-        if (decision.tag) await this._applyTag(row, decision.tag);
+        if (this.writeReiTags && decision.tag) await this._applyTag(row, decision.tag);
       }
 
       this.logger.log({
@@ -285,7 +289,7 @@ export class AutomationEngine extends EventEmitter {
         state: row.state, zip: row.zip, phone: row.phone, email: row.email,
       });
       row.reiMatchStatus = located.matchFound ? located.matchStatus : "Not Found (skipped as sold/listed)";
-      if (located.matchFound) await this._applyTag(row, REVIVAL_TAG[row.disposition]);
+      if (this.writeReiTags && located.matchFound) await this._applyTag(row, REVIVAL_TAG[row.disposition]);
     } catch (e) {
       row.errorLog = `PropertyRadar-first tag step: ${e.message}`;
     }

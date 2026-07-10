@@ -16,7 +16,7 @@ const els = {
 };
 
 let hasJob = false;
-const COLSPAN = 18;
+const COLSPAN = 17;
 
 // Client-side copy of all rows + the active card filter, so cards can filter
 // the table (click a card to show only those leads; click again to clear).
@@ -88,7 +88,6 @@ function rowHtml(r) {
       <td>${esc(r.safetyStatus)}</td>
       <td>${esc(r.eligibilityStatus)}</td>
       <td><span class="${badgeClass(r.disposition)}">${esc(r.disposition)}</span></td>
-      <td>${esc(r.reiTagApplied)}</td>
       <td class="notes">${esc(r.notes)}</td>
       <td>${esc(r.textSentTimestamp)}</td>
       <td class="error">${esc(r.errorLog)}</td>
@@ -199,7 +198,6 @@ function renderFinal(d) {
       </div>
     </div>
     <div class="summary-block"><h4>Leads Texted (${(d.texted || []).length})</h4>${li(d.texted)}</div>
-    <div class="summary-block"><h4>Tags Added (${(d.tagsAdded || []).length})</h4>${li(d.tagsAdded)}</div>
     <div class="summary-block"><h4>Send Failures / Review (${(d.failures || []).length})</h4>${li(d.failures)}</div>`;
   els.finalSummary.hidden = false;
 }

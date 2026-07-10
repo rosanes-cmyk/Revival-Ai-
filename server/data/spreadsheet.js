@@ -31,7 +31,6 @@ const AUTOMATION_COLUMNS = [
   "Property Status",
   "Opt-Out / Safety",
   "Eligibility Status",
-  "REI Tag Applied",
   "Text Sent Timestamp",
   "Error Log",
 ];
@@ -145,7 +144,6 @@ function toRecord(job, r) {
   rec["Property Status"] = r.propertyStatus;
   rec["Opt-Out / Safety"] = r.safetyStatus;
   rec["Eligibility Status"] = r.eligibilityStatus;
-  rec["REI Tag Applied"] = r.reiTagApplied;
   rec["Text Sent Timestamp"] = r.textSentTimestamp;
   rec["Error Log"] = r.errorLog;
   return rec;
