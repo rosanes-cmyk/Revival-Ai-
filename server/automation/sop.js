@@ -98,18 +98,19 @@ export function decide(facts) {
   const safety = evaluateSafety(facts.tags || [], facts.historyText || "");
   if (safety.outcome) {
     const elig = ELIGIBILITY.NOT_ELIGIBLE;
-    if (safety.outcome === DISPOSITION.OPTED_OUT) {
-      return out(DISPOSITION.OPTED_OUT, { eligibility: elig, safetySummary: safety.reason,
-        notes: safety.reason, complianceResult: `Opt-out: ${safety.reason}` });
-    }
-    if (safety.outcome === DISPOSITION.NOT_INTERESTED) {
-      return out(DISPOSITION.NOT_INTERESTED, { eligibility: elig, safetySummary: safety.reason,
-        notes: safety.reason, complianceResult: `Not interested: ${safety.reason}` });
-    }
-    if (safety.outcome === DISPOSITION.WRONG_NUMBER) {
-      return out(DISPOSITION.WRONG_NUMBER, { eligibility: elig, safetySummary: safety.reason,
-        notes: safety.reason, complianceResult: `Wrong number: ${safety.reason}` });
-    }
+    const labels = {
+      [DISPOSITION.OPTED_OUT]: "Opt-out",
+      [DISPOSITION.NOT_INTERESTED]: "Not interested",
+      [DISPOSITION.WRONG_NUMBER]: "Wrong number",
+      [DISPOSITION.PROPERTY_SOLD]: "Property sold",
+      [DISPOSITION.LISTED]: "Property listed",
+    };
+    const label = labels[safety.outcome] || "Blocked";
+    const extra = { eligibility: elig, safetySummary: safety.reason, notes: safety.reason,
+      complianceResult: `${label}: ${safety.reason}` };
+    if (safety.outcome === DISPOSITION.PROPERTY_SOLD) extra.propertyStatus = "Sold (tag)";
+    if (safety.outcome === DISPOSITION.LISTED) extra.propertyStatus = "Listed (tag)";
+    return out(safety.outcome, extra);
   }
 
   // Step 14: latest outbound failed / undelivered.

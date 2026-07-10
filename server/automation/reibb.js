@@ -356,16 +356,55 @@ export class ReiBlackBookAdapter {
 
   async readTags() {
     const t = this.selectors.contactRecord.tags;
-    await this.page.waitForTimeout(1000); // let the contact record finish loading
+    await this.page.waitForTimeout(1200); // let the contact record finish loading
     const headerVisible = await this.isVisible(t.sectionHeader, 4000);
+
+    // 1) Primary: the configured chip selector.
+    const tags = [];
+    const seen = new Set();
+    const push = (raw) => {
+      const clean = String(raw || "").replace(/\s*[×xX✕✖]\s*$/, "").replace(/\s+/g, " ").trim();
+      if (clean && clean.length <= 40 && !seen.has(clean.toLowerCase())) {
+        seen.add(clean.toLowerCase());
+        tags.push(clean);
+      }
+    };
     const chips = this.page.locator(t.chip);
     const n = await chips.count().catch(() => 0);
-    const tags = [];
-    for (let i = 0; i < Math.min(n, 80); i++) {
-      const txt = (await chips.nth(i).innerText().catch(() => "")).trim();
-      const clean = txt.replace(/\s*[×xX✕✖]\s*$/, "").trim();
-      if (clean && clean.length <= 40) tags.push(clean);
+    for (let i = 0; i < Math.min(n, 120); i++) {
+      push(await chips.nth(i).innerText().catch(() => ""));
     }
+
+    // 2) Fallback: anchor on the "Tag(s)" header text in the DOM, walk up to a
+    // reasonable container, and collect short leaf-element texts (chips). This
+    // survives class-name changes because it keys off the visible header label.
+    if (tags.length === 0 && headerVisible) {
+      const found = await this.page
+        .evaluate(() => {
+          const norm = (s) => (s || "").replace(/\s+/g, " ").trim();
+          // Find the element whose own text is exactly the Tag(s) header.
+          const all = Array.from(document.querySelectorAll("*"));
+          const header = all.find((el) => /^tag\(s\)\s*:?$/i.test(norm(el.textContent)) &&
+            el.children.length <= 1);
+          if (!header) return [];
+          // Walk up a few levels to the card/section that holds the chips.
+          let box = header;
+          for (let up = 0; up < 4 && box.parentElement; up++) box = box.parentElement;
+          const out = [];
+          for (const el of box.querySelectorAll("*")) {
+            if (el.children.length !== 0) continue; // leaf nodes only
+            const txt = norm(el.textContent);
+            if (!txt || txt.length > 40) continue;
+            if (/^tag\(s\)\s*:?$/i.test(txt)) continue;
+            if (/^\+$/.test(txt) || /^add\b/i.test(txt)) continue; // skip the "+"/Add button
+            out.push(txt);
+          }
+          return out;
+        })
+        .catch(() => []);
+      found.forEach(push);
+    }
+
     // Confirmed readable if we saw the Tag(s) section OR gathered any chips.
     if (!headerVisible && tags.length === 0) return { readable: false, tags: [] };
     return { readable: true, tags };

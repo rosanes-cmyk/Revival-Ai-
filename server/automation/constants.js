@@ -82,19 +82,62 @@ export const SEARCH_METHOD = Object.freeze({
 
 // --- Compliance: bad tags on the contact (SOP step 9) ----------------------
 // Each maps to the outcome it triggers. Read every tag chip; if any contains
-// one of these (case-insensitive substring), apply the mapped outcome.
+// one of these (case-insensitive substring), apply the mapped outcome. The
+// FIRST rule that matches wins, so the list is ordered by precedence.
+//
+// These are matched against Juan's real REI BlackBook tag names. NOTE:
+// "Do Not Mail" is intentionally NOT here — per the SOP it does not block a
+// text (mail-only suppression). Only tags that mean "don't TEXT this person"
+// or "this lead/property is dead" are listed.
 export const SAFETY_TAG_RULES = Object.freeze([
+  // Opt-out / do-not-text (highest precedence — hard compliance stop).
+  { match: "do not text", outcome: DISPOSITION.OPTED_OUT },
+  { match: "do not contact", outcome: DISPOSITION.OPTED_OUT },
+  { match: "do not call", outcome: DISPOSITION.OPTED_OUT },
+  { match: "dnc", outcome: DISPOSITION.OPTED_OUT },
   { match: "opt out", outcome: DISPOSITION.OPTED_OUT },
   { match: "opt-out", outcome: DISPOSITION.OPTED_OUT },
   { match: "opted out", outcome: DISPOSITION.OPTED_OUT },
+  { match: "unsubscribe", outcome: DISPOSITION.OPTED_OUT },
   { match: "stop", outcome: DISPOSITION.OPTED_OUT },
-  { match: "do not contact", outcome: DISPOSITION.OPTED_OUT },
-  { match: "do not text", outcome: DISPOSITION.OPTED_OUT },
   { match: "close my file", outcome: DISPOSITION.OPTED_OUT },
   { match: "remove me", outcome: DISPOSITION.OPTED_OUT },
+  { match: "remove from list", outcome: DISPOSITION.OPTED_OUT },
+  { match: "remove from the list", outcome: DISPOSITION.OPTED_OUT },
   { match: "bad comments", outcome: DISPOSITION.OPTED_OUT },
+  { match: "cursed and reported", outcome: DISPOSITION.OPTED_OUT },
+
+  // Property already sold / closed (report as Property Sold — no text).
+  { match: "sold", outcome: DISPOSITION.PROPERTY_SOLD },
+  { match: "deal closed", outcome: DISPOSITION.PROPERTY_SOLD },
+  { match: "under contract", outcome: DISPOSITION.PROPERTY_SOLD },
+  { match: "contract signed", outcome: DISPOSITION.PROPERTY_SOLD },
+  { match: "signed contract", outcome: DISPOSITION.PROPERTY_SOLD },
+
+  // Property listed / on market (report as Listed — no text).
+  { match: "already listed", outcome: DISPOSITION.LISTED },
+  { match: "currently for sale on market", outcome: DISPOSITION.LISTED },
+  { match: "for sale on market", outcome: DISPOSITION.LISTED },
+  { match: "listed", outcome: DISPOSITION.LISTED },
+
+  // Not interested in selling.
   { match: "not interested", outcome: DISPOSITION.NOT_INTERESTED },
+  { match: "no interest in selling", outcome: DISPOSITION.NOT_INTERESTED },
+  { match: "no longer interested", outcome: DISPOSITION.NOT_INTERESTED },
+
+  // Wrong number / wrong contact.
   { match: "wrong number", outcome: DISPOSITION.WRONG_NUMBER },
+  { match: "wrong call", outcome: DISPOSITION.WRONG_NUMBER },
+  { match: "not the owner", outcome: DISPOSITION.WRONG_NUMBER },
+
+  // Dead / bad / junk leads (don't text — treat as opt-out so nothing is sent).
+  { match: "dead lead", outcome: DISPOSITION.OPTED_OUT },
+  { match: "disqualified", outcome: DISPOSITION.OPTED_OUT },
+  { match: "spam call", outcome: DISPOSITION.OPTED_OUT },
+  { match: "telemarketer", outcome: DISPOSITION.OPTED_OUT },
+  { match: "fake lead", outcome: DISPOSITION.OPTED_OUT },
+  { match: "invalid lead", outcome: DISPOSITION.OPTED_OUT },
+  { match: "delete", outcome: DISPOSITION.OPTED_OUT },
 ]);
 
 // --- Compliance: blocking phrases in notes/activity/chat/SMS (SOP step 10) --
