@@ -504,21 +504,39 @@ export function buildSearchAttempts(lead) {
     attempts.push({ area, method, matchStatus, term: t });
   };
 
-  const full = [lead.propertyAddress, lead.city, lead.state, lead.zip].filter(Boolean).join(", ");
+  // The clean street line is the most reliable match key (owner names are
+  // often in tax-record format that REI doesn't store).
+  const street = (lead.street || "").trim() || firstLine(lead.propertyAddress);
+  const houseStreet = houseAndStreet(street);
+  // A full address, avoiding duplication if propertyAddress already has city/zip.
+  const full = /\d{5}|,/.test(lead.propertyAddress)
+    ? lead.propertyAddress
+    : [lead.propertyAddress, lead.city, lead.state, lead.zip].filter(Boolean).join(", ");
+
+  // Property Pipeline (by address, then owner).
   add("pipeline", SEARCH_METHOD.PIPELINE_FULL_ADDRESS, MATCH_STATUS.MATCH_PIPELINE_FULL, full);
-  add("pipeline", SEARCH_METHOD.PIPELINE_STREET_ADDRESS, MATCH_STATUS.MATCH_PIPELINE_STREET, lead.propertyAddress);
-  add("pipeline", SEARCH_METHOD.PIPELINE_HOUSE_STREET, MATCH_STATUS.MATCH_PIPELINE_HOUSE_STREET, houseAndStreet(lead.propertyAddress));
+  add("pipeline", SEARCH_METHOD.PIPELINE_STREET_ADDRESS, MATCH_STATUS.MATCH_PIPELINE_STREET, street);
+  add("pipeline", SEARCH_METHOD.PIPELINE_HOUSE_STREET, MATCH_STATUS.MATCH_PIPELINE_HOUSE_STREET, houseStreet);
   add("pipeline", SEARCH_METHOD.OWNER_NAME, MATCH_STATUS.MATCH_PIPELINE_OWNER, lead.ownerName);
+  // Contacts — search by ADDRESS first (most reliable), then owner/phone/email.
+  add("contacts", SEARCH_METHOD.CONTACTS_ADDRESS, MATCH_STATUS.MATCH_CONTACTS_ADDRESS, street);
+  add("contacts", SEARCH_METHOD.CONTACTS_ADDRESS, MATCH_STATUS.MATCH_CONTACTS_ADDRESS, houseStreet);
   add("contacts", SEARCH_METHOD.OWNER_NAME, MATCH_STATUS.MATCH_CONTACTS_OWNER, lead.ownerName);
   add("contacts", SEARCH_METHOD.PHONE, MATCH_STATUS.MATCH_CONTACTS_PHONE, lead.phone);
   add("contacts", SEARCH_METHOD.EMAIL, MATCH_STATUS.MATCH_CONTACTS_EMAIL, lead.email);
   return attempts;
 }
 
+// First line / street portion of an address ("123 Oak St, City, ST 00000" -> "123 Oak St").
+function firstLine(address) {
+  if (!address) return "";
+  return String(address).split(",")[0].trim();
+}
+
 // "123 Oak Street Apt 4" -> "123 Oak Street" (drop unit designators).
 function houseAndStreet(address) {
   if (!address) return "";
-  return String(address)
+  return firstLine(address)
     .replace(/\b(apt|apartment|unit|ste|suite|#)\b.*$/i, "")
     .trim();
 }

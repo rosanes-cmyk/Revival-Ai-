@@ -12,7 +12,8 @@ import { EXPORT_COLUMNS, DISPOSITION } from "../automation/constants.js";
 // Accepted header names per internal field (compared case/space-insensitively).
 const ALIASES = {
   ownerName: ["owner name", "owner", "name", "owner/seller", "seller name", "seller", "contact name"],
-  propertyAddress: ["property address", "address", "property", "site address", "street address", "property street address", "full address"],
+  propertyAddress: ["property address", "address", "property", "site address", "property street address", "full address"],
+  street: ["street", "street address", "site street", "property street"],
   city: ["city", "property city"],
   state: ["state", "st", "property state", "state/province", "province"],
   zip: ["zip code", "zip", "zipcode", "postal code", "property zip", "zip/postal", "postal"],
@@ -77,6 +78,7 @@ export function parseSpreadsheet(buffer) {
     original: { ...row }, // keep every column exactly as uploaded
     ownerName: val(row, "ownerName"),
     propertyAddress: val(row, "propertyAddress"),
+    street: val(row, "street"),
     city: val(row, "city"),
     state: val(row, "state"),
     zip: val(row, "zip"),

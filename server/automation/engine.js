@@ -183,6 +183,7 @@ export class AutomationEngine extends EventEmitter {
       const { facts, searchMethod, matchStatus } = await this.adapter.gatherFacts({
         ownerName: row.ownerName,
         propertyAddress: row.propertyAddress,
+        street: row.street,
         city: row.city,
         state: row.state,
         zip: row.zip,

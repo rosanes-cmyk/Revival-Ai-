@@ -126,6 +126,7 @@ function normalizeRow(r) {
     original: r.original || {},
     ownerName: r.ownerName,
     propertyAddress: r.propertyAddress,
+    street: r.street || "",
     city: r.city,
     state: r.state,
     zip: r.zip,

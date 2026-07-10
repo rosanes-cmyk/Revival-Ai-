@@ -43,7 +43,7 @@
     "searchButton": "button:has(svg), .search-btn, button[type='submit']",
     "resultRow": "table tbody tr, .list-row, [role='row']",
     "resultRowLink": "table tbody tr td a, .list-row a, [role='row'] a",
-    "noResultsMarker": "text=No records, text=No results, text=No properties, text=No matching"
+    "noResultsMarker": "text=/no result/i, text=/did not match/i, text=/no records/i, text=/no properties/i"
   },
 
   "smartContacts": {
@@ -51,7 +51,7 @@
     "searchInput": "input[placeholder*='Search' i], input[type='search'], input[aria-label*='search' i], input[name*='search' i], .search input",
     "resultRow": "table tbody tr, .list-row, [role='row']",
     "resultRowLink": "table tbody tr td a, .list-row a, [role='row'] a",
-    "noResultsMarker": "text=No records, text=No results, text=No matching"
+    "noResultsMarker": "text=/no result/i, text=/did not match/i, text=/no records/i"
   },
 
   "propertyRecord": {
