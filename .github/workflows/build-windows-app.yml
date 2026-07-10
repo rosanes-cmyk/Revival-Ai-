@@ -1,0 +1,42 @@
+name: Build Windows App
+
+# Builds the Revival AI Windows installer (.exe) so colleagues can install the
+# app without Node.js or the terminal. Run it manually from the Actions tab
+# ("Run workflow"), or it runs automatically when you push a version tag.
+on:
+  workflow_dispatch: {}
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install
+
+      # Install the automation browser INTO the app (PLAYWRIGHT_BROWSERS_PATH=0)
+      # so it ships inside the installer and works on a fresh PC.
+      - name: Bundle automation browser
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: "0"
+        run: npx playwright install chromium
+
+      - name: Build installer
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: "0"
+        run: npm run dist
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Revival-AI-Windows-Installer
+          path: dist/*.exe
+          if-no-files-found: error

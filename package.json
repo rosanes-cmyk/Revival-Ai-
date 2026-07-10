@@ -3,10 +3,12 @@
   "version": "1.0.0",
   "description": "Live dashboard automation for the High Equity Lead Revival Text Campaign. Uploads old high-equity leads, searches each in REI BlackBook via browser automation, enforces the SOP compliance rules, sends the approved revival text only when eligible, and tracks disposition/notes with resume + export.",
   "type": "module",
-  "main": "server/index.js",
+  "main": "electron/main.cjs",
   "scripts": {
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
+    "app": "electron electron/main.cjs",
+    "dist": "electron-builder --win --publish never",
     "postinstall": "node -e \"console.log('Reminder: run npx playwright install chromium if browser automation is not already available.')\""
   },
   "engines": {
@@ -17,5 +19,46 @@
     "multer": "^2.0.0",
     "playwright": "^1.44.0",
     "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.twinhomebuyer.revivalai",
+    "productName": "Revival AI",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron/**/*",
+      "server/**/*",
+      "public/**/*",
+      "config/**/*",
+      "data/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "server/**/*",
+      "config/**/*",
+      "node_modules/playwright/**/*",
+      "node_modules/playwright-core/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Revival AI"
+    }
   }
 }
