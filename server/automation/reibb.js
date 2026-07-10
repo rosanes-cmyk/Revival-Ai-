@@ -20,7 +20,9 @@ import { getApprovedMessage } from "./message.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SELECTORS_PATH = path.join(__dirname, "..", "..", "config", "reibb.selectors.json");
-const AUTH_STATE_PATH = path.join(__dirname, "..", "..", ".reibb-auth.json");
+// A dedicated, persistent browser profile so the REI login (incl. 2FA) is done
+// once and remembered across every run — like a normal browser keeps you in.
+const PROFILE_DIR = path.join(__dirname, "..", "..", ".reibb-profile");
 
 export class ReiBlackBookAdapter {
   constructor(opts = {}) {
@@ -45,12 +47,13 @@ export class ReiBlackBookAdapter {
     if (!this.loginUrl) {
       throw new Error("No REI BlackBook login URL configured (REIBB_LOGIN_URL). No browser was opened.");
     }
-    this.browser = await chromium.launch({ headless: this.headless, slowMo: this.slowMo });
-    const ctxOpts = { viewport: { width: 1440, height: 900 } };
-    if (fs.existsSync(AUTH_STATE_PATH)) ctxOpts.storageState = AUTH_STATE_PATH;
-    this.context = await this.browser.newContext(ctxOpts);
+    this.context = await chromium.launchPersistentContext(PROFILE_DIR, {
+      headless: this.headless,
+      slowMo: this.slowMo,
+      viewport: { width: 1440, height: 900 },
+    });
     this.context.setDefaultTimeout(this.actionTimeout);
-    this.page = await this.context.newPage();
+    this.page = this.context.pages()[0] || (await this.context.newPage());
     await this.ensureLoggedIn();
   }
 
@@ -104,17 +107,12 @@ export class ReiBlackBookAdapter {
   }
 
   async saveSession() {
-    try {
-      await this.context.storageState({ path: AUTH_STATE_PATH });
-    } catch {
-      /* non-fatal */
-    }
+    /* The persistent profile auto-saves cookies/localStorage on close. */
   }
 
   async close() {
     try {
-      if (this.context) await this.context.storageState({ path: AUTH_STATE_PATH }).catch(() => {});
-      if (this.browser) await this.browser.close();
+      if (this.context) await this.context.close(); // persistent profile auto-saves
     } catch {
       /* ignore */
     }

@@ -9,6 +9,8 @@ data/logs/*
 !data/exports/.gitkeep
 !data/logs/.gitkeep
 .reibb-auth.json
+.reibb-profile/
+.propertyradar-auth.json
 playwright-report/
 test-results/
 *.log
