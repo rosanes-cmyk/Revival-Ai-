@@ -15,6 +15,7 @@ import "./loadenv.js";
 import express from "express";
 import multer from "multer";
 import fs from "fs";
+import os from "os";
 import path from "path";
 import { fileURLToPath } from "url";
 import { parseSpreadsheet, exportToXlsx, exportToCsv } from "./data/spreadsheet.js";
@@ -211,8 +212,29 @@ app.get("/api/export", (req, res) => {
   res.send(buffer);
 });
 
+// List this computer's local-network IPv4 addresses, so colleagues on the same
+// office WiFi can open the dashboard using one of these instead of "localhost".
+function lanAddresses() {
+  const out = [];
+  const ifaces = os.networkInterfaces();
+  for (const name of Object.keys(ifaces)) {
+    for (const net of ifaces[name] || []) {
+      if (net.family === "IPv4" && !net.internal) out.push(net.address);
+    }
+  }
+  return out;
+}
+
 const PORT = Number(process.env.PORT || 3000);
-app.listen(PORT, () => {
-  console.log(`\nHigh Equity Lead Revival Dashboard running: http://localhost:${PORT}`);
+// Bind to 0.0.0.0 so other computers on the same network can reach it.
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`\nHigh Equity Lead Revival Dashboard running.`);
+  console.log(`  On THIS computer:      http://localhost:${PORT}`);
+  const lan = lanAddresses();
+  if (lan.length) {
+    console.log(`  Share with colleagues on the same office WiFi:`);
+    lan.forEach((ip) => console.log(`                         http://${ip}:${PORT}`));
+    console.log(`  (Keep this window open. First time, click "Allow" if Windows asks about the network.)`);
+  }
   console.log(`Live send: ${engine.allowLiveSend ? "ENABLED" : "DISABLED (ALLOW_LIVE_SEND is not true)"}`);
 });
