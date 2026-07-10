@@ -55,12 +55,14 @@ export function decide(facts) {
   };
   const out = (d, extra = {}) => ({ ...base, disposition: d, tag: REVIVAL_TAG[d] || "", ...extra });
 
-  // Safety: anything uncertain is held for review — never texted (SOP step 16).
+  // Safety: if the record can't be fully read, we can't confirm it's clean, so
+  // we never text it. Per Juan's instruction, mark these "Lead NOT Found"
+  // (incomplete info) rather than "Needs Review".
   if (facts.uncertain) {
-    return out(DISPOSITION.NEEDS_REVIEW, {
-      eligibility: ELIGIBILITY.NEEDS_REVIEW,
-      notes: facts.uncertainReason || "System could not confirm the record.",
-      complianceResult: "Uncertain - held for review",
+    return out(DISPOSITION.LEAD_NOT_FOUND, {
+      eligibility: ELIGIBILITY.NOT_ELIGIBLE,
+      notes: facts.uncertainReason || "Could not read the full contact record; nothing sent.",
+      complianceResult: "Incomplete info - not found",
     });
   }
 
@@ -134,19 +136,19 @@ export function decide(facts) {
   // Step 17 clean conditions: a usable phone must exist and the company source
   // must be one of the two approved senders (so we know which message to send).
   if (!facts.phoneExists) {
-    return out(DISPOSITION.NEEDS_REVIEW, {
-      eligibility: ELIGIBILITY.NEEDS_REVIEW,
+    return out(DISPOSITION.LEAD_NOT_FOUND, {
+      eligibility: ELIGIBILITY.NOT_ELIGIBLE,
       notes: "No usable phone number found on the REI contact.",
-      complianceResult: "No phone - held for review",
+      complianceResult: "No phone - not found",
     });
   }
   const company = normalizeCompany(facts.companySource);
   const message = getApprovedMessage(facts.companySource);
   if (!company || !message) {
-    return out(DISPOSITION.NEEDS_REVIEW, {
-      eligibility: ELIGIBILITY.NEEDS_REVIEW,
-      notes: `Company Source "${facts.companySource || "(blank)"}" is not Twin Home Buyer or Equity Track Inc.; cannot choose an approved message.`,
-      complianceResult: "Unknown company source - held for review",
+    return out(DISPOSITION.LEAD_NOT_FOUND, {
+      eligibility: ELIGIBILITY.NOT_ELIGIBLE,
+      notes: `No approved company message could be chosen (company source "${facts.companySource || "(blank)"}").`,
+      complianceResult: "No company message - not found",
     });
   }
 
