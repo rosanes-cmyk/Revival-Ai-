@@ -62,21 +62,27 @@ export class ReiBlackBookAdapter {
     await this.page.goto(this.loginUrl, { waitUntil: "domcontentloaded" });
     await this.page.waitForTimeout(1000);
 
-    const onLogin = () => /login|sign[-_ ]?in/i.test(this.page.url());
+    // "Still authenticating" = anywhere in REI's account/auth flow, including
+    // the login page AND the 2FA / checkEmail / verify pages. Logged-in = we
+    // have left /services/account/ for an actual app page.
+    const isAuthPage = (u) =>
+      /\/services\/account\//i.test(String(u)) ||
+      /login|sign[-_ ]?in|check[-_ ]?email|verify|two[-_ ]?factor|passcode|\/2fa/i.test(String(u));
+    const onLogin = () => isAuthPage(this.page.url());
 
-    // 1) Already logged in from a previously saved session → done.
+    // 1) Already logged in from the saved profile → done.
     if (!onLogin()) {
       await this.saveSession();
       return;
     }
 
-    // 2) Try auto-login IF an email+password are provided (optional now).
+    // 2) Try auto-login IF an email+password are provided (optional).
     if (this.email && this.password) {
       try {
         await this.page.fill(s.emailInput, this.email);
         await this.page.fill(s.passwordInput, this.password);
         await this.page.click(s.submitButton);
-        await this.page.waitForURL((u) => !/login|sign[-_ ]?in/i.test(String(u)), { timeout: 20000 }).catch(() => {});
+        await this.page.waitForURL((u) => !isAuthPage(u), { timeout: 20000 }).catch(() => {});
       } catch {
         /* fall through to manual login */
       }
