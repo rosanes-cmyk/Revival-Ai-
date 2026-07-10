@@ -305,7 +305,7 @@ export class ReiBlackBookAdapter {
     }
 
     // Phone (clean condition). Prefer REI's phone; fall back to the sheet.
-    const reiPhone = await this.textOf(cr.phone);
+    const reiPhone = await this.readPhone();
     const phoneExists = looksLikePhone(reiPhone) || looksLikePhone(lead.phone);
 
     // Property status (SOP steps 6-8).
@@ -527,6 +527,30 @@ export class ReiBlackBookAdapter {
     } catch {
       return "";
     }
+  }
+
+  // Read a usable phone number off the open contact record. Tries, in order:
+  // 1) the configured phone selector, 2) any tel: link's number, 3) a phone
+  // pattern anywhere in the visible page text. Returns the digits-string of the
+  // first phone found, or "" if none. Survives class-name changes.
+  async readPhone() {
+    const cr = this.selectors.contactRecord;
+    // 1) Configured selector.
+    const configured = await this.textOf(cr.phone);
+    if (looksLikePhone(configured)) return configured;
+    // 2) Any tel: link on the page.
+    const tel = await this.page
+      .evaluate(() => {
+        const a = document.querySelector("a[href^='tel:']");
+        return a ? (a.getAttribute("href") || "").replace(/^tel:/i, "") : "";
+      })
+      .catch(() => "");
+    if (looksLikePhone(tel)) return tel;
+    // 3) Phone pattern anywhere in the visible contact text.
+    const body = await this.page.locator("body").innerText().catch(() => "");
+    const m = String(body).match(/(\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/);
+    if (m && looksLikePhone(m[0])) return m[0];
+    return "";
   }
 }
 
