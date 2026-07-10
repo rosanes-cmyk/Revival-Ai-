@@ -16,7 +16,7 @@ const els = {
 };
 
 let hasJob = false;
-const COLSPAN = 17;
+const COLSPAN = 16;
 
 // Client-side copy of all rows + the active card filter, so cards can filter
 // the table (click a card to show only those leads; click again to clear).
@@ -80,7 +80,6 @@ function rowHtml(r) {
       <td>${esc(r.city)}</td>
       <td>${esc(r.state)}</td>
       <td>${esc(r.zip)}</td>
-      <td>${esc(r.companySource)}</td>
       <td>${esc(r.phone)}</td>
       <td>${esc(r.reiMatchStatus)}</td>
       <td>${esc(r.searchMethod)}</td>
