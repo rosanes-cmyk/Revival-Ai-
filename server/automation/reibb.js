@@ -40,14 +40,10 @@ export class ReiBlackBookAdapter {
   }
 
   async launch() {
-    // Preflight: don't open a browser we can't use. Fail fast with a clear
-    // message instead of hanging on an unconfigured login.
-    if (!this.loginUrl || !this.email || !this.password) {
-      throw new Error(
-        "REI BlackBook isn't set up yet. Add REIBB_LOGIN_URL, REIBB_EMAIL and " +
-          "REIBB_PASSWORD to your .env file (and verify the selectors) before running. " +
-          "No browser was opened; nothing was sent."
-      );
+    // Only a login URL is required (it has a built-in default). Email/password
+    // are optional — if absent, the user logs in by hand once and it's saved.
+    if (!this.loginUrl) {
+      throw new Error("No REI BlackBook login URL configured (REIBB_LOGIN_URL). No browser was opened.");
     }
     this.browser = await chromium.launch({ headless: this.headless, slowMo: this.slowMo });
     const ctxOpts = { viewport: { width: 1440, height: 900 } };
