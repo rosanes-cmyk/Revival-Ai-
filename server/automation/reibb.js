@@ -518,7 +518,30 @@ export class ReiBlackBookAdapter {
   // and that the message appears in the chat history after sending.
   async sendText(message) {
     const c = this.selectors.contactRecord.chat;
-    await this.click(c.openButton);
+    // Open the Chat/Text panel only if the message box isn't already showing.
+    // Try several ways to reach it (tab label varies), each with a short
+    // timeout, so a missing selector doesn't hang for 15s.
+    if (!(await this.isVisible(c.messageInput, 1500))) {
+      const openers = [
+        c.openButton,
+        "role=tab[name=/chat/i]",
+        "role=tab[name=/text|sms|message/i]",
+        "button:has-text('Chat')",
+        "[role='tab']:has-text('Chat')",
+        "a:has-text('Chat')",
+        "text=/^\\s*Chat\\s*$/",
+        "[aria-label*='chat' i]",
+        "[aria-label*='text' i]",
+      ];
+      for (const sel of openers) {
+        if (await this.clickIfVisible(sel, 1500)) {
+          if (await this.isVisible(c.messageInput, 2500)) break;
+        }
+      }
+    }
+    if (!(await this.isVisible(c.messageInput, 5000))) {
+      throw new Error("Could not open the Chat/Text box on the contact (no message field found). No text sent.");
+    }
     await this.page.fill(c.messageInput, "");
     await this.page.fill(c.messageInput, message);
 
@@ -556,6 +579,20 @@ export class ReiBlackBookAdapter {
   async click(selector) {
     await this.page.locator(selector).first().click({ timeout: this.actionTimeout });
     await this.page.waitForTimeout(200);
+  }
+  // Click the first visible match within a short timeout; return true if
+  // clicked, false otherwise. Never throws (used for best-effort tab opening).
+  async clickIfVisible(selector, timeout = 2000) {
+    if (!selector) return false;
+    try {
+      const loc = this.page.locator(selector).first();
+      await loc.waitFor({ state: "visible", timeout });
+      await loc.click({ timeout });
+      await this.page.waitForTimeout(200);
+      return true;
+    } catch {
+      return false;
+    }
   }
   async isVisible(selector, timeout = this.actionTimeout) {
     if (!selector) return false;
