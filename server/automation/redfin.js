@@ -69,13 +69,17 @@ export class RedfinAdapter {
    *            listed:boolean, listingNote:string, uncertain:boolean, reason:string}}
    */
   async lookupStatus(lead) {
-    const out = { checked: true, found: false, sold: false, soldDate: "", listed: false, listingNote: "", uncertain: false, reason: "" };
+    const out = { checked: true, found: false, sold: false, soldDate: "", listed: false, listingNote: "", propertyUrl: "", uncertain: false, reason: "" };
     const full = [lead.propertyAddress, lead.city, lead.state, lead.zip].filter(Boolean).join(", ");
     if (!full) return { ...out, uncertain: true, reason: "no address to search" };
 
     try {
       const opened = await this.searchAndOpen(full);
       if (!opened) return { ...out, uncertain: true, reason: "could not open the Redfin property page" };
+
+      // The live Redfin property URL (for the dashboard "View on Redfin" link).
+      const u = this.page.url();
+      if (/redfin\.com\/.+\/home\/\d+/i.test(u)) out.propertyUrl = u;
 
       // Read the status text (a small header pill) plus the whole page body as
       // a fallback, then classify from keywords. Keyword-based so it survives

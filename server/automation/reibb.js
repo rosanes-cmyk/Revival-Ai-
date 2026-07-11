@@ -197,7 +197,7 @@ export class ReiBlackBookAdapter {
         /* still consider the property found; tagging may be skipped */
       }
     }
-    return { matchFound: true, matchStatus: matched.matchStatus, searchMethod: matched.searchMethod };
+    return { matchFound: true, matchStatus: matched.matchStatus, searchMethod: matched.searchMethod, contactUrl: this.reiContactUrl() };
   }
 
   // ----- Search in the required order (SOP FLOW step 3) --------------------

@@ -281,6 +281,9 @@ export class AutomationEngine extends EventEmitter {
     const pr = await this.statusAdapter
       .lookupStatus({ propertyAddress: row.propertyAddress, city: row.city, state: row.state, zip: row.zip })
       .catch((e) => ({ uncertain: true, reason: e.message }));
+    // Keep the property-check link (e.g. Redfin) on the row for validation,
+    // whether or not it turned out sold/listed.
+    if (pr && pr.propertyUrl) row.propertyStatusUrl = pr.propertyUrl;
     if (!pr || !pr.checked || pr.uncertain || (!pr.sold && !pr.listed)) return false;
 
     const sold = pr.sold;
@@ -300,6 +303,7 @@ export class AutomationEngine extends EventEmitter {
         state: row.state, zip: row.zip, phone: row.phone, email: row.email,
       });
       row.reiMatchStatus = located.matchFound ? located.matchStatus : "Not Found (skipped as sold/listed)";
+      if (located.contactUrl) row.reiContactUrl = located.contactUrl;
       if (this.writeReiTags && located.matchFound) await this._applyTag(row, REVIVAL_TAG[row.disposition]);
     } catch (e) {
       row.errorLog = `${src}-first tag step: ${e.message}`;

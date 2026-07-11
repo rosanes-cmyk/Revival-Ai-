@@ -30,6 +30,7 @@ const AUTOMATION_COLUMNS = [
   "REI Contact Link",
   "Search Method Used",
   "Property Status",
+  "Property Check Link",
   "Opt-Out / Safety",
   "Eligibility Status",
   "Text Sent Timestamp",
@@ -91,6 +92,7 @@ export function parseSpreadsheet(buffer) {
     reiContactUrl: "",
     searchMethod: "",
     propertyStatus: "",
+    propertyStatusUrl: "",
     safetyStatus: "",
     eligibilityStatus: "",
     reiTagApplied: "",
@@ -145,6 +147,7 @@ function toRecord(job, r) {
   rec["REI Contact Link"] = r.reiContactUrl || "";
   rec["Search Method Used"] = r.searchMethod;
   rec["Property Status"] = r.propertyStatus;
+  rec["Property Check Link"] = r.propertyStatusUrl || "";
   rec["Opt-Out / Safety"] = r.safetyStatus;
   rec["Eligibility Status"] = r.eligibilityStatus;
   rec["Text Sent Timestamp"] = r.textSentTimestamp;

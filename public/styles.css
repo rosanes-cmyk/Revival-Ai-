@@ -242,3 +242,4 @@ td.error { color: var(--err); }
 /* Clickable "View in REI" link in the REI Match Status column. */
 .rei-link { color: var(--accent); text-decoration: none; font-weight: 600; white-space: nowrap; }
 .rei-link:hover { text-decoration: underline; }
+.rei-link .link-src { color: #8a93a6; font-weight: 400; font-size: 11px; }

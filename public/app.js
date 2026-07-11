@@ -83,6 +83,19 @@ function reiMatchCell(r) {
   return status;
 }
 
+// Property Status cell: if we captured a property-check URL (e.g. Redfin),
+// show the status as a clickable link that opens the property page in a new
+// tab so Sold/Listed can be validated. Otherwise plain text.
+function propertyStatusCell(r) {
+  const status = esc(r.propertyStatus);
+  const url = r.propertyStatusUrl;
+  if (url && /^https?:\/\//i.test(url)) {
+    const label = /redfin\.com/i.test(url) ? "Redfin" : "property";
+    return `<a class="rei-link" href="${esc(url)}" target="_blank" rel="noopener" title="Open this property to validate its status">${status || "View"} 🔗<span class="link-src"> (${label})</span></a>`;
+  }
+  return status;
+}
+
 function rowHtml(r) {
   return `
     <tr id="row-${r.rowNumber}">
@@ -95,7 +108,7 @@ function rowHtml(r) {
       <td>${esc(r.phone)}</td>
       <td>${reiMatchCell(r)}</td>
       <td>${esc(r.searchMethod)}</td>
-      <td>${esc(r.propertyStatus)}</td>
+      <td>${propertyStatusCell(r)}</td>
       <td>${esc(r.safetyStatus)}</td>
       <td>${esc(r.eligibilityStatus)}</td>
       <td><span class="${badgeClass(r.disposition)}">${esc(r.disposition)}</span></td>
