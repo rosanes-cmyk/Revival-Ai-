@@ -96,12 +96,24 @@ function propertyStatusCell(r) {
   return status;
 }
 
+// Property Address cell: link straight to the Redfin property page the
+// automation opened (so you can validate on Redfin in one click). Only links
+// when Redfin actually found+opened the property; otherwise plain text.
+function addressCell(r) {
+  const addr = esc(r.propertyAddress);
+  const url = r.propertyStatusUrl;
+  if (addr && url && /redfin\.com/i.test(url)) {
+    return `<a class="rei-link" href="${esc(url)}" target="_blank" rel="noopener" title="Open this address on Redfin">${addr} 🔗</a>`;
+  }
+  return addr;
+}
+
 function rowHtml(r) {
   return `
     <tr id="row-${r.rowNumber}">
       <td>${r.rowNumber}</td>
       <td>${esc(r.ownerName) || '<span class="dash">Unknown</span>'}</td>
-      <td>${esc(r.propertyAddress)}</td>
+      <td>${addressCell(r)}</td>
       <td>${esc(r.city)}</td>
       <td>${esc(r.state)}</td>
       <td>${esc(r.zip)}</td>

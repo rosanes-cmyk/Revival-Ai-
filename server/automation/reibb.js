@@ -362,7 +362,10 @@ export class ReiBlackBookAdapter {
   // contact page (so we never hand the dashboard a login/search URL).
   reiContactUrl() {
     const url = this.page.url();
-    return /\/contacts?\/\d+/.test(url) ? url : "";
+    if (!/reiblackbook\.com/i.test(url)) return "";
+    if (/\/services\/account\//i.test(url)) return ""; // login / 2FA page
+    // A specific contact record: /contacts/<id> (id may not be purely numeric).
+    return /\/contacts?\/[^/?#]+/i.test(url) ? url : "";
   }
 
   async readTags() {
