@@ -27,6 +27,7 @@ const ALIASES = {
 // Automation columns appended to the export (in addition to your originals).
 const AUTOMATION_COLUMNS = [
   "REI Match Status",
+  "REI Contact Link",
   "Search Method Used",
   "Property Status",
   "Opt-Out / Safety",
@@ -87,6 +88,7 @@ export function parseSpreadsheet(buffer) {
     disposition: normalizeDisposition(val(row, "disposition")),
     notes: val(row, "notes"),
     reiMatchStatus: "",
+    reiContactUrl: "",
     searchMethod: "",
     propertyStatus: "",
     safetyStatus: "",
@@ -140,6 +142,7 @@ function toRecord(job, r) {
   rec[dispH] = r.disposition;
   rec[notesH] = r.notes;
   rec["REI Match Status"] = r.reiMatchStatus;
+  rec["REI Contact Link"] = r.reiContactUrl || "";
   rec["Search Method Used"] = r.searchMethod;
   rec["Property Status"] = r.propertyStatus;
   rec["Opt-Out / Safety"] = r.safetyStatus;

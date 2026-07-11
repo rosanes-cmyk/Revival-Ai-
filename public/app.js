@@ -71,6 +71,18 @@ function renderSummary(s) {
   });
 }
 
+// REI Match Status cell: if we captured the live contact URL, show the status
+// as a clickable link that opens the REI contact page in a new tab for a quick
+// manual check. Otherwise plain text.
+function reiMatchCell(r) {
+  const status = esc(r.reiMatchStatus);
+  const url = r.reiContactUrl;
+  if (url && /^https?:\/\//i.test(url)) {
+    return `<a class="rei-link" href="${esc(url)}" target="_blank" rel="noopener" title="Open this contact in REI BlackBook">${status || "View in REI"} 🔗</a>`;
+  }
+  return status;
+}
+
 function rowHtml(r) {
   return `
     <tr id="row-${r.rowNumber}">
@@ -81,7 +93,7 @@ function rowHtml(r) {
       <td>${esc(r.state)}</td>
       <td>${esc(r.zip)}</td>
       <td>${esc(r.phone)}</td>
-      <td>${esc(r.reiMatchStatus)}</td>
+      <td>${reiMatchCell(r)}</td>
       <td>${esc(r.searchMethod)}</td>
       <td>${esc(r.propertyStatus)}</td>
       <td>${esc(r.safetyStatus)}</td>

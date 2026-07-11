@@ -172,7 +172,7 @@ export class ReiBlackBookAdapter {
       return {
         searchMethod: matched.searchMethod,
         matchStatus: matched.matchStatus,
-        facts: { matchFound: true, ...uncertain(`Could not read the contact record: ${err.message}`) },
+        facts: { matchFound: true, ...uncertain(`Could not read the contact record: ${err.message}`), contactUrl: this.reiContactUrl() },
       };
     }
   }
@@ -297,11 +297,13 @@ export class ReiBlackBookAdapter {
   // ----- Read the contact record -------------------------------------------
   async readContactFacts(lead) {
     const cr = this.selectors.contactRecord;
+    // The live REI contact URL (for the dashboard "View in REI" link).
+    const contactUrl = this.reiContactUrl();
 
     // Tags (SOP step 9). If unreadable, hold (bad tags can't be ruled out).
     const { readable: tagsReadable, tags } = await this.readTags();
     if (!tagsReadable) {
-      return uncertain("Could not read the contact's Tag(s) section, so a bad tag can't be ruled out. Held for review.");
+      return { ...uncertain("Could not read the contact's Tag(s) section, so a bad tag can't be ruled out. Held for review."), contactUrl };
     }
 
     // Phone (clean condition). Prefer REI's phone; fall back to the sheet.
@@ -328,6 +330,7 @@ export class ReiBlackBookAdapter {
         soldDate,
         propertyListed,
         mlsNote,
+        contactUrl,
       };
     }
 
@@ -349,9 +352,17 @@ export class ReiBlackBookAdapter {
       lastMessageFailed,
       alreadySentApproved,
       companySource: lead.companySource || "",
+      contactUrl,
       uncertain: false,
       uncertainReason: "",
     };
+  }
+
+  // The current REI contact-record URL, but only if it looks like a real
+  // contact page (so we never hand the dashboard a login/search URL).
+  reiContactUrl() {
+    const url = this.page.url();
+    return /\/contacts?\/\d+/.test(url) ? url : "";
   }
 
   async readTags() {

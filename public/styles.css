@@ -238,3 +238,7 @@ td.error { color: var(--err); }
 @media (max-width: 600px) {
   .cards { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* Clickable "View in REI" link in the REI Match Status column. */
+.rei-link { color: var(--accent); text-decoration: none; font-weight: 600; white-space: nowrap; }
+.rei-link:hover { text-decoration: underline; }

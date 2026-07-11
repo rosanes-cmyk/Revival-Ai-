@@ -209,6 +209,7 @@ export class AutomationEngine extends EventEmitter {
 
       row.searchMethod = searchMethod;
       row.reiMatchStatus = matchStatus;
+      if (facts.contactUrl) row.reiContactUrl = facts.contactUrl;
 
       const decision = decide(facts);
       row.propertyStatus = decision.propertyStatus;
