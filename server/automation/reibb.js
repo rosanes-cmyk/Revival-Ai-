@@ -608,21 +608,29 @@ export class ReiBlackBookAdapter {
       throw new Error("Could not find the Send button on the contact. No text sent.");
     }
     await sendBtn.click({ timeout: 6000 });
-    await this.page.waitForTimeout(1500);
+    await this.page.waitForTimeout(2500); // let the thread update / box clear
 
-    // Verify the send actually went through: the message shows in the thread,
-    // OR the reply box cleared. If neither, treat as NOT sent (fail safe).
+    // Verify the send went through: the reply box cleared, OR the message now
+    // appears in the conversation. The reply box is a TinyMCE contenteditable,
+    // so read it with innerText (inputValue doesn't apply).
     let cleared = false;
     try {
-      cleared = ((await field.inputValue()) || "").trim() === "";
+      const after = (await field.innerText().catch(() => "PENDING")) || "";
+      cleared = after.replace(/\s+/g, "").length === 0; // emptied after send
     } catch {
       cleared = false;
     }
     let appeared = false;
     try {
-      appeared = await this.page.getByText(message.slice(0, 30)).first().isVisible({ timeout: 2500 });
+      appeared = await this.page.getByText(message.slice(0, 25)).first().isVisible({ timeout: 5000 });
     } catch {
       appeared = false;
+    }
+    if (!appeared) {
+      // Fallback: scan the whole conversation text for the message.
+      const body = (await this.page.locator("body").innerText().catch(() => "")) || "";
+      const norm = (s) => s.replace(/\s+/g, " ").trim();
+      appeared = norm(body).includes(norm(message.slice(0, 45)));
     }
     if (!cleared && !appeared) {
       throw new Error("Could not confirm the message was sent (not seen in the thread and the reply box didn't clear).");
