@@ -598,19 +598,20 @@ export class ReiBlackBookAdapter {
         "Could not open the Chat/Text box (no message field found). No text sent. FIELDS SEEN: " + diag
       );
     }
-    // The reply box is a TinyMCE rich-text editor (contenteditable). Focus it,
-    // then type so TinyMCE fires its input events (needed for send to enable).
+    // The reply box is a TinyMCE rich-text editor. Type with REAL keystrokes so
+    // the app registers the input and ENABLES its Send button (setting text
+    // directly leaves the button disabled). Focus, clear, then type.
     await field.click().catch(() => {});
     await field.fill("").catch(() => {});
     try {
-      await field.fill(message);
+      await field.pressSequentially(message, { delay: 12 });
     } catch {
-      await field.type(message, { delay: 10 }); // fallback for strict contenteditable
+      await this.page.keyboard.type(message, { delay: 12 });
     }
-    await this.page.waitForTimeout(400);
+    await this.page.waitForTimeout(500);
 
     const composed =
-      (await field.inputValue().catch(async () => (await field.innerText().catch(() => "")))) || "";
+      (await field.innerText().catch(async () => (await field.inputValue().catch(() => "")))) || "";
     if (composed.replace(/\s+/g, " ").trim() !== message.replace(/\s+/g, " ").trim()) {
       throw new Error(`Composed SMS text did not exactly match the approved message; send aborted. (saw: "${composed.slice(0, 60)}")`);
     }
@@ -618,6 +619,15 @@ export class ReiBlackBookAdapter {
     const sendBtn = await this.findVisibleAcrossFrames(c.sendButton, 5000);
     if (!sendBtn) {
       throw new Error("Could not find the Send button on the contact. No text sent.");
+    }
+    // Wait for the Send button to become ENABLED (it's disabled until the app
+    // sees the typed text). Then click it.
+    for (let i = 0; i < 25; i++) {
+      if (!(await sendBtn.isDisabled().catch(() => false))) break;
+      await this.page.waitForTimeout(200);
+    }
+    if (await sendBtn.isDisabled().catch(() => false)) {
+      throw new Error("Send button stayed disabled after typing the message. No text sent.");
     }
     await sendBtn.click({ timeout: 6000 });
     await this.page.waitForTimeout(2500); // let the thread update / box clear
