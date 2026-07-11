@@ -20,6 +20,21 @@ import { chromium } from "playwright";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SELECTORS_PATH = path.join(__dirname, "..", "..", "config", "redfin.selectors.json");
+const PROFILE_DIR = path.join(__dirname, "..", "..", ".redfin-profile");
+
+// Text that means Redfin is showing its "are you human?" / bot wall.
+const HUMAN_CHECK_MARKERS = [
+  "press & hold",
+  "press and hold",
+  "verify you are human",
+  "verify you're human",
+  "are you a human",
+  "additional verification",
+  "confirm you are a human",
+  "hold to confirm",
+  "before we continue",
+  "unusual activity",
+];
 
 export class RedfinAdapter {
   constructor(opts = {}) {
@@ -42,24 +57,51 @@ export class RedfinAdapter {
   }
 
   async launch() {
-    this.browser = await chromium.launch({ headless: this.headless, slowMo: this.slowMo });
-    this.context = await this.browser.newContext({
+    // Persistent, VISIBLE browser profile (like the REI login). Redfin shows an
+    // "are you human?" check to automated visits; with a remembered profile the
+    // user solves it ONCE in the visible window and it sticks for next time.
+    this.context = await chromium.launchPersistentContext(PROFILE_DIR, {
+      headless: this.headless, // default false, so the human-check is solvable
       viewport: { width: 1440, height: 900 },
-      // A realistic UA reduces the chance of the bot-wall interstitial.
       userAgent:
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+      slowMo: this.slowMo,
     });
+    this.browser = null;
     this.context.setDefaultTimeout(this.actionTimeout);
-    this.page = await this.context.newPage();
-    // Warm up the homepage; no login needed.
+    this.page = this.context.pages()[0] || (await this.context.newPage());
+    // Warm up the homepage and, if the human-check appears, wait for the user
+    // to clear it (up to a couple of minutes the first time).
     await this.page.goto(this.baseUrl, { waitUntil: "domcontentloaded" }).catch(() => {});
+    await this.passHumanCheck(120000);
   }
 
   async close() {
     try {
-      if (this.browser) await this.browser.close();
+      if (this.context) await this.context.close();
     } catch {
       /* ignore */
+    }
+  }
+
+  // If Redfin's bot wall is showing, wait for it to clear (the user solves the
+  // "press & hold" in the visible window). Returns true once clear, false on
+  // timeout. Never throws.
+  async passHumanCheck(maxMs = 60000) {
+    const deadline = Date.now() + maxMs;
+    let warned = false;
+    for (;;) {
+      const body = (await this.page.locator("body").innerText().catch(() => "")) || "";
+      const hay = body.toLowerCase();
+      const blocked = HUMAN_CHECK_MARKERS.some((m) => hay.includes(m));
+      if (!blocked) return true;
+      if (!warned) {
+        // Surfaced to server logs; the user just needs to complete it once.
+        console.log("[Redfin] Human verification shown — please complete it in the Redfin window. Waiting…");
+        warned = true;
+      }
+      if (Date.now() > deadline) return false;
+      await this.page.waitForTimeout(1500);
     }
   }
 
@@ -70,12 +112,23 @@ export class RedfinAdapter {
    */
   async lookupStatus(lead) {
     const out = { checked: true, found: false, sold: false, soldDate: "", listed: false, listingNote: "", propertyUrl: "", uncertain: false, reason: "" };
+    // Search terms, street-first (per Juan): "3240 COUNTRY CLUB DR", then with
+    // ZIP to disambiguate, then the full address as a last resort.
+    const street = streetLine(lead.propertyAddress) || String(lead.street || "").trim();
     const full = [lead.propertyAddress, lead.city, lead.state, lead.zip].filter(Boolean).join(", ");
-    if (!full) return { ...out, uncertain: true, reason: "no address to search" };
+    const terms = [];
+    const add = (t) => { const v = String(t || "").trim(); if (v && !terms.includes(v)) terms.push(v); };
+    add(street);
+    add([street, lead.zip].filter(Boolean).join(" "));
+    add(full);
+    if (!terms.length) return { ...out, uncertain: true, reason: "no address to search" };
 
     try {
-      const opened = await this.searchAndOpen(full);
-      if (!opened) return { ...out, uncertain: true, reason: "could not open the Redfin property page" };
+      let opened = false;
+      for (const term of terms) {
+        if (await this.searchAndOpen(term)) { opened = true; break; }
+      }
+      if (!opened) return { ...out, uncertain: true, reason: "could not open the Redfin property page (search or human-check)" };
 
       // The live Redfin property URL (for the dashboard "View on Redfin" link).
       const u = this.page.url();
@@ -126,6 +179,8 @@ export class RedfinAdapter {
     const se = this.selectors.search;
     await this.page.goto(this.baseUrl, { waitUntil: "domcontentloaded" }).catch(() => {});
     await this.page.waitForTimeout(600);
+    // Clear the human-check if it appears before we can search.
+    if (!(await this.passHumanCheck(60000))) return false;
 
     const box = this.page.locator(se.searchInput).first();
     if ((await box.count()) === 0) return false;
@@ -143,6 +198,8 @@ export class RedfinAdapter {
     }
     await this.page.waitForLoadState("domcontentloaded").catch(() => {});
     await this.page.waitForTimeout(1500);
+    // A human-check can appear after submitting the search too.
+    await this.passHumanCheck(60000);
 
     // Confirm we're on a property detail page (URL contains /home/ or an
     // address-detail marker is visible). Otherwise this was a bad search.
@@ -207,4 +264,10 @@ function parseDateSafe(text) {
 
 function monthsBetween(earlier, later) {
   return (later.getFullYear() - earlier.getFullYear()) * 12 + (later.getMonth() - earlier.getMonth());
+}
+
+// The street portion of a full address: "3240 COUNTRY CLUB DR, CAMERON PARK,
+// CA 95682" -> "3240 COUNTRY CLUB DR".
+function streetLine(address) {
+  return String(address || "").split(",")[0].trim();
 }
