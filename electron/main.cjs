@@ -13,12 +13,14 @@ const { app, BrowserWindow, shell, dialog } = require("electron");
 const { spawn } = require("child_process");
 const http = require("http");
 const path = require("path");
+const fs = require("fs");
 
 const PORT = Number(process.env.PORT || 3000);
 const BASE_URL = `http://localhost:${PORT}`;
 
 let serverProc = null;
 let mainWindow = null;
+let serverLogPath = null;
 
 // The app root (where package.json + server/ live). Derive it from this
 // file's location (electron/main.cjs -> parent), which is correct in BOTH dev
@@ -54,15 +56,29 @@ function startServer() {
       stdio: ["ignore", "pipe", "pipe"],
     });
   }
-  serverProc.stdout.on("data", (d) => process.stdout.write(`[server] ${d}`));
-  serverProc.stderr.on("data", (d) => process.stderr.write(`[server] ${d}`));
+  // Write server output to a log file so startup errors are diagnosable even
+  // in the packaged app (which has no visible console).
+  let logStream = null;
+  try {
+    const logPath = path.join(app.getPath("userData"), "revival-server.log");
+    logStream = fs.createWriteStream(logPath, { flags: "w" });
+    logStream.write(`Revival AI server log — ${new Date().toISOString()}\nEntry: ${SERVER_ENTRY}\n\n`);
+    serverLogPath = logPath;
+  } catch {
+    /* ignore */
+  }
+  const tee = (d) => { try { logStream && logStream.write(d); } catch {} };
+  serverProc.stdout.on("data", (d) => { process.stdout.write(`[server] ${d}`); tee(d); });
+  serverProc.stderr.on("data", (d) => { process.stderr.write(`[server] ${d}`); tee(d); });
   serverProc.on("exit", (code) => {
     serverProc = null;
-    // If the server dies unexpectedly while the app is open, tell the user.
+    // If the server dies unexpectedly while the app is open, tell the user and
+    // point them to the log file.
     if (code && code !== 0 && mainWindow && !mainWindow.isDestroyed()) {
       dialog.showErrorBox(
         "Revival Dashboard stopped",
-        `The dashboard engine stopped unexpectedly (code ${code}). Please close and reopen the app.`
+        `The dashboard engine stopped unexpectedly (code ${code}).\n\n` +
+          `Please close and reopen the app. If it keeps happening, send this log file:\n${serverLogPath || "(log unavailable)"}`
       );
     }
   });

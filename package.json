@@ -30,6 +30,7 @@
     "directories": {
       "output": "dist"
     },
+    "asar": false,
     "files": [
       "electron/**/*",
       "server/**/*",
@@ -37,13 +38,8 @@
       "config/**/*",
       "data/**/*",
       "build/icon.png",
-      "package.json"
-    ],
-    "asarUnpack": [
-      "server/**/*",
-      "config/**/*",
-      "node_modules/playwright/**/*",
-      "node_modules/playwright-core/**/*"
+      "package.json",
+      "node_modules/**/*"
     ],
     "win": {
       "icon": "build/icon.ico",
