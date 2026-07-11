@@ -239,7 +239,33 @@ export class ReiBlackBookAdapter {
     } else {
       await this.click(nav.contactsLink).catch(() => {});
     }
-    return this.searchAndOpen(sc.searchInput, sc.resultRow, sc.resultRowLink, sc.noResultsMarker, term);
+    const opened = await this.searchAndOpen(sc.searchInput, sc.resultRow, sc.resultRowLink, sc.noResultsMarker, term);
+    // Clicking a result doesn't always navigate into the record (REI can keep
+    // us on the list). If we're not on a contact page, open the first matching
+    // contact DIRECTLY by its /contacts/<id> URL so the full record (incl. the
+    // Chat/TinyMCE box) loads. This makes matching + sending reliable.
+    if (!/\/contacts\/\d+/i.test(this.page.url())) {
+      const href = await this.firstContactLink();
+      if (href) {
+        await this.page.goto(href, { waitUntil: "domcontentloaded" }).catch(() => {});
+        await this.page.waitForTimeout(1200);
+        return true;
+      }
+      return opened;
+    }
+    return opened;
+  }
+
+  // The first /contacts/<id> link on the current (search results) page.
+  async firstContactLink() {
+    return this.page
+      .evaluate(() => {
+        const a = Array.from(document.querySelectorAll("a[href*='/contacts/']"))
+          .map((x) => x.href)
+          .find((h) => /\/contacts\/\d+/i.test(h));
+        return a || "";
+      })
+      .catch(() => "");
   }
 
   async clearPipelineFilters() {
