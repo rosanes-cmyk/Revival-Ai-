@@ -94,6 +94,31 @@ function waitForServer(cb, attempt = 0) {
   req.setTimeout(1500, () => req.destroy());
 }
 
+// Open an external URL (REI / Redfin) in an in-app browser window that shares a
+// single PERSISTENT session, so a REI login done once here is remembered for
+// all future link clicks. Reuses one window so clicks don't pile up tabs.
+let linkWindow = null;
+function openInAppBrowser(url) {
+  if (linkWindow && !linkWindow.isDestroyed()) {
+    linkWindow.loadURL(url);
+    linkWindow.focus();
+    return;
+  }
+  linkWindow = new BrowserWindow({
+    width: 1200,
+    height: 850,
+    title: "Revival AI — Web",
+    autoHideMenuBar: true,
+    webPreferences: {
+      partition: "persist:revival-web", // remembers REI/Redfin logins
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+  linkWindow.on("closed", () => (linkWindow = null));
+  linkWindow.loadURL(url);
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -107,10 +132,15 @@ function createWindow() {
     webPreferences: { contextIsolation: true, nodeIntegration: false },
   });
 
-  // Open target=_blank / external links in the real browser, not a blank app window.
+  // Links (REI contact, Redfin) open INSIDE the app in a browser window that
+  // shares one persistent session — so the user logs into REI once there and
+  // every later link opens the contact directly (no Edge, no re-login).
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith(BASE_URL)) return { action: "allow" };
-    shell.openExternal(url);
+    if (/^https?:\/\//i.test(url)) {
+      openInAppBrowser(url);
+      return { action: "deny" };
+    }
     return { action: "deny" };
   });
 
