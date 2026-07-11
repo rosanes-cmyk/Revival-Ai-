@@ -14,6 +14,7 @@ import { EventEmitter } from "events";
 import { ReiBlackBookAdapter } from "./reibb.js";
 import { PropertyRadarAdapter } from "./propertyradar.js";
 import { RedfinAdapter } from "./redfin.js";
+import { resolveRedfinUrl } from "./redfinLink.js";
 import { decide } from "./sop.js";
 import { assertMessageIntegrity, normalizeCompany, COMPANY } from "./message.js";
 import { JOB_STATUS } from "../data/store.js";
@@ -49,6 +50,10 @@ export class AutomationEngine extends EventEmitter {
     // don't write Revival tags back onto REI contacts. Set WRITE_REI_TAGS=true
     // to re-enable.
     this.writeReiTags = String(process.env.WRITE_REI_TAGS).toLowerCase() === "true";
+    // Resolve each address to its exact Redfin page so the dashboard can link
+    // straight there for a manual check. Fast JSON lookup, no browser. On by
+    // default; set REDFIN_LINKS=false to disable.
+    this.redfinLinks = String(process.env.REDFIN_LINKS ?? "true").toLowerCase() !== "false";
     this.adapterFactory = () => new ReiBlackBookAdapter();
     this.statusAdapterFactory = () =>
       this.propertySource === "redfin" ? new RedfinAdapter() : new PropertyRadarAdapter();
@@ -186,6 +191,16 @@ export class AutomationEngine extends EventEmitter {
   async _processRow(row) {
     const logBase = { row: row.rowNumber, owner: row.ownerName, address: row.propertyAddress, company: row.companySource };
     try {
+      // Resolve the exact Redfin page for this address (fast, no browser) so the
+      // dashboard Property Status / Address links go straight to Redfin. The
+      // live Redfin adapter (if enabled) may later overwrite with its own URL.
+      if (this.redfinLinks && !row.propertyStatusUrl) {
+        const q = /\d{5}|,/.test(row.propertyAddress)
+          ? row.propertyAddress
+          : [row.propertyAddress, row.city, row.state, row.zip].filter(Boolean).join(", ");
+        row.propertyStatusUrl = await resolveRedfinUrl(q).catch(() => "");
+      }
+
       // Property status (Redfin / PropertyRadar) FIRST (if enabled): if it's
       // sold/listed, skip the REI checks entirely, tag it, and move on.
       if (this.statusAdapter) {
