@@ -169,10 +169,11 @@ export class ReiBlackBookAdapter {
         facts: { matchFound: true, ...record },
       };
     } catch (err) {
+      const contactUrl = await this.reiContactUrl().catch(() => "");
       return {
         searchMethod: matched.searchMethod,
         matchStatus: matched.matchStatus,
-        facts: { matchFound: true, ...uncertain(`Could not read the contact record: ${err.message}`), contactUrl: this.reiContactUrl() },
+        facts: { matchFound: true, ...uncertain(`Could not read the contact record: ${err.message}`), contactUrl },
       };
     }
   }
@@ -197,7 +198,8 @@ export class ReiBlackBookAdapter {
         /* still consider the property found; tagging may be skipped */
       }
     }
-    return { matchFound: true, matchStatus: matched.matchStatus, searchMethod: matched.searchMethod, contactUrl: this.reiContactUrl() };
+    const contactUrl = await this.reiContactUrl().catch(() => "");
+    return { matchFound: true, matchStatus: matched.matchStatus, searchMethod: matched.searchMethod, contactUrl };
   }
 
   // ----- Search in the required order (SOP FLOW step 3) --------------------
@@ -303,7 +305,7 @@ export class ReiBlackBookAdapter {
   async readContactFacts(lead) {
     const cr = this.selectors.contactRecord;
     // The live REI contact URL (for the dashboard "View in REI" link).
-    const contactUrl = this.reiContactUrl();
+    const contactUrl = await this.reiContactUrl();
 
     // Tags (SOP step 9). If unreadable, hold (bad tags can't be ruled out).
     const { readable: tagsReadable, tags } = await this.readTags();
@@ -365,17 +367,28 @@ export class ReiBlackBookAdapter {
 
   // The current REI contact-record URL, but only if it looks like a real
   // contact page (so we never hand the dashboard a login/search URL).
-  reiContactUrl() {
+  async reiContactUrl() {
     const ok = (u) =>
       /reiblackbook\.com/i.test(u) &&
       !/\/services\/account\//i.test(u) &&
-      /\/contacts?\/[^/?#]+/i.test(u); // a specific contact record
+      /\/contacts?\/\d+/i.test(u); // a specific contact record id
+    // 1) The address bar (works when REI navigates to the contact page).
     const cur = this.page.url();
     if (ok(cur)) return cur;
-    // Fallback: the URL of the search-result link we clicked (works even when
-    // REI shows the contact in a panel without changing the address bar).
+    // 2) The result link we clicked (if it carried the contact URL).
     if (this._lastResultHref && ok(this._lastResultHref)) return this._lastResultHref;
-    return "";
+    // 3) Dig a /contacts/<id> link out of the open record itself — REI often
+    // shows the contact in a panel without changing the address bar, but the
+    // page still has links (chat, edit, share) that include the contact id.
+    const href = await this.page
+      .evaluate(() => {
+        const hit = Array.from(document.querySelectorAll("a[href*='/contact']"))
+          .map((a) => a.href)
+          .find((h) => /\/contacts?\/\d+/i.test(h));
+        return hit || "";
+      })
+      .catch(() => "");
+    return href && ok(href) ? href : "";
   }
 
   async readTags() {
