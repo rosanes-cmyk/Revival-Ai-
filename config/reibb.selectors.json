@@ -114,11 +114,11 @@
     "doNotMailTag": "Do Not Mail",
     "phone": "a[href^='tel:'], text=Phone (Mobile) >> xpath=following::a[1]",
     "propertyStatus": {
-      "_status": "VERIFY - property Sold/Listed status source not yet captured (may live on the property record or an MLS/status field).",
+      "_status": "DISABLED page-text markers on purpose. Bare 'text=Sold'/'text=Listed' matched the word anywhere on the REI page (menus, headers, other deals) and produced FALSE 'Sold'/'Listed'. REI Sold/Listed now comes only from explicit REI TAGS (Sold / Already listed / etc. in SAFETY_TAG_RULES) and, if enabled, Redfin. Put a SPECIFIC, confirmed selector here only if you capture a real status field on the record.",
       "container": ".property-status",
-      "soldMarker": "text=Sold",
+      "soldMarker": "",
       "soldDateField": "[data-field='sold-date']",
-      "listedMarker": "text=Active MLS Listing, text=Listed",
+      "listedMarker": "",
       "listedMlsField": "[data-field='mls-status']"
     },
     "history": {
