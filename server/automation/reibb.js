@@ -560,13 +560,21 @@ export class ReiBlackBookAdapter {
         "Could not open the Chat/Text box (no message field found). No text sent. FIELDS SEEN: " + diag
       );
     }
-    await field.fill("");
-    await field.fill(message);
+    // The reply box is a TinyMCE rich-text editor (contenteditable). Focus it,
+    // then type so TinyMCE fires its input events (needed for send to enable).
+    await field.click().catch(() => {});
+    await field.fill("").catch(() => {});
+    try {
+      await field.fill(message);
+    } catch {
+      await field.type(message, { delay: 10 }); // fallback for strict contenteditable
+    }
+    await this.page.waitForTimeout(400);
 
     const composed =
       (await field.inputValue().catch(async () => (await field.innerText().catch(() => "")))) || "";
-    if (composed.trim() !== message.trim()) {
-      throw new Error("Composed SMS text did not exactly match the approved message; send aborted.");
+    if (composed.replace(/\s+/g, " ").trim() !== message.replace(/\s+/g, " ").trim()) {
+      throw new Error(`Composed SMS text did not exactly match the approved message; send aborted. (saw: "${composed.slice(0, 60)}")`);
     }
 
     const sendBtn = await this.findVisibleAcrossFrames(c.sendButton, 5000);
