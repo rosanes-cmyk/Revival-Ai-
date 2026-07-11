@@ -342,8 +342,15 @@ export class ReiBlackBookAdapter {
       };
     }
 
+    // Detect the sending company from REI's "From:" persona (e.g. "PPC LEAD
+    // THB" -> Twin Home Buyer, "PPC LEAD EQT" -> Equity Track Inc.). This picks
+    // the correct approved template per lead, straight from REI — no Company
+    // column needed. Falls back to the sheet/default if not detectable.
+    const detectedCompany = await this.readSenderCompany();
+    const companySource = detectedCompany || lead.companySource || "";
+
     const lastMessageFailed = detectFailed(history.latestText);
-    const approved = getApprovedMessage(lead.companySource);
+    const approved = getApprovedMessage(companySource);
     const alreadySentApproved = approved
       ? history.fullText.toLowerCase().includes(approved.toLowerCase())
       : false;
@@ -359,11 +366,23 @@ export class ReiBlackBookAdapter {
       historyText: history.fullText,
       lastMessageFailed,
       alreadySentApproved,
-      companySource: lead.companySource || "",
+      companySource,
       contactUrl,
       uncertain: false,
       uncertainReason: "",
     };
+  }
+
+  // Read REI's "From:" sender persona in the Chat panel and map it to a company
+  // so the correct approved template is used. Returns "Twin Home Buyer",
+  // "Equity Track Inc.", or "" if it can't tell.
+  async readSenderCompany() {
+    const body = (await this.page.locator("body").innerText().catch(() => "")) || "";
+    const m = body.match(/From:\s*([^\n\r]+)/i);
+    const line = (m ? m[1] : body).toLowerCase();
+    if (/\beqt\b|equity\s*track/.test(line)) return "Equity Track Inc.";
+    if (/\bthb\b|twin\s*home/.test(line)) return "Twin Home Buyer";
+    return "";
   }
 
   // The current REI contact-record URL, but only if it looks like a real
