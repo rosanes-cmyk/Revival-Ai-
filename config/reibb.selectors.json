@@ -143,9 +143,9 @@
     },
     "chat": {
       "_status": "CONFIRMED: open via the 'Chat' tab; message box placeholder 'Write Your Reply...'; the orange send button's tooltip is 'Send Text'. Send is also verified by the message appearing in the thread, so it fails safe if the button can't be clicked.",
-      "openButton": "text=Chat",
-      "messageInput": "textarea[placeholder*='Write Your Reply' i], textarea[placeholder*='reply' i]",
-      "sendButton": "[aria-label='Send Text' i], [title='Send Text' i], button:has-text('Send Text'), [aria-label*='send' i], button[title*='send' i]",
+      "openButton": "[role='tab']:has-text('Chat'), text=Chat",
+      "messageInput": "textarea[placeholder*='Write Your Reply' i], textarea[placeholder*='reply' i], [contenteditable='true'], div[role='textbox'], [placeholder*='Write Your Reply' i]",
+      "sendButton": "[aria-label='Send Text' i], [title='Send Text' i], button:has-text('Send Text'), [data-testid*='send' i], [aria-label*='send' i], button[title*='send' i], button:has(svg[class*='send' i]), button:has(svg[class*='paper' i])",
       "sentMarker": ""
     }
   }
