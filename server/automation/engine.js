@@ -191,10 +191,10 @@ export class AutomationEngine extends EventEmitter {
   async _processRow(row) {
     const logBase = { row: row.rowNumber, owner: row.ownerName, address: row.propertyAddress, company: row.companySource };
     try {
-      // Resolve the exact Redfin page for this address (fast, no browser) so the
-      // dashboard Property Status / Address links go straight to Redfin. The
-      // live Redfin adapter (if enabled) may later overwrite with its own URL.
-      if (this.redfinLinks && !row.propertyStatusUrl) {
+      // Resolve the exact Redfin page for this address (fast JSON lookup, no
+      // browser). Skipped when the live Redfin automation is on, because that
+      // opens the exact page and captures the real URL + status itself.
+      if (this.redfinLinks && this.propertySource !== "redfin" && !row.propertyStatusUrl) {
         const q = /\d{5}|,/.test(row.propertyAddress)
           ? row.propertyAddress
           : [row.propertyAddress, row.city, row.state, row.zip].filter(Boolean).join(", ");
