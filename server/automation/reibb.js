@@ -600,6 +600,14 @@ export class ReiBlackBookAdapter {
   // the real "Write Your Reply" element can be identified from the logs.
   async dumpInputCandidates() {
     const parts = [];
+    // Where are we + is the reply box text present at all?
+    let head = "";
+    try {
+      const url = this.page.url();
+      const body = (await this.page.locator("body").innerText().catch(() => "")) || "";
+      head = `URL=${url.replace(/^https?:\/\/[^/]+/, "")} replyText=${/write your reply/i.test(body) ? "YES" : "no"} :: `;
+    } catch { /* ignore */ }
+    parts.push(head);
     for (const frame of this.page.frames()) {
       try {
         const items = await frame.evaluate(() => {
