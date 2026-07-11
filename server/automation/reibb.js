@@ -256,9 +256,11 @@ export class ReiBlackBookAdapter {
     return opened;
   }
 
-  // The first /contacts/<id> link on the current (search results) page.
+  // The first matching contact's URL from the search-results page. Tries anchor
+  // hrefs, then any /contacts/<id> anywhere in the page HTML (data attrs, JS).
   async firstContactLink() {
-    return this.page
+    await this.page.waitForTimeout(800); // let results render
+    const href = await this.page
       .evaluate(() => {
         const a = Array.from(document.querySelectorAll("a[href*='/contacts/']"))
           .map((x) => x.href)
@@ -266,6 +268,16 @@ export class ReiBlackBookAdapter {
         return a || "";
       })
       .catch(() => "");
+    if (href) return href;
+    // Fallback: scan the whole results HTML for a contact id.
+    const html = await this.page.content().catch(() => "");
+    const m = html.match(/\/contacts\/(\d{3,})/);
+    if (m) {
+      let origin = "https://my.reiblackbook.com";
+      try { origin = new URL(this.page.url()).origin; } catch { /* default */ }
+      return `${origin}/contacts/${m[1]}`;
+    }
+    return "";
   }
 
   async clearPipelineFilters() {
