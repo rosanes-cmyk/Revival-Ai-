@@ -111,7 +111,7 @@ export class RedfinAdapter {
    *            listed:boolean, listingNote:string, uncertain:boolean, reason:string}}
    */
   async lookupStatus(lead) {
-    const out = { checked: true, found: false, sold: false, soldDate: "", listed: false, listingNote: "", propertyUrl: "", uncertain: false, reason: "" };
+    const out = { checked: true, found: false, sold: false, soldDate: "", listed: false, listingNote: "", offMarket: false, statusLabel: "", propertyUrl: "", uncertain: false, reason: "" };
     // Build accurate search terms. Street-only matches the wrong city (e.g.
     // "Country Club Dr" exists in many towns), so we use street + city + state
     // + ZIP. We de-duplicate parts so a full-address column plus separate
@@ -156,6 +156,7 @@ export class RedfinAdapter {
       if (listedHit) {
         out.listed = true;
         out.listingNote = `Redfin status: ${listedHit}`;
+        out.statusLabel = /pending|contingent|under contract|backup/i.test(listedHit) ? "Pending" : "For Sale";
       }
 
       // SOLD: find a "sold on <date>" and check it is within the window.
@@ -167,7 +168,16 @@ export class RedfinAdapter {
           out.soldDate = soldDate.text;
           out.listed = false; // an actual recent sale outranks a stale listing note
           out.listingNote = "";
+          out.statusLabel = "Sold";
         }
+      }
+
+      // OFF MARKET: not for sale and not recently sold. Redfin labels these
+      // "OFF MARKET". This does NOT block a text (the owner still owns it) — we
+      // just surface it as the property's status.
+      if (!out.sold && !out.listed && /off\s*-?\s*market/i.test(hay)) {
+        out.offMarket = true;
+        out.statusLabel = "Off Market";
       }
 
       return out;

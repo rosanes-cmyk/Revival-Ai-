@@ -213,6 +213,12 @@ export class AutomationEngine extends EventEmitter {
 
       const decision = decide(facts);
       row.propertyStatus = decision.propertyStatus;
+      // If Redfin gave a real status (e.g. Off Market) and REI didn't flag the
+      // property sold/listed itself, show Redfin's status instead of the
+      // generic "Not sold / not listed".
+      if (row._redfinStatus && decision.disposition !== DISPOSITION.PROPERTY_SOLD && decision.disposition !== DISPOSITION.LISTED) {
+        row.propertyStatus = `${row._redfinStatus} (Redfin)`;
+      }
       row.safetyStatus = decision.safetySummary || "None";
       row.eligibilityStatus = decision.eligibility;
       row.notes = decision.notes;
@@ -284,6 +290,9 @@ export class AutomationEngine extends EventEmitter {
     // Keep the property-check link (e.g. Redfin) on the row for validation,
     // whether or not it turned out sold/listed.
     if (pr && pr.propertyUrl) row.propertyStatusUrl = pr.propertyUrl;
+    // Remember a non-blocking status (e.g. Off Market) to show in the dashboard
+    // even though the lead still proceeds to REI.
+    if (pr && pr.statusLabel) row._redfinStatus = pr.statusLabel;
     if (!pr || !pr.checked || pr.uncertain || (!pr.sold && !pr.listed)) return false;
 
     const sold = pr.sold;
