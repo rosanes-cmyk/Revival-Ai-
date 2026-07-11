@@ -304,11 +304,12 @@ export class ReiBlackBookAdapter {
   // ----- Read the contact record -------------------------------------------
   async readContactFacts(lead) {
     const cr = this.selectors.contactRecord;
-    // The live REI contact URL (for the dashboard "View in REI" link).
-    const contactUrl = await this.reiContactUrl();
 
     // Tags (SOP step 9). If unreadable, hold (bad tags can't be ruled out).
     const { readable: tagsReadable, tags } = await this.readTags();
+    // Capture the contact URL AFTER the record has loaded (readTags waits), so
+    // the /contacts/<id> reference is present on the page.
+    const contactUrl = await this.reiContactUrl();
     if (!tagsReadable) {
       return { ...uncertain("Could not read the contact's Tag(s) section, so a bad tag can't be ruled out. Held for review."), contactUrl };
     }
@@ -388,7 +389,17 @@ export class ReiBlackBookAdapter {
         return hit || "";
       })
       .catch(() => "");
-    return href && ok(href) ? href : "";
+    if (href && ok(href)) return href;
+    // 4) Last resort: scan the whole page HTML for a /contacts/<id> reference
+    // (in a link, data attribute, or script) and build the canonical URL.
+    const html = await this.page.content().catch(() => "");
+    const m = html.match(/\/contacts\/(\d{3,})/);
+    if (m) {
+      let origin = "https://my.reiblackbook.com";
+      try { origin = new URL(this.page.url()).origin; } catch { /* keep default */ }
+      return `${origin}/contacts/${m[1]}`;
+    }
+    return "";
   }
 
   async readTags() {
