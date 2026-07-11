@@ -483,7 +483,8 @@ export class ReiBlackBookAdapter {
   async readHistory() {
     const h = this.selectors.contactRecord.history;
     let text = "";
-    for (const tab of [h.chatTab, h.activitiesTab, h.notesTab]) {
+    // End on the Chat tab so the message box is showing for the send step.
+    for (const tab of [h.notesTab, h.activitiesTab, h.chatTab]) {
       if (await this.isVisible(tab, 800)) {
         await this.click(tab).catch(() => {});
         await this.page.waitForTimeout(500);
@@ -537,48 +538,46 @@ export class ReiBlackBookAdapter {
   // and that the message appears in the chat history after sending.
   async sendText(message) {
     const c = this.selectors.contactRecord.chat;
-    // Open the Chat/Text panel only if the message box isn't already showing.
-    // Try several ways to reach it (tab label varies), each with a short
-    // timeout, so a missing selector doesn't hang for 15s.
-    if (!(await this.isVisible(c.messageInput, 1500))) {
-      const openers = [
-        c.openButton,
-        "role=tab[name=/chat/i]",
-        "role=tab[name=/text|sms|message/i]",
-        "button:has-text('Chat')",
-        "[role='tab']:has-text('Chat')",
-        "a:has-text('Chat')",
-        "text=/^\\s*Chat\\s*$/",
-        "[aria-label*='chat' i]",
-        "[aria-label*='text' i]",
-      ];
-      for (const sel of openers) {
-        if (await this.clickIfVisible(sel, 1500)) {
-          if (await this.isVisible(c.messageInput, 2500)) break;
-        }
-      }
+    // Make sure the Chat tab is active (reading history / other tabs may have
+    // switched away), then give the message box time to render.
+    for (const sel of [
+      "[role='tab']:has-text('Chat')",
+      "button:has-text('Chat')",
+      "a:has-text('Chat')",
+      c.openButton,
+      "text=Chat",
+    ]) {
+      if (await this.clickIfVisible(sel, 1500)) break;
     }
-    if (!(await this.isVisible(c.messageInput, 5000))) {
+    await this.page.waitForTimeout(1500);
+
+    // Find the message box — searching the main page AND any embedded panels
+    // (REI renders the chat widget in an iframe on some layouts).
+    const field = await this.findVisibleAcrossFrames(c.messageInput, 9000);
+    if (!field) {
       throw new Error("Could not open the Chat/Text box on the contact (no message field found). No text sent.");
     }
-    await this.page.fill(c.messageInput, "");
-    await this.page.fill(c.messageInput, message);
+    await field.fill("");
+    await field.fill(message);
 
-    const composed = await this.page.inputValue(c.messageInput).catch(async () => {
-      // contenteditable fallback
-      return (await this.textOf(c.messageInput)) || "";
-    });
+    const composed =
+      (await field.inputValue().catch(async () => (await field.innerText().catch(() => "")))) || "";
     if (composed.trim() !== message.trim()) {
       throw new Error("Composed SMS text did not exactly match the approved message; send aborted.");
     }
-    await this.click(c.sendButton);
+
+    const sendBtn = await this.findVisibleAcrossFrames(c.sendButton, 5000);
+    if (!sendBtn) {
+      throw new Error("Could not find the Send button on the contact. No text sent.");
+    }
+    await sendBtn.click({ timeout: 6000 });
     await this.page.waitForTimeout(1500);
 
     // Verify the send actually went through: the message shows in the thread,
     // OR the reply box cleared. If neither, treat as NOT sent (fail safe).
     let cleared = false;
     try {
-      cleared = ((await this.page.inputValue(c.messageInput)) || "").trim() === "";
+      cleared = ((await field.inputValue()) || "").trim() === "";
     } catch {
       cleared = false;
     }
@@ -592,6 +591,25 @@ export class ReiBlackBookAdapter {
       throw new Error("Could not confirm the message was sent (not seen in the thread and the reply box didn't clear).");
     }
     return { sent: true, timestamp: new Date().toISOString() };
+  }
+
+  // Find the first visible element matching `selector` across the main page and
+  // all embedded frames (iframes). Returns a Locator or null. Retries until the
+  // timeout so late-rendering widgets are caught.
+  async findVisibleAcrossFrames(selector, timeoutMs = 6000) {
+    const deadline = Date.now() + timeoutMs;
+    do {
+      for (const frame of this.page.frames()) {
+        try {
+          const loc = frame.locator(selector).first();
+          if ((await loc.count()) > 0 && (await loc.isVisible().catch(() => false))) return loc;
+        } catch {
+          /* frame detached / bad selector in this frame — skip */
+        }
+      }
+      await this.page.waitForTimeout(300);
+    } while (Date.now() < deadline);
+    return null;
   }
 
   // ----- Low-level helpers --------------------------------------------------
