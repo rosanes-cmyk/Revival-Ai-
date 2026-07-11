@@ -251,6 +251,7 @@ export class ReiBlackBookAdapter {
   // returns false on any problem so the caller can try the next search method.
   async searchAndOpen(inputSel, rowSel, rowLinkSel, noResultsSel, term) {
     if (!term) return false;
+    this._lastResultHref = ""; // reset per search
     try {
       await this.page.fill(inputSel, "");
       await this.page.fill(inputSel, term);
@@ -271,6 +272,10 @@ export class ReiBlackBookAdapter {
       const link = row.locator("a").first();
       try {
         if ((await link.count()) > 0 && (await link.isVisible().catch(() => false))) {
+          // Remember the result link's href — it's the contact page URL, even
+          // if REI opens it in a panel without changing the address bar.
+          const href = await link.getAttribute("href").catch(() => "");
+          if (href) { try { this._lastResultHref = new URL(href, this.page.url()).href; } catch { this._lastResultHref = href; } }
           await link.click({ timeout: 6000 });
         } else {
           await row.click({ timeout: 6000 });
@@ -361,11 +366,16 @@ export class ReiBlackBookAdapter {
   // The current REI contact-record URL, but only if it looks like a real
   // contact page (so we never hand the dashboard a login/search URL).
   reiContactUrl() {
-    const url = this.page.url();
-    if (!/reiblackbook\.com/i.test(url)) return "";
-    if (/\/services\/account\//i.test(url)) return ""; // login / 2FA page
-    // A specific contact record: /contacts/<id> (id may not be purely numeric).
-    return /\/contacts?\/[^/?#]+/i.test(url) ? url : "";
+    const ok = (u) =>
+      /reiblackbook\.com/i.test(u) &&
+      !/\/services\/account\//i.test(u) &&
+      /\/contacts?\/[^/?#]+/i.test(u); // a specific contact record
+    const cur = this.page.url();
+    if (ok(cur)) return cur;
+    // Fallback: the URL of the search-result link we clicked (works even when
+    // REI shows the contact in a panel without changing the address bar).
+    if (this._lastResultHref && ok(this._lastResultHref)) return this._lastResultHref;
+    return "";
   }
 
   async readTags() {

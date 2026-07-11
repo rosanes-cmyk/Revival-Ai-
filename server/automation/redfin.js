@@ -112,15 +112,18 @@ export class RedfinAdapter {
    */
   async lookupStatus(lead) {
     const out = { checked: true, found: false, sold: false, soldDate: "", listed: false, listingNote: "", propertyUrl: "", uncertain: false, reason: "" };
-    // Search terms, street-first (per Juan): "3240 COUNTRY CLUB DR", then with
-    // ZIP to disambiguate, then the full address as a last resort.
+    // Build accurate search terms. Street-only matches the wrong city (e.g.
+    // "Country Club Dr" exists in many towns), so we use street + city + state
+    // + ZIP. We de-duplicate parts so a full-address column plus separate
+    // city/state/zip columns don't produce "…CA 95682, CAMERON PARK, CA, 95682".
     const street = streetLine(lead.propertyAddress) || String(lead.street || "").trim();
-    const full = [lead.propertyAddress, lead.city, lead.state, lead.zip].filter(Boolean).join(", ");
+    const clean = (s) => String(s || "").replace(/\s+/g, " ").replace(/\s*,\s*/g, ", ").replace(/(, )+/g, ", ").replace(/^,\s*|,\s*$/g, "").trim();
+    const composed = clean([street, lead.city, [lead.state, lead.zip].filter(Boolean).join(" ")].filter(Boolean).join(", "));
     const terms = [];
-    const add = (t) => { const v = String(t || "").trim(); if (v && !terms.includes(v)) terms.push(v); };
-    add(street);
-    add([street, lead.zip].filter(Boolean).join(" "));
-    add(full);
+    const add = (t) => { const v = clean(t); if (v && !terms.some((x) => x.toLowerCase() === v.toLowerCase())) terms.push(v); };
+    add(composed);                 // "3240 COUNTRY CLUB DR, CAMERON PARK, CA 95682"
+    add(lead.propertyAddress);     // whatever the sheet had, in case it's cleaner
+    add([street, lead.zip].filter(Boolean).join(" ")); // street + ZIP fallback
     if (!terms.length) return { ...out, uncertain: true, reason: "no address to search" };
 
     try {
@@ -186,19 +189,20 @@ export class RedfinAdapter {
     if ((await box.count()) === 0) return false;
     await box.click().catch(() => {});
     await box.fill("");
-    await box.type(fullAddress, { delay: 25 });
-    await this.page.waitForTimeout(1200); // let autocomplete populate
+    await box.type(fullAddress, { delay: 30 });
+    await this.page.waitForTimeout(1500); // let autocomplete populate
 
-    // Prefer clicking the first real suggestion; fall back to Enter.
+    // Click the first real suggestion. Do NOT press Enter on a term with no
+    // suggestion — that triggers Redfin's "Oops! An error occurred" page. If no
+    // suggestion appears, this term didn't match; the caller tries the next one.
     const option = this.page.locator(se.autocompleteOption).first();
-    if ((await option.count()) > 0 && (await option.isVisible().catch(() => false))) {
-      await option.click().catch(() => {});
-    } else {
-      await this.page.keyboard.press("Enter").catch(() => {});
+    if ((await option.count()) === 0 || !(await option.isVisible().catch(() => false))) {
+      return false;
     }
+    await option.click().catch(() => {});
     await this.page.waitForLoadState("domcontentloaded").catch(() => {});
     await this.page.waitForTimeout(1500);
-    // A human-check can appear after submitting the search too.
+    // A human-check can appear after opening a property too.
     await this.passHumanCheck(60000);
 
     // Confirm we're on a property detail page (URL contains /home/ or an
