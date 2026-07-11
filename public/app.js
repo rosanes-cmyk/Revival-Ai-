@@ -96,16 +96,23 @@ function propertyStatusCell(r) {
   return status;
 }
 
-// Property Address cell: link straight to the Redfin property page the
-// automation opened (so you can validate on Redfin in one click). Only links
-// when Redfin actually found+opened the property; otherwise plain text.
+// Property Address cell: ALWAYS clickable for validation.
+//  - If Redfin actually opened the property, link straight to that Redfin page.
+//  - Otherwise link to a web search of the exact address, which surfaces the
+//    Redfin/Zillow listing + sale history for that home.
 function addressCell(r) {
   const addr = esc(r.propertyAddress);
-  const url = r.propertyStatusUrl;
-  if (addr && url && /redfin\.com/i.test(url)) {
-    return `<a class="rei-link" href="${esc(url)}" target="_blank" rel="noopener" title="Open this address on Redfin">${addr} 🔗</a>`;
+  if (!addr) return addr;
+  const redfin = r.propertyStatusUrl;
+  if (redfin && /redfin\.com/i.test(redfin)) {
+    return `<a class="rei-link" href="${esc(redfin)}" target="_blank" rel="noopener" title="Open this address on Redfin">${addr} 🔗</a>`;
   }
-  return addr;
+  // Build a clean full-address query (avoid duplicating city/zip if the address
+  // column already contains them).
+  let q = r.propertyAddress || "";
+  if (!/\d{5}|,/.test(q)) q = [r.propertyAddress, r.city, r.state, r.zip].filter(Boolean).join(", ");
+  const search = "https://www.google.com/search?q=" + encodeURIComponent(q);
+  return `<a class="rei-link" href="${esc(search)}" target="_blank" rel="noopener" title="Look up this address (Redfin / Zillow / sale history)">${addr} 🔗</a>`;
 }
 
 function rowHtml(r) {
