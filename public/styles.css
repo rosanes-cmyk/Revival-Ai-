@@ -243,3 +243,7 @@ td.error { color: var(--err); }
 .rei-link { color: var(--accent); text-decoration: none; font-weight: 600; white-space: nowrap; }
 .rei-link:hover { text-decoration: underline; }
 .rei-link .link-src { color: #8a93a6; font-weight: 400; font-size: 11px; }
+
+/* Live-send toggle button */
+.btn-live { border-color: #6b7280; }
+.btn-live.live-on { background: #16a34a; border-color: #22c55e; color: #fff; font-weight: 700; }

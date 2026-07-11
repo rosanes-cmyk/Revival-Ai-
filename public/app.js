@@ -9,6 +9,7 @@ const els = {
   closeLogsBtn: $("closeLogsBtn"), logsDrawer: $("logsDrawer"), logsBody: $("logsBody"),
   tableBody: $("leadTableBody"), statusLabel: $("statusLabel"), liveFlag: $("liveFlag"),
   approvedTHB: $("approvedTHB"), approvedETI: $("approvedETI"), batchLimit: $("batchLimit"),
+  liveSendBtn: $("liveSendBtn"),
   schedEnabled: $("schedEnabled"), schedTime: $("schedTime"), schedNote: $("schedNote"),
   progressWrap: $("progressWrap"), progressFill: $("progressFill"), progressText: $("progressText"),
   finalSummary: $("finalSummary"), finalSummaryBody: $("finalSummaryBody"), toast: $("toast"),
@@ -258,6 +259,7 @@ async function init() {
       renderSchedNote();
     }
     els.liveFlag.title = cfg.allowLiveSend ? "Live send ENABLED" : "Live send DISABLED (ALLOW_LIVE_SEND is off)";
+    renderLiveSend(!!cfg.allowLiveSend);
   } catch (e) { /* ignore */ }
 
   try {
@@ -375,6 +377,38 @@ if (els.batchLimit) {
         body: JSON.stringify({ value: Number(els.batchLimit.value) }),
       });
       toast(r.maxSendsPerRun ? `Set to ${r.maxSendsPerRun} texts per run.` : "No per-run limit.", "ok");
+    } catch (err) {
+      toast(err.message, "error");
+    }
+  };
+}
+
+// --- Live-send toggle -------------------------------------------------------
+let liveSendOn = false;
+function renderLiveSend(on) {
+  liveSendOn = !!on;
+  if (!els.liveSendBtn) return;
+  els.liveSendBtn.textContent = liveSendOn ? "🟢 Live Sending: ON" : "💤 Live Sending: OFF";
+  els.liveSendBtn.classList.toggle("live-on", liveSendOn);
+}
+if (els.liveSendBtn) {
+  els.liveSendBtn.onclick = async () => {
+    const turningOn = !liveSendOn;
+    if (turningOn) {
+      const ok = window.confirm(
+        "Turn ON live sending?\n\nThis will send REAL text messages to the phones of every clean, eligible lead when you run the automation.\n\nOnly turn this on when you're ready to actually text people. Click OK to enable, or Cancel to stay in safe mode."
+      );
+      if (!ok) return;
+    }
+    try {
+      const r = await api("/api/live-send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: turningOn }),
+      });
+      renderLiveSend(!!r.allowLiveSend);
+      if (els.liveFlag) els.liveFlag.className = "live-flag " + (r.allowLiveSend ? "on" : "off");
+      toast(r.allowLiveSend ? "Live sending is now ON — real texts will be sent." : "Live sending is OFF — safe mode.", r.allowLiveSend ? "ok" : "ok");
     } catch (err) {
       toast(err.message, "error");
     }

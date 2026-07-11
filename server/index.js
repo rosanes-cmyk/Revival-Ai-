@@ -138,6 +138,37 @@ app.post("/api/schedule", (req, res) => {
   res.json({ ok: true, schedule });
 });
 
+// --- Live-send switch (toggle from the dashboard) ---------------------------
+// Persisted so it survives restarts. Lets each installed copy turn real texting
+// on/off without editing .env. Defaults to the .env value the first time.
+const LIVE_SEND_FILE = path.join(__dirname, "..", "data", "state", "livesend.json");
+
+function loadLiveSend(fallback) {
+  try {
+    const v = JSON.parse(fs.readFileSync(LIVE_SEND_FILE, "utf8"));
+    return !!v.enabled;
+  } catch {
+    return fallback;
+  }
+}
+function saveLiveSend(enabled) {
+  try {
+    fs.writeFileSync(LIVE_SEND_FILE, JSON.stringify({ enabled: !!enabled }, null, 2));
+  } catch (err) {
+    console.error("[live-send] save failed:", err.message);
+  }
+}
+// Apply the persisted choice at startup (env value is the first-run default).
+engine.allowLiveSend = loadLiveSend(engine.allowLiveSend);
+
+app.post("/api/live-send", (req, res) => {
+  const enabled = !!(req.body && req.body.enabled);
+  engine.allowLiveSend = enabled;
+  saveLiveSend(enabled);
+  broadcast("state", { message: enabled ? "LIVE SENDING TURNED ON — real texts will be sent to clean leads." : "Live sending turned OFF — no texts will be sent." });
+  res.json({ ok: true, allowLiveSend: engine.allowLiveSend });
+});
+
 // Set the per-run text cap from the dashboard dropdown.
 app.post("/api/batch-limit", (req, res) => {
   const v = Number(req.body && req.body.value);
