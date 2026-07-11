@@ -555,7 +555,10 @@ export class ReiBlackBookAdapter {
     // (REI renders the chat widget in an iframe on some layouts).
     const field = await this.findVisibleAcrossFrames(c.messageInput, 9000);
     if (!field) {
-      throw new Error("Could not open the Chat/Text box on the contact (no message field found). No text sent.");
+      const diag = await this.dumpInputCandidates();
+      throw new Error(
+        "Could not open the Chat/Text box (no message field found). No text sent. FIELDS SEEN: " + diag
+      );
     }
     await field.fill("");
     await field.fill(message);
@@ -591,6 +594,41 @@ export class ReiBlackBookAdapter {
       throw new Error("Could not confirm the message was sent (not seen in the thread and the reply box didn't clear).");
     }
     return { sent: true, timestamp: new Date().toISOString() };
+  }
+
+  // Diagnostic: list the input-like fields actually present (across frames), so
+  // the real "Write Your Reply" element can be identified from the logs.
+  async dumpInputCandidates() {
+    const parts = [];
+    for (const frame of this.page.frames()) {
+      try {
+        const items = await frame.evaluate(() => {
+          const els = Array.from(
+            document.querySelectorAll("textarea, input, [contenteditable], [role='textbox']")
+          );
+          return els.slice(0, 12).map((e) => {
+            const tag = e.tagName.toLowerCase();
+            const ph = e.getAttribute("placeholder") || "";
+            const al = e.getAttribute("aria-label") || "";
+            const role = e.getAttribute("role") || "";
+            const ce = e.getAttribute("contenteditable");
+            const vis = !!e.offsetParent;
+            return (
+              tag +
+              (ph ? `[ph="${ph.slice(0, 22)}"]` : "") +
+              (al ? `[al="${al.slice(0, 18)}"]` : "") +
+              (role ? `[role=${role}]` : "") +
+              (ce !== null ? `[ce=${ce || "true"}]` : "") +
+              (vis ? "(vis)" : "(hidden)")
+            );
+          });
+        });
+        if (items.length) parts.push(items.join(" | "));
+      } catch {
+        /* skip frame */
+      }
+    }
+    return (parts.join(" || ") || "none").slice(0, 700);
   }
 
   // Find the first visible element matching `selector` across the main page and
