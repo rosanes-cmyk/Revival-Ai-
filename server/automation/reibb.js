@@ -541,6 +541,32 @@ export class ReiBlackBookAdapter {
     return { readable: true, fullText: trimmed, latestText: trimmed };
   }
 
+  // Re-verify: open a contact by URL and report whether an approved revival
+  // message is actually present in the chat. Returns true / false, or null if
+  // the contact couldn't be opened/checked. Never sends anything.
+  async verifyApprovedMessagePresent(contactUrl) {
+    if (!contactUrl) return null;
+    try {
+      await this.page.goto(contactUrl, { waitUntil: "domcontentloaded" }).catch(() => {});
+      await this.page.waitForTimeout(1500);
+      for (const sel of ["[role='tab']:has-text('Chat')", "button:has-text('Chat')", "text=Chat"]) {
+        if (await this.clickIfVisible(sel, 1200)) break;
+      }
+      await this.page.waitForTimeout(800);
+      const body = ((await this.page.locator("body").innerText().catch(() => "")) || "")
+        .replace(/\s+/g, " ")
+        .toLowerCase();
+      if (!body) return null;
+      const needles = [
+        "contacted us before about selling your home",
+        "are you still interested? reply yes or no",
+      ];
+      return needles.some((n) => body.includes(n));
+    } catch {
+      return null;
+    }
+  }
+
   // ----- Apply a Revival tag (SOP "HOW TO PUT TAGS IN REI") -----------------
   // Returns true if the tag was applied and confirmed; throws on failure.
   async applyTag(tagName) {

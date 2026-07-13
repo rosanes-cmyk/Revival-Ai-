@@ -9,7 +9,7 @@ const els = {
   closeLogsBtn: $("closeLogsBtn"), logsDrawer: $("logsDrawer"), logsBody: $("logsBody"),
   tableBody: $("leadTableBody"), statusLabel: $("statusLabel"), liveFlag: $("liveFlag"),
   approvedTHB: $("approvedTHB"), approvedETI: $("approvedETI"), batchLimit: $("batchLimit"),
-  liveSendBtn: $("liveSendBtn"),
+  liveSendBtn: $("liveSendBtn"), reverifyBtn: $("reverifyBtn"),
   schedEnabled: $("schedEnabled"), schedTime: $("schedTime"), schedNote: $("schedNote"),
   progressWrap: $("progressWrap"), progressFill: $("progressFill"), progressText: $("progressText"),
   finalSummary: $("finalSummary"), finalSummaryBody: $("finalSummaryBody"), toast: $("toast"),
@@ -409,6 +409,21 @@ if (els.liveSendBtn) {
       renderLiveSend(!!r.allowLiveSend);
       if (els.liveFlag) els.liveFlag.className = "live-flag " + (r.allowLiveSend ? "on" : "off");
       toast(r.allowLiveSend ? "Live sending is now ON — real texts will be sent." : "Live sending is OFF — safe mode.", r.allowLiveSend ? "ok" : "ok");
+    } catch (err) {
+      toast(err.message, "error");
+    }
+  };
+}
+
+if (els.reverifyBtn) {
+  els.reverifyBtn.onclick = async () => {
+    const ok = window.confirm(
+      "Re-verify all leads marked 'Text Sent'?\n\nThe automation will open each one in REI and check whether the approved message is really in the chat. Ones that didn't actually send (e.g. opted-out numbers) are reset so you can re-check them. Nothing is sent during re-verify.\n\nMake sure the automation is stopped first."
+    );
+    if (!ok) return;
+    try {
+      await api("/api/reverify", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      toast("Re-verify started — watch the table update.", "ok");
     } catch (err) {
       toast(err.message, "error");
     }

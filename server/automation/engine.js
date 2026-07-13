@@ -187,6 +187,66 @@ export class AutomationEngine extends EventEmitter {
     }
   }
 
+  // --- Re-verify already-"Text Sent" leads ---------------------------------
+  // Opens each lead currently marked Text Sent and checks whether an approved
+  // revival message is REALLY in its chat. Confirmed ones stay Text Sent;
+  // leads where it isn't found (e.g. opted-out numbers that never actually
+  // sent) are reset to Pending so a later run re-checks them correctly. Never
+  // sends anything.
+  async reverify() {
+    if (this._loopActive) throw new Error("Automation is running. Stop it first, then Re-verify.");
+    if (!this.store) throw new Error("No leads loaded to re-verify.");
+    this._loopActive = true;
+    this._control = "running";
+    try {
+      this.adapter = this.adapterFactory();
+      this.emitState("Opening REI to re-verify leads marked Text Sent (log in if prompted)...");
+      await this.adapter.launch();
+
+      const rows = this.store.rows.filter((r) => r.disposition === DISPOSITION.TEXT_SENT);
+      let confirmed = 0;
+      let reset = 0;
+      let uncheckable = 0;
+      this.emitState(`Re-verifying ${rows.length} lead(s) marked Text Sent...`);
+
+      for (const row of rows) {
+        if (this._control === "stopping") break;
+        const present = await this.adapter.verifyApprovedMessagePresent(row.reiContactUrl);
+        if (present === true) {
+          confirmed++;
+          row.notes = "Re-verified: approved message found in the REI chat.";
+        } else if (present === false) {
+          reset++;
+          row.disposition = DISPOSITION.PENDING;
+          row.eligibilityStatus = ELIGIBILITY.PENDING;
+          row.textSentTimestamp = "";
+          row.notes = "Re-verify: approved message NOT found in chat — was not actually sent (likely opted out). Reset to re-check.";
+        } else {
+          uncheckable++;
+          row.notes = (row.notes ? row.notes + " " : "") + "(Re-verify: could not open the contact to check.)";
+        }
+        this.store.persist();
+        this.emit("row", { row });
+        this.emit("summary", this.store.summary());
+      }
+
+      // Let the reset leads be re-processed on the next Start.
+      this.store.job.cursor = 0;
+      this.store.persist();
+      this.emitState(
+        `Re-verify done. Confirmed sent: ${confirmed}. Reset to re-check: ${reset}. Could not open: ${uncheckable}. ` +
+          (reset > 0 ? "Click Start to re-check the reset leads (turn Live Sending on if you want them re-sent/opt-out-checked)." : "")
+      );
+      this.emit("summary", this.store.summary());
+      return { confirmed, reset, uncheckable };
+    } finally {
+      if (this.adapter) await this.adapter.close();
+      this.adapter = null;
+      this._loopActive = false;
+      this._control = "stopped";
+    }
+  }
+
   // --- Per-row SOP processing ----------------------------------------------
   async _processRow(row) {
     const logBase = { row: row.rowNumber, owner: row.ownerName, address: row.propertyAddress, company: row.companySource };

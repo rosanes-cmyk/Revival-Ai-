@@ -169,6 +169,15 @@ app.post("/api/live-send", (req, res) => {
   res.json({ ok: true, allowLiveSend: engine.allowLiveSend });
 });
 
+// Re-verify already-"Text Sent" leads against the live REI chat. Runs in the
+// background; progress streams over SSE. Returns immediately.
+app.post("/api/reverify", (req, res) => {
+  if (engine.isBusy()) return res.status(409).json({ error: "Automation is running. Stop it first, then Re-verify." });
+  if (!store) return res.status(400).json({ error: "Upload leads first." });
+  engine.reverify().catch((err) => broadcast("state", { message: `Re-verify error: ${err.message}` }));
+  res.json({ ok: true });
+});
+
 // Set the per-run text cap from the dashboard dropdown.
 app.post("/api/batch-limit", (req, res) => {
   const v = Number(req.body && req.body.value);
