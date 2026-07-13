@@ -416,10 +416,14 @@ export class ReiBlackBookAdapter {
   // "Equity Track Inc.", or "" if it can't tell.
   async readSenderCompany() {
     const body = (await this.page.locator("body").innerText().catch(() => "")) || "";
-    const m = body.match(/From:\s*([^\n\r]+)/i);
-    const line = (m ? m[1] : body).toLowerCase();
-    if (/\beqt\b|equity\s*track/.test(line)) return "Equity Track Inc.";
-    if (/\bthb\b|twin\s*home/.test(line)) return "Twin Home Buyer";
+    // Prefer the text right after "From:", but the persona often wraps to the
+    // next line, so fall back to scanning the whole page. EQT / THB are
+    // distinctive enough to key on. EQT is checked first (From is authoritative).
+    const m = body.match(/From:\s*([\s\S]{0,80}?)(?:\n\s*\n|Message Length|Personalize|$)/i);
+    const fromChunk = m && m[1] ? m[1] : "";
+    const hay = (fromChunk + "\n" + body).toLowerCase();
+    if (/\beqt\b|equity\s*track/.test(hay)) return "Equity Track Inc.";
+    if (/\bthb\b|twin\s*home/.test(hay)) return "Twin Home Buyer";
     return "";
   }
 
