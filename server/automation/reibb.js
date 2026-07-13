@@ -636,25 +636,36 @@ export class ReiBlackBookAdapter {
     await sendBtn.click({ timeout: 6000 });
     await this.page.waitForTimeout(1200); // give REI a moment to start sending
 
-    // Wait UNTIL the send is confirmed: the message shows in the conversation,
-    // OR the reply box cleared. Poll patiently (default ~25s, configurable via
-    // SEND_CONFIRM_MS) so a slow send isn't falsely marked as failed.
+    // Wait UNTIL the send is confirmed. Multiple signals (any one = sent):
+    //  a) the Send button goes DISABLED again (REI disables it once the box
+    //     empties after a successful send) — the most reliable signal,
+    //  b) the reply box is empty (re-read with a fresh locator),
+    //  c) the message text appears in the conversation (any frame).
+    // Poll patiently (default ~25s, configurable via SEND_CONFIRM_MS).
     const norm = (s) => String(s || "").replace(/\s+/g, " ").trim();
-    const needle = norm(message.slice(0, 45));
+    const needle = norm(message.slice(0, 40));
+    const midNeedle = norm(message.slice(15, 60));
     const confirmMs = Number(process.env.SEND_CONFIRM_MS || 25000);
     const deadline = Date.now() + confirmMs;
     let confirmed = false;
     while (!confirmed && Date.now() < deadline) {
       await this.page.waitForTimeout(600);
-      // Box emptied after send?
-      const after = norm(await field.innerText().catch(() => "PENDING"));
-      if (after.length === 0) { confirmed = true; break; }
-      // Message now visible in the thread?
-      const body = norm(await this.page.locator("body").innerText().catch(() => ""));
-      if (body.includes(needle)) { confirmed = true; break; }
+      // a) Send button disabled again => box cleared => sent.
+      if (await sendBtn.isDisabled().catch(() => false)) { confirmed = true; break; }
+      // b) Reply box empty (fresh locator, in case the widget re-rendered).
+      const fresh = await this.findVisibleAcrossFrames(c.messageInput, 500);
+      if (fresh) {
+        const t = norm(await fresh.innerText().catch(() => "PENDING"));
+        if (t.length === 0) { confirmed = true; break; }
+      }
+      // c) Message visible somewhere in the conversation (any frame).
+      for (const fr of this.page.frames()) {
+        const body = norm(await fr.locator("body").innerText().catch(() => ""));
+        if (body && (body.includes(needle) || body.includes(midNeedle))) { confirmed = true; break; }
+      }
     }
     if (!confirmed) {
-      return { sent: false, reason: "Could not confirm the message was sent within the wait window (not seen in the thread and the reply box didn't clear)." };
+      return { sent: false, reason: "Could not confirm the message was sent within the wait window." };
     }
     return { sent: true, timestamp: new Date().toISOString() };
   }
