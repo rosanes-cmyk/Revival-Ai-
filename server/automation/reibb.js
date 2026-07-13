@@ -636,37 +636,35 @@ export class ReiBlackBookAdapter {
     }
 
     await sendBtn.click({ timeout: 6000 });
-    await this.page.waitForTimeout(1500); // give REI a moment to start sending
+    await this.page.waitForTimeout(500); // start checking quickly (opt-out toast is brief)
 
     // Confirm the send ONLY by the message actually appearing in the
     // conversation thread. (An empty reply box is NOT proof — REI clears the
     // box for opted-out numbers without sending.) While waiting, also watch for
     // an opt-out / undelivered notice so we can mark Opted Out instead.
     const norm = (s) => String(s || "").replace(/\s+/g, " ").trim().toLowerCase();
-    // Company-independent phrases present in BOTH approved messages.
+    // Company-independent phrases present in BOTH approved messages. We look for
+    // these in the MAIN page only (the conversation) — NOT inside the reply-box
+    // iframe, so the text we just typed doesn't count as "sent".
     const needles = [
       "contacted us before about selling your home",
-      "are you still interested",
-      "reply yes or no",
+      "are you still interested? reply yes or no",
     ];
+    // Only send-rejection toast phrases (e.g. "This number is opted out.") —
+    // deliberately narrow so an OLD "reply STOP to opt out" or an old
+    // "Undelivered" message in the history doesn't trigger a false block.
+    const optOutRe = /number is opted out|is opted out|has opted out|opted out\.|unable to send|cannot be sent|could not be sent|not allowed to text/;
     const confirmMs = Number(process.env.SEND_CONFIRM_MS || 25000);
     const deadline = Date.now() + confirmMs;
     let appeared = false;
     let optedOut = false;
     while (!appeared && !optedOut && Date.now() < deadline) {
-      await this.page.waitForTimeout(700);
-      // Message present in the thread (any frame)?
-      for (const fr of this.page.frames()) {
-        const body = norm(await fr.locator("body").innerText().catch(() => ""));
-        if (body && needles.some((n) => body.includes(n))) { appeared = true; break; }
-      }
-      if (appeared) break;
-      // Opt-out / not-delivered indicator on screen?
       const pageText = norm(await this.page.locator("body").innerText().catch(() => ""));
-      if (/opt(ed)?[\s-]*out|unsubscrib|do not text|has opted|undeliver|not delivered|failed to send|message failed|cannot (be )?text|blocked/.test(pageText)) {
-        optedOut = true;
-        break;
-      }
+      // Send-rejection toast?
+      if (optOutRe.test(pageText)) { optedOut = true; break; }
+      // Our message now in the conversation (main page, not the reply box)?
+      if (needles.some((n) => pageText.includes(n))) { appeared = true; break; }
+      await this.page.waitForTimeout(500);
     }
     if (appeared) {
       return { sent: true, timestamp: new Date().toISOString() };
