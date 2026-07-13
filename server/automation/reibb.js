@@ -636,40 +636,45 @@ export class ReiBlackBookAdapter {
     }
 
     await sendBtn.click({ timeout: 6000 });
-    await this.page.waitForTimeout(1200); // give REI a moment to start sending
+    await this.page.waitForTimeout(1500); // give REI a moment to start sending
 
-    // Wait UNTIL the send is confirmed. Multiple signals (any one = sent):
-    //  a) the Send button goes DISABLED again (REI disables it once the box
-    //     empties after a successful send) — the most reliable signal,
-    //  b) the reply box is empty (re-read with a fresh locator),
-    //  c) the message text appears in the conversation (any frame).
-    // Poll patiently (default ~25s, configurable via SEND_CONFIRM_MS).
-    const norm = (s) => String(s || "").replace(/\s+/g, " ").trim();
-    const needle = norm(message.slice(0, 40));
-    const midNeedle = norm(message.slice(15, 60));
+    // Confirm the send ONLY by the message actually appearing in the
+    // conversation thread. (An empty reply box is NOT proof — REI clears the
+    // box for opted-out numbers without sending.) While waiting, also watch for
+    // an opt-out / undelivered notice so we can mark Opted Out instead.
+    const norm = (s) => String(s || "").replace(/\s+/g, " ").trim().toLowerCase();
+    // Company-independent phrases present in BOTH approved messages.
+    const needles = [
+      "contacted us before about selling your home",
+      "are you still interested",
+      "reply yes or no",
+    ];
     const confirmMs = Number(process.env.SEND_CONFIRM_MS || 25000);
     const deadline = Date.now() + confirmMs;
-    let confirmed = false;
-    while (!confirmed && Date.now() < deadline) {
-      await this.page.waitForTimeout(600);
-      // a) Send button disabled again => box cleared => sent.
-      if (await sendBtn.isDisabled().catch(() => false)) { confirmed = true; break; }
-      // b) Reply box empty (fresh locator, in case the widget re-rendered).
-      const fresh = await this.findVisibleAcrossFrames(c.messageInput, 500);
-      if (fresh) {
-        const t = norm(await fresh.innerText().catch(() => "PENDING"));
-        if (t.length === 0) { confirmed = true; break; }
-      }
-      // c) Message visible somewhere in the conversation (any frame).
+    let appeared = false;
+    let optedOut = false;
+    while (!appeared && !optedOut && Date.now() < deadline) {
+      await this.page.waitForTimeout(700);
+      // Message present in the thread (any frame)?
       for (const fr of this.page.frames()) {
         const body = norm(await fr.locator("body").innerText().catch(() => ""));
-        if (body && (body.includes(needle) || body.includes(midNeedle))) { confirmed = true; break; }
+        if (body && needles.some((n) => body.includes(n))) { appeared = true; break; }
+      }
+      if (appeared) break;
+      // Opt-out / not-delivered indicator on screen?
+      const pageText = norm(await this.page.locator("body").innerText().catch(() => ""));
+      if (/opt(ed)?[\s-]*out|unsubscrib|do not text|has opted|undeliver|not delivered|failed to send|message failed|cannot (be )?text|blocked/.test(pageText)) {
+        optedOut = true;
+        break;
       }
     }
-    if (!confirmed) {
-      return { sent: false, review: true, reason: "Could not confirm the message was sent within the wait window." };
+    if (appeared) {
+      return { sent: true, timestamp: new Date().toISOString() };
     }
-    return { sent: true, timestamp: new Date().toISOString() };
+    if (optedOut) {
+      return { sent: false, blocked: true, reason: "Opted out / message not delivered (REI did not send)." };
+    }
+    return { sent: false, review: true, reason: "Message never appeared in the conversation — not confirmed sent." };
   }
 
   // When the Send button won't enable, figure out why. Look for opt-out / do-
