@@ -278,9 +278,10 @@ export class AutomationEngine extends EventEmitter {
         zip: row.zip,
         phone: row.phone,
         email: row.email,
-        // Fall back to the default company so a missing/unknown Company Source
-        // never blocks a send.
-        companySource: normalizeCompany(row.companySource) || this.defaultCompany,
+        // Only the sheet's own company (if any). The real company is detected
+        // from REI's "From:" persona (EQT/THB). We do NOT inject a default here,
+        // so a failed detection can't cause the WRONG template to be sent.
+        companySource: normalizeCompany(row.companySource) || "",
       });
 
       row.searchMethod = searchMethod;

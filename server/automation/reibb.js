@@ -415,15 +415,26 @@ export class ReiBlackBookAdapter {
   // so the correct approved template is used. Returns "Twin Home Buyer",
   // "Equity Track Inc.", or "" if it can't tell.
   async readSenderCompany() {
-    const body = (await this.page.locator("body").innerText().catch(() => "")) || "";
-    // Prefer the text right after "From:", but the persona often wraps to the
-    // next line, so fall back to scanning the whole page. EQT / THB are
-    // distinctive enough to key on. EQT is checked first (From is authoritative).
-    const m = body.match(/From:\s*([\s\S]{0,80}?)(?:\n\s*\n|Message Length|Personalize|$)/i);
-    const fromChunk = m && m[1] ? m[1] : "";
-    const hay = (fromChunk + "\n" + body).toLowerCase();
-    if (/\beqt\b|equity\s*track/.test(hay)) return "Equity Track Inc.";
-    if (/\bthb\b|twin\s*home/.test(hay)) return "Twin Home Buyer";
+    // Poll for up to ~6s so the "From:" sender has time to render. Prefer the
+    // From chunk (authoritative), then the whole page. EQT checked first.
+    const deadline = Date.now() + 6000;
+    const detect = (text) => {
+      const t = String(text || "").toLowerCase();
+      if (/\beqt\b|equity\s*track/.test(t)) return "Equity Track Inc.";
+      if (/\bthb\b|twin\s*home/.test(t)) return "Twin Home Buyer";
+      return "";
+    };
+    do {
+      const body = (await this.page.locator("body").innerText().catch(() => "")) || "";
+      const m = body.match(/From:\s*([\s\S]{0,80}?)(?:\n\s*\n|Message Length|Personalize|$)/i);
+      const fromChunk = m && m[1] ? m[1] : "";
+      // From chunk is authoritative — it's the actual sending persona.
+      const fromHit = detect(fromChunk);
+      if (fromHit) return fromHit;
+      const bodyHit = detect(body);
+      if (bodyHit) return bodyHit;
+      await this.page.waitForTimeout(500);
+    } while (Date.now() < deadline);
     return "";
   }
 

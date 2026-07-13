@@ -146,10 +146,12 @@ export function decide(facts) {
   const company = normalizeCompany(facts.companySource);
   const message = getApprovedMessage(facts.companySource);
   if (!company || !message) {
-    return out(DISPOSITION.LEAD_NOT_FOUND, {
-      eligibility: ELIGIBILITY.NOT_ELIGIBLE,
-      notes: `No approved company message could be chosen (company source "${facts.companySource || "(blank)"}").`,
-      complianceResult: "No company message - not found",
+    // Could not determine EQT vs THB from REI. Do NOT guess a template — hold
+    // for review so the wrong company's message is never sent.
+    return out(DISPOSITION.NEEDS_REVIEW, {
+      eligibility: ELIGIBILITY.NEEDS_REVIEW,
+      notes: "Could not tell if this is a Twin Home Buyer (THB) or Equity Track (EQT) contact from REI's 'From:' line — held so the wrong template isn't sent.",
+      complianceResult: "Company (EQT/THB) undetermined - held for review",
     });
   }
 
