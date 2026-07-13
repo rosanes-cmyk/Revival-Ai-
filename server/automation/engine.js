@@ -249,13 +249,25 @@ export class AutomationEngine extends EventEmitter {
           row.notes = "Clean & ready, but ALLOW_LIVE_SEND is off. No text sent.";
         } else {
           const result = await this.adapter.sendText(decision.message);
-          textSent = result.sent;
-          if (textSent) this._runStats.sends += 1;
-          row.disposition = DISPOSITION.TEXT_SENT;
-          row.eligibilityStatus = ELIGIBILITY.ELIGIBLE_TEXT_SENT;
-          row.textSentTimestamp = result.timestamp;
-          row.notes = "Live text sent successfully";
-          if (this.writeReiTags) await this._applyTag(row, REVIVAL_TAG[DISPOSITION.TEXT_SENT]);
+          if (result && result.blocked) {
+            // REI wouldn't let us send (e.g. the contact is opted out — the Send
+            // button stays disabled). Record it as Opted Out, not an error.
+            row.disposition = DISPOSITION.OPTED_OUT;
+            row.eligibilityStatus = ELIGIBILITY.NOT_ELIGIBLE;
+            row.safetyStatus = result.reason || "Opted out (REI blocked sending)";
+            row.notes = result.reason || "REI would not send (contact appears opted out).";
+          } else if (result && result.sent) {
+            textSent = true;
+            this._runStats.sends += 1;
+            row.disposition = DISPOSITION.TEXT_SENT;
+            row.eligibilityStatus = ELIGIBILITY.ELIGIBLE_TEXT_SENT;
+            row.textSentTimestamp = result.timestamp;
+            row.notes = "Live text sent successfully";
+            if (this.writeReiTags) await this._applyTag(row, REVIVAL_TAG[DISPOSITION.TEXT_SENT]);
+          } else {
+            // Not confirmed sent — fail safe (retriable on a later run).
+            throw new Error((result && result.reason) || "Send could not be confirmed.");
+          }
         }
       } else {
         row.disposition = decision.disposition;
