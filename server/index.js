@@ -73,6 +73,110 @@ app.get("/api/events", (req, res) => {
   req.on("close", () => sseClients.delete(res));
 });
 
+// --- Pretty daily report (styled HTML, print/save-as-PDF friendly) ---------
+app.get("/api/report", (req, res) => {
+  const s = store ? store.summary() : null;
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.send(buildReportHtml(s, store ? store.job : null));
+});
+
+function buildReportHtml(s, job) {
+  const n = (v) => Number(v || 0).toLocaleString();
+  const now = new Date().toLocaleString();
+  const file = (job && job.sourceFileName) || "—";
+  s = s || {};
+  const soldListed = (s.propertySold || 0) + (s.listed || 0);
+  const notIntOut = (s.notInterested || 0) + (s.optedOut || 0);
+  const bad = (s.wrongNumber || 0) + (s.failedNumber || 0) + (s.leadNotFound || 0) + (s.badLead || 0);
+  const worked = (s.total || 0) - (s.pending || 0);
+  const tiles = [
+    { label: "Total Leads", value: s.total, accent: "#4f8cff" },
+    { label: "Leads Worked", value: worked, accent: "#8b5cf6" },
+    { label: "Text Sent", value: s.textSent, accent: "#16a34a", big: true },
+    { label: "Property Sold / Listed", value: soldListed, accent: "#f59e0b" },
+    { label: "Not Interested / Opt Out", value: notIntOut, accent: "#ef4444" },
+    { label: "To Delete / Bad Leads", value: bad, accent: "#6b7280" },
+  ];
+  const breakdown = [
+    ["Text Sent", s.textSent, "#16a34a"],
+    ["Property Sold", s.propertySold, "#f59e0b"],
+    ["Listed", s.listed, "#f59e0b"],
+    ["Opted Out", s.optedOut, "#ef4444"],
+    ["Not Interested", s.notInterested, "#ef4444"],
+    ["Wrong Number", s.wrongNumber, "#6b7280"],
+    ["Failed Number", s.failedNumber, "#6b7280"],
+    ["Already Contacted", s.alreadyContacted, "#94a3b8"],
+    ["Bad Lead", s.badLead, "#6b7280"],
+    ["Lead NOT Found", s.leadNotFound, "#6b7280"],
+    ["Needs Review", s.needsReview, "#eab308"],
+    ["Pending", s.pending, "#94a3b8"],
+    ["Errors", s.errors, "#ef4444"],
+  ].filter((r) => (r[1] || 0) > 0);
+  const tileHtml = tiles
+    .map(
+      (t) => `<div class="tile" style="--a:${t.accent}">
+        <div class="tval">${n(t.value)}</div>
+        <div class="tlbl">${t.label}</div>
+      </div>`
+    )
+    .join("");
+  const rowsHtml = breakdown
+    .map(
+      ([label, val, color]) => `<tr>
+        <td><span class="dot" style="background:${color}"></span>${label}</td>
+        <td class="num">${n(val)}</td>
+      </tr>`
+    )
+    .join("");
+  return `<!doctype html><html><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Revival AI — Daily Report</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; background:#f1f5f9; color:#0f172a; font-family:'Segoe UI',system-ui,Arial,sans-serif; }
+  .page { max-width:900px; margin:24px auto; background:#fff; border-radius:16px; box-shadow:0 10px 40px rgba(2,6,23,.10); overflow:hidden; }
+  .head { padding:28px 32px; background:linear-gradient(135deg,#0b0b0d,#14532d); color:#fff; }
+  .head h1 { margin:0; font-size:24px; letter-spacing:.2px; }
+  .head p { margin:6px 0 0; opacity:.8; font-size:13px; }
+  .meta { display:flex; gap:24px; flex-wrap:wrap; padding:14px 32px; background:#f8fafc; border-bottom:1px solid #e2e8f0; font-size:13px; color:#475569; }
+  .meta b { color:#0f172a; }
+  .tiles { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; padding:24px 32px; }
+  .tile { border:1px solid #e2e8f0; border-left:5px solid var(--a); border-radius:12px; padding:16px 18px; background:#fff; }
+  .tval { font-size:34px; font-weight:800; color:var(--a); line-height:1; }
+  .tlbl { margin-top:8px; font-size:12px; text-transform:uppercase; letter-spacing:.4px; color:#64748b; font-weight:600; }
+  .section { padding:8px 32px 28px; }
+  .section h2 { font-size:15px; color:#334155; margin:8px 0 12px; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  td { padding:10px 8px; border-bottom:1px solid #eef2f7; }
+  td.num { text-align:right; font-weight:700; font-variant-numeric:tabular-nums; }
+  .dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:10px; vertical-align:middle; }
+  .foot { padding:16px 32px 26px; color:#94a3b8; font-size:12px; }
+  .bar { padding:16px 32px; display:flex; gap:10px; }
+  .btn { border:0; border-radius:10px; padding:10px 16px; font-weight:700; cursor:pointer; }
+  .btn-print { background:#16a34a; color:#fff; }
+  @media print { body { background:#fff; } .page { box-shadow:none; margin:0; } .bar { display:none; } }
+  @media (max-width:640px){ .tiles { grid-template-columns:1fr 1fr; } }
+</style></head><body>
+  <div class="page">
+    <div class="head">
+      <h1>High Equity Lead Revival — Daily Report</h1>
+      <p>Twin Home Buyer &amp; Equity Track Inc. · Text Revival Campaign</p>
+    </div>
+    <div class="meta">
+      <div>Generated: <b>${now}</b></div>
+      <div>Lead file: <b>${String(file).replace(/[<>&]/g, "")}</b></div>
+    </div>
+    <div class="tiles">${tileHtml}</div>
+    <div class="section">
+      <h2>Full breakdown</h2>
+      <table>${rowsHtml || '<tr><td colspan="2">No data yet — upload leads and run.</td></tr>'}</table>
+    </div>
+    <div class="bar"><button class="btn btn-print" onclick="window.print()">🖨️ Print / Save as PDF</button></div>
+    <div class="foot">Revival AI · results are recorded in the dashboard and export. No REI tags are added.</div>
+  </div>
+</body></html>`;
+}
+
 // --- Config surface ---------------------------------------------------------
 app.get("/api/config", (req, res) => {
   res.json({

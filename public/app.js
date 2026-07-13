@@ -430,6 +430,8 @@ if (els.reverifyBtn) {
   };
 }
 
+if (els.reportBtn) els.reportBtn.onclick = () => window.open("/api/report", "_blank");
+
 els.exportXlsxBtn.onclick = () => (window.location = "/api/export?format=xlsx");
 els.exportCsvBtn.onclick = () => (window.location = "/api/export?format=csv");
 
