@@ -155,12 +155,49 @@ function toRecord(job, r) {
   return rec;
 }
 
+// End-of-day report: total leads worked and a breakdown by outcome.
+function summaryRecords(job) {
+  const counts = {};
+  for (const r of job.rows) {
+    const d = r.disposition || DISPOSITION.PENDING;
+    counts[d] = (counts[d] || 0) + 1;
+  }
+  const order = [
+    DISPOSITION.TEXT_SENT,
+    DISPOSITION.PROPERTY_SOLD,
+    DISPOSITION.LISTED,
+    DISPOSITION.OPTED_OUT,
+    DISPOSITION.NOT_INTERESTED,
+    DISPOSITION.WRONG_NUMBER,
+    DISPOSITION.FAILED_NUMBER,
+    DISPOSITION.ALREADY_CONTACTED,
+    DISPOSITION.BAD_LEAD,
+    DISPOSITION.LEAD_NOT_FOUND,
+    DISPOSITION.NEEDS_REVIEW,
+    DISPOSITION.READY_TO_TEXT,
+    DISPOSITION.ERROR,
+    DISPOSITION.PENDING,
+  ];
+  const worked = job.rows.filter((r) => r.disposition && r.disposition !== DISPOSITION.PENDING).length;
+  const recs = [];
+  recs.push({ Metric: "Report generated", Count: new Date().toLocaleString() });
+  recs.push({ Metric: "Total leads", Count: job.rows.length });
+  recs.push({ Metric: "Leads worked (processed)", Count: worked });
+  recs.push({ Metric: "", Count: "" });
+  for (const d of order) if (counts[d]) recs.push({ Metric: d, Count: counts[d] });
+  for (const [d, c] of Object.entries(counts)) if (!order.includes(d)) recs.push({ Metric: d, Count: c });
+  return recs;
+}
+
 export function exportToXlsx(job) {
   const { cols } = exportColumns(job);
   const data = job.rows.map((r) => toRecord(job, r));
   const ws = XLSX.utils.json_to_sheet(data, { header: cols });
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Leads");
+  // Second sheet: the end-of-day totals report.
+  const wsSummary = XLSX.utils.json_to_sheet(summaryRecords(job), { header: ["Metric", "Count"] });
+  XLSX.utils.book_append_sheet(wb, wsSummary, "Summary");
   return XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
 }
 
@@ -168,5 +205,9 @@ export function exportToCsv(job) {
   const { cols } = exportColumns(job);
   const data = job.rows.map((r) => toRecord(job, r));
   const ws = XLSX.utils.json_to_sheet(data, { header: cols });
-  return XLSX.utils.sheet_to_csv(ws);
+  const leadsCsv = XLSX.utils.sheet_to_csv(ws);
+  // Append the totals report at the bottom (CSV has no separate tabs).
+  const sumWs = XLSX.utils.json_to_sheet(summaryRecords(job), { header: ["Metric", "Count"] });
+  const sumCsv = XLSX.utils.sheet_to_csv(sumWs);
+  return `${leadsCsv}\n\n===== SUMMARY REPORT =====\n${sumCsv}`;
 }
