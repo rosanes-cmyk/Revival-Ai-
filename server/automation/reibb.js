@@ -634,14 +634,18 @@ export class ReiBlackBookAdapter {
     }
 
     await sendBtn.click({ timeout: 6000 });
+    await this.page.waitForTimeout(1200); // give REI a moment to start sending
 
     // Wait UNTIL the send is confirmed: the message shows in the conversation,
-    // OR the reply box cleared. Poll for up to ~10s.
+    // OR the reply box cleared. Poll patiently (default ~25s, configurable via
+    // SEND_CONFIRM_MS) so a slow send isn't falsely marked as failed.
     const norm = (s) => String(s || "").replace(/\s+/g, " ").trim();
     const needle = norm(message.slice(0, 45));
+    const confirmMs = Number(process.env.SEND_CONFIRM_MS || 25000);
+    const deadline = Date.now() + confirmMs;
     let confirmed = false;
-    for (let i = 0; i < 20 && !confirmed; i++) {
-      await this.page.waitForTimeout(500);
+    while (!confirmed && Date.now() < deadline) {
+      await this.page.waitForTimeout(600);
       // Box emptied after send?
       const after = norm(await field.innerText().catch(() => "PENDING"));
       if (after.length === 0) { confirmed = true; break; }
@@ -650,7 +654,7 @@ export class ReiBlackBookAdapter {
       if (body.includes(needle)) { confirmed = true; break; }
     }
     if (!confirmed) {
-      return { sent: false, reason: "Could not confirm the message was sent (not seen in the thread and the reply box didn't clear)." };
+      return { sent: false, reason: "Could not confirm the message was sent within the wait window (not seen in the thread and the reply box didn't clear)." };
     }
     return { sent: true, timestamp: new Date().toISOString() };
   }
