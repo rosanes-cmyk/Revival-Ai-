@@ -265,8 +265,13 @@ export class AutomationEngine extends EventEmitter {
             row.notes = "Live text sent successfully";
             if (this.writeReiTags) await this._applyTag(row, REVIVAL_TAG[DISPOSITION.TEXT_SENT]);
           } else {
-            // Not confirmed sent — fail safe (retriable on a later run).
-            throw new Error((result && result.reason) || "Send could not be confirmed.");
+            // Text was NOT sent (couldn't confirm / couldn't open chat / etc.).
+            // Per Juan: mark Needs Review, not Error. Retried on a later run
+            // (the history check prevents a duplicate if it did go out).
+            row.disposition = DISPOSITION.NEEDS_REVIEW;
+            row.eligibilityStatus = ELIGIBILITY.NEEDS_REVIEW;
+            row.notes = (result && result.reason) || "Text was not sent — needs review.";
+            row.errorLog = "";
           }
         }
       } else {

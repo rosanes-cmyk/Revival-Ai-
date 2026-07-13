@@ -594,9 +594,7 @@ export class ReiBlackBookAdapter {
     const field = await this.findVisibleAcrossFrames(c.messageInput, 9000);
     if (!field) {
       const diag = await this.dumpInputCandidates();
-      throw new Error(
-        "Could not open the Chat/Text box (no message field found). No text sent. FIELDS SEEN: " + diag
-      );
+      return { sent: false, review: true, reason: "Could not open the Chat/Text box (no message field found). FIELDS SEEN: " + diag };
     }
     // The reply box is a TinyMCE rich-text editor. Type with REAL keystrokes so
     // the app registers the input and ENABLES its Send button (setting text
@@ -613,12 +611,12 @@ export class ReiBlackBookAdapter {
     const composed =
       (await field.innerText().catch(async () => (await field.inputValue().catch(() => "")))) || "";
     if (composed.replace(/\s+/g, " ").trim() !== message.replace(/\s+/g, " ").trim()) {
-      throw new Error(`Composed SMS text did not exactly match the approved message; send aborted. (saw: "${composed.slice(0, 60)}")`);
+      return { sent: false, review: true, reason: `Composed text did not match the approved message (saw: "${composed.slice(0, 60)}").` };
     }
 
     const sendBtn = await this.findVisibleAcrossFrames(c.sendButton, 5000);
     if (!sendBtn) {
-      throw new Error("Could not find the Send button on the contact. No text sent.");
+      return { sent: false, review: true, reason: "Could not find the Send button on the contact." };
     }
     // Wait for the Send button to become ENABLED (it's disabled until the app
     // sees the typed text). If it never enables, REI is refusing to send —
@@ -665,7 +663,7 @@ export class ReiBlackBookAdapter {
       }
     }
     if (!confirmed) {
-      return { sent: false, reason: "Could not confirm the message was sent within the wait window." };
+      return { sent: false, review: true, reason: "Could not confirm the message was sent within the wait window." };
     }
     return { sent: true, timestamp: new Date().toISOString() };
   }
