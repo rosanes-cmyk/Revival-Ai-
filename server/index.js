@@ -26,6 +26,17 @@ import { assertMessageIntegrity, APPROVED_MESSAGES } from "./automation/message.
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// Safety net: keep the server ALIVE if an async error slips through. An
+// unhandled rejection/exception would otherwise kill the Node process and show
+// "engine stopped (code 1)". Log it and keep running so a single bad lead can't
+// take down the whole app.
+process.on("unhandledRejection", (reason) => {
+  console.error("[unhandledRejection]", reason && reason.stack ? reason.stack : reason);
+});
+process.on("uncaughtException", (err) => {
+  console.error("[uncaughtException]", err && err.stack ? err.stack : err);
+});
+
 assertMessageIntegrity();
 
 const app = express();
