@@ -479,7 +479,65 @@ export class AutomationEngine extends EventEmitter {
         notes: row.notes,
         error: err.message,
       });
+    } finally {
+      // Stamp when this lead was worked (drives the "Today" report) and, if it
+      // reached a final result, remember it for the month so a fresh REI pull
+      // shows it in the dashboard and skips re-checking it.
+      row.processedAt = new Date().toISOString();
+      try {
+        if (this.store.isProcessed(row)) this._rememberResult(row);
+      } catch { /* memory is best-effort */ }
     }
+  }
+
+  // Save a finished lead's result to the monthly memory (keyed by REI contact
+  // id + phone) so it persists across runs, uploads, and REI pulls.
+  _rememberResult(row) {
+    this.sentLedger.recordResult({
+      contactUrl: row.reiContactUrl,
+      phone: row.phone,
+      disposition: row.disposition,
+      notes: row.notes,
+      propertyStatus: row.propertyStatus,
+      propertyStatusUrl: row.propertyStatusUrl,
+      eligibilityStatus: row.eligibilityStatus,
+      reiMatchStatus: row.reiMatchStatus,
+      reiTagApplied: row.reiTagApplied,
+      safetyStatus: row.safetyStatus,
+      searchMethod: row.searchMethod,
+      companySource: row.companySource,
+      textedIso: row.disposition === DISPOSITION.TEXT_SENT ? (row.textSentTimestamp || row.processedAt) : "",
+      textSentTimestamp: row.textSentTimestamp,
+      checkedIso: row.processedAt,
+    });
+  }
+
+  // Pre-fill rows from the monthly memory: any lead already worked THIS month
+  // gets its stored result copied onto the row (so it shows in the dashboard)
+  // and is marked done (so it's skipped, not re-checked). Only rows still
+  // Pending are touched. Returns how many were pre-filled.
+  applyMonthlyMemory(rows) {
+    let filled = 0;
+    for (const row of rows) {
+      if (row.disposition && row.disposition !== DISPOSITION.PENDING) continue;
+      const e = this.sentLedger.resultThisMonth({ contactUrl: row.reiContactUrl, phone: row.phone });
+      if (!e) continue;
+      row.disposition = e.disposition || row.disposition;
+      row.notes = e.notes || row.notes;
+      row.propertyStatus = e.propertyStatus || row.propertyStatus || "";
+      row.propertyStatusUrl = e.propertyStatusUrl || row.propertyStatusUrl || "";
+      row.eligibilityStatus = e.eligibilityStatus || row.eligibilityStatus;
+      row.reiMatchStatus = e.reiMatchStatus || row.reiMatchStatus;
+      row.reiTagApplied = e.reiTagApplied || row.reiTagApplied || "";
+      row.safetyStatus = e.safetyStatus || row.safetyStatus || "";
+      row.searchMethod = e.searchMethod || row.searchMethod || "";
+      row.companySource = e.companySource || row.companySource || "";
+      row.textSentTimestamp = e.textSentTimestamp || row.textSentTimestamp || "";
+      row.processedAt = e.checkedIso || "";
+      row.fromMemory = true;
+      filled += 1;
+    }
+    return filled;
   }
 
   // Property-status-first: look the property up in Redfin / PropertyRadar

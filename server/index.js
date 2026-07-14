@@ -19,7 +19,7 @@ import os from "os";
 import path from "path";
 import { fileURLToPath } from "url";
 import { parseSpreadsheet, exportToXlsx, exportToCsv } from "./data/spreadsheet.js";
-import { JobStore } from "./data/store.js";
+import { JobStore, summarizeRows } from "./data/store.js";
 import { JobLogger } from "./logger.js";
 import { AutomationEngine } from "./automation/engine.js";
 import { assertMessageIntegrity, APPROVED_MESSAGES } from "./automation/message.js";
@@ -86,15 +86,13 @@ app.get("/api/events", (req, res) => {
 
 // --- Pretty daily report (styled HTML, print/save-as-PDF friendly) ---------
 app.get("/api/report", (req, res) => {
-  const s = store ? store.summary() : null;
   res.setHeader("Content-Type", "text/html; charset=utf-8");
-  res.send(buildReportHtml(s, store ? store.job : null));
+  res.send(buildReportHtml(store ? store.job : null));
 });
 
-function buildReportHtml(s, job) {
+// Render one report block (tiles + full breakdown) for a summary object.
+function reportBlock(title, subtitle, s) {
   const n = (v) => Number(v || 0).toLocaleString();
-  const now = new Date().toLocaleString();
-  const file = (job && job.sourceFileName) || "—";
   s = s || {};
   const soldListed = (s.propertySold || 0) + (s.listed || 0);
   const notIntOut = (s.notInterested || 0) + (s.optedOut || 0);
@@ -103,7 +101,7 @@ function buildReportHtml(s, job) {
   const tiles = [
     { label: "Total Leads", value: s.total, accent: "#4f8cff" },
     { label: "Leads Worked", value: worked, accent: "#8b5cf6" },
-    { label: "Text Sent", value: s.textSent, accent: "#16a34a", big: true },
+    { label: "Text Sent", value: s.textSent, accent: "#16a34a" },
     { label: "Property Sold / Listed", value: soldListed, accent: "#f59e0b" },
     { label: "Not Interested / Opt Out", value: notIntOut, accent: "#ef4444" },
     { label: "To Delete / Bad Leads", value: bad, accent: "#6b7280" },
@@ -141,6 +139,31 @@ function buildReportHtml(s, job) {
       </tr>`
     )
     .join("");
+  return `<div class="block">
+    <div class="block-head"><h2>${title}</h2><span>${subtitle}</span></div>
+    <div class="tiles">${tileHtml}</div>
+    <table>${rowsHtml || '<tr><td colspan="2">No activity yet.</td></tr>'}</table>
+  </div>`;
+}
+
+function buildReportHtml(job) {
+  const nowD = new Date();
+  const now = nowD.toLocaleString();
+  const todayLabel = nowD.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+  const monthLabel = nowD.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  const file = (job && job.sourceFileName) || "—";
+  const rows = job && Array.isArray(job.rows) ? job.rows : [];
+  // "Today" = leads whose work happened on today's local calendar date.
+  const isToday = (iso) => {
+    if (!iso) return false;
+    try { return new Date(iso).toDateString() === nowD.toDateString(); } catch { return false; }
+  };
+  const todayRows = rows.filter((r) => isToday(r.processedAt) || isToday(r.textSentTimestamp));
+  const todaySummary = summarizeRows(todayRows);
+  const monthSummary = summarizeRows(rows);
+  const blocksHtml =
+    reportBlock("Today", todayLabel, todaySummary) +
+    reportBlock("This Month so far", monthLabel, monthSummary);
   return `<!doctype html><html><head><meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Revival AI — Daily Report</title>
@@ -159,6 +182,11 @@ function buildReportHtml(s, job) {
   .tlbl { margin-top:8px; font-size:12px; text-transform:uppercase; letter-spacing:.4px; color:#64748b; font-weight:600; }
   .section { padding:8px 32px 28px; }
   .section h2 { font-size:15px; color:#334155; margin:8px 0 12px; }
+  .block { padding:8px 32px 12px; }
+  .block + .block { border-top:8px solid #f1f5f9; margin-top:6px; padding-top:20px; }
+  .block-head { display:flex; align-items:baseline; justify-content:space-between; margin:6px 0 4px; }
+  .block-head h2 { margin:0; font-size:19px; color:#0f172a; }
+  .block-head span { font-size:13px; color:#64748b; font-weight:600; }
   table { width:100%; border-collapse:collapse; font-size:14px; }
   td { padding:10px 8px; border-bottom:1px solid #eef2f7; }
   td.num { text-align:right; font-weight:700; font-variant-numeric:tabular-nums; }
@@ -179,11 +207,7 @@ function buildReportHtml(s, job) {
       <div>Generated: <b>${now}</b></div>
       <div>Lead file: <b>${String(file).replace(/[<>&]/g, "")}</b></div>
     </div>
-    <div class="tiles">${tileHtml}</div>
-    <div class="section">
-      <h2>Full breakdown</h2>
-      <table>${rowsHtml || '<tr><td colspan="2">No data yet — upload leads and run.</td></tr>'}</table>
-    </div>
+    ${blocksHtml}
     <div class="bar"><button class="btn btn-print" onclick="window.print()">🖨️ Print / Save as PDF</button></div>
     <div class="foot">Revival AI · results are recorded in the dashboard and export. No REI tags are added.</div>
   </div>
@@ -348,11 +372,19 @@ app.post("/api/pull-rei", (req, res) => {
         dispositionHeader: "Disposition",
         notesHeader: "Notes",
       };
+      // Pre-fill leads already worked this month so they show in the dashboard
+      // with their results and are skipped (not re-checked). Only new ones run.
+      const filled = engine.applyMonthlyMemory(parsed.rows);
       store = JobStore.create(jobId, parsed, `REI Contacts (${urls.length})`);
       logger = new JobLogger(jobId);
       engine.attach(store, logger);
       broadcast("summary", store.summary());
-      broadcast("state", { message: `Pulled ${urls.length} REI contacts. Review, set Live Sending, then click Start.` });
+      const fresh = urls.length - filled;
+      broadcast("state", {
+        message: filled
+          ? `Pulled ${urls.length} REI contacts — ${filled} already worked this month (shown, will be skipped), ${fresh} new to work. Set Live Sending, then click Start.`
+          : `Pulled ${urls.length} REI contacts. Review, set Live Sending, then click Start.`,
+      });
     } catch (err) {
       broadcast("state", { message: `Pull from REI failed: ${err.message}` });
     }
@@ -367,6 +399,9 @@ app.post("/api/upload", upload.single("file"), (req, res) => {
     if (!req.file) return res.status(400).json({ error: "No file uploaded." });
     const parsed = parseSpreadsheet(req.file.buffer);
     const jobId = `job-${new Date().toISOString().replace(/[:.]/g, "-")}`;
+    // Pre-fill leads already worked this month (matched by phone) so they show
+    // with their results and are skipped, not re-checked.
+    engine.applyMonthlyMemory(parsed.rows);
     store = JobStore.create(jobId, parsed, req.file.originalname);
     logger = new JobLogger(jobId);
     engine.attach(store, logger);

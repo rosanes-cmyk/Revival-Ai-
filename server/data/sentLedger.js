@@ -1,11 +1,15 @@
-// Persistent record of who was texted and when — used to enforce the rule:
-// "if a lead was already texted THIS calendar month, don't text it again."
+// Persistent monthly memory of every lead we've worked this month.
 //
-// The ledger survives restarts, fresh spreadsheet uploads, and "Pull all from
-// REI" runs, so a lead texted earlier in the month is skipped even if it shows
-// up again from a different source. Keyed by BOTH the REI contact id (from the
-// contact URL) and the normalized phone number, so a match on either blocks a
-// resend. Stored in the writable data dir alongside job state.
+// Two jobs:
+//   1. Enforce "don't text the same lead twice in one calendar month."
+//   2. Remember each lead's LAST result this month so a fresh "Pull all from
+//      REI" (or restart) can show the already-checked leads in the dashboard
+//      WITH their results and skip re-checking them — only new leads get worked.
+//
+// Keyed by BOTH the REI contact id (from the contact URL) and the normalized
+// phone number, so a match on either is enough. Stored in the writable data
+// dir alongside job state. Entries are scoped by month: anything from a prior
+// month is ignored, so the campaign starts fresh each month automatically.
 
 import fs from "fs";
 import path from "path";
@@ -44,6 +48,15 @@ function monthKey(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
+function sameMonth(iso, when) {
+  if (!iso) return false;
+  try {
+    return monthKey(new Date(iso)) === monthKey(when);
+  } catch {
+    return false;
+  }
+}
+
 export class SentLedger {
   constructor() {
     this.map = {};
@@ -64,32 +77,78 @@ export class SentLedger {
     }
   }
 
-  /**
-   * If this lead was already texted in the SAME calendar month as `when`,
-   * return the ISO timestamp of that send; otherwise return null.
-   */
-  sentThisMonth({ contactUrl, phone }, when = new Date()) {
-    const wantMonth = monthKey(when);
+  _lookup({ contactUrl, phone }) {
     for (const key of keysFor({ contactUrl, phone })) {
-      const entry = this.map[key];
-      if (entry && entry.iso) {
-        try {
-          if (monthKey(new Date(entry.iso)) === wantMonth) return entry.iso;
-        } catch {
-          /* ignore bad entry */
-        }
-      }
+      if (this.map[key]) return this.map[key];
     }
     return null;
   }
 
-  /** Record a confirmed send. Writes under every available key. */
+  /**
+   * If this lead was already TEXTED in the same calendar month as `when`,
+   * return the ISO timestamp of that send; otherwise null.
+   */
+  sentThisMonth({ contactUrl, phone }, when = new Date()) {
+    const e = this._lookup({ contactUrl, phone });
+    return e && sameMonth(e.textedIso, when) ? e.textedIso : null;
+  }
+
+  /**
+   * If this lead was CHECKED (worked at all) in the same calendar month as
+   * `when`, return its stored result entry; otherwise null. Used to pre-fill
+   * the dashboard and skip re-checking on a fresh REI pull.
+   */
+  resultThisMonth({ contactUrl, phone }, when = new Date()) {
+    const e = this._lookup({ contactUrl, phone });
+    return e && sameMonth(e.checkedIso, when) ? e : null;
+  }
+
+  /**
+   * Record a confirmed send (back-compat helper). Sets both the texted and
+   * checked timestamps.
+   */
   record({ contactUrl, phone, company, iso }) {
     const stamp = iso || new Date().toISOString();
+    this.recordResult({
+      contactUrl,
+      phone,
+      companySource: company || "",
+      textedIso: stamp,
+      checkedIso: stamp,
+      textSentTimestamp: stamp,
+      disposition: "Text Sent",
+    });
+  }
+
+  /**
+   * Record the full result of working a lead. Writes under every available
+   * key. `checkedIso` defaults to now; `textedIso` is only set when the lead
+   * was actually texted (pass it, or it's preserved from a prior entry).
+   */
+  recordResult(result) {
+    const { contactUrl, phone } = result;
     const keys = keysFor({ contactUrl, phone });
     if (!keys.length) return;
+    const now = new Date().toISOString();
+    const checkedIso = result.checkedIso || now;
     for (const key of keys) {
-      this.map[key] = { iso: stamp, company: company || "" };
+      const prev = this.map[key] || {};
+      this.map[key] = {
+        checkedIso,
+        // Keep any earlier texted timestamp unless a new one is given.
+        textedIso: result.textedIso || prev.textedIso || "",
+        disposition: result.disposition || prev.disposition || "",
+        notes: result.notes || "",
+        propertyStatus: result.propertyStatus || "",
+        propertyStatusUrl: result.propertyStatusUrl || prev.propertyStatusUrl || "",
+        eligibilityStatus: result.eligibilityStatus || "",
+        reiMatchStatus: result.reiMatchStatus || "",
+        reiTagApplied: result.reiTagApplied || "",
+        safetyStatus: result.safetyStatus || "",
+        searchMethod: result.searchMethod || "",
+        companySource: result.companySource || prev.companySource || "",
+        textSentTimestamp: result.textSentTimestamp || prev.textSentTimestamp || "",
+      };
     }
     this._save();
   }

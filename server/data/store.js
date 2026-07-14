@@ -91,26 +91,7 @@ export class JobStore {
 
   /** Summary counts for the dashboard cards and final summary. */
   summary() {
-    const rows = this.job.rows;
-    const count = (d) => rows.filter((r) => r.disposition === d).length;
-    return {
-      total: rows.length,
-      pending: rows.filter((r) => r.disposition === DISPOSITION.PENDING || r.disposition === DISPOSITION.READY_TO_TEXT).length,
-      textSent: count(DISPOSITION.TEXT_SENT),
-      leadNotFound: count(DISPOSITION.LEAD_NOT_FOUND),
-      propertySold: count(DISPOSITION.PROPERTY_SOLD),
-      listed: count(DISPOSITION.LISTED),
-      optedOut: count(DISPOSITION.OPTED_OUT),
-      notInterested: count(DISPOSITION.NOT_INTERESTED),
-      wrongNumber: count(DISPOSITION.WRONG_NUMBER),
-      failedNumber: count(DISPOSITION.FAILED_NUMBER),
-      alreadyContacted: count(DISPOSITION.ALREADY_CONTACTED),
-      badLead: count(DISPOSITION.BAD_LEAD),
-      outOfState: count(DISPOSITION.OUT_OF_STATE),
-      textedThisMonth: count(DISPOSITION.TEXTED_THIS_MONTH),
-      needsReview: count(DISPOSITION.NEEDS_REVIEW),
-      errors: count(DISPOSITION.ERROR),
-    };
+    return summarizeRows(this.job.rows);
   }
 
   snapshot() {
@@ -124,6 +105,29 @@ export class JobStore {
       rows: this.job.rows,
     };
   }
+}
+
+/** Disposition counts for any set of rows (used by the dashboard + report). */
+export function summarizeRows(rows) {
+  const count = (d) => rows.filter((r) => r.disposition === d).length;
+  return {
+    total: rows.length,
+    pending: rows.filter((r) => r.disposition === DISPOSITION.PENDING || r.disposition === DISPOSITION.READY_TO_TEXT).length,
+    textSent: count(DISPOSITION.TEXT_SENT),
+    leadNotFound: count(DISPOSITION.LEAD_NOT_FOUND),
+    propertySold: count(DISPOSITION.PROPERTY_SOLD),
+    listed: count(DISPOSITION.LISTED),
+    optedOut: count(DISPOSITION.OPTED_OUT),
+    notInterested: count(DISPOSITION.NOT_INTERESTED),
+    wrongNumber: count(DISPOSITION.WRONG_NUMBER),
+    failedNumber: count(DISPOSITION.FAILED_NUMBER),
+    alreadyContacted: count(DISPOSITION.ALREADY_CONTACTED),
+    badLead: count(DISPOSITION.BAD_LEAD),
+    outOfState: count(DISPOSITION.OUT_OF_STATE),
+    textedThisMonth: count(DISPOSITION.TEXTED_THIS_MONTH),
+    needsReview: count(DISPOSITION.NEEDS_REVIEW),
+    errors: count(DISPOSITION.ERROR),
+  };
 }
 
 function normalizeRow(r) {
@@ -151,6 +155,8 @@ function normalizeRow(r) {
     eligibilityStatus: r.eligibilityStatus || ELIGIBILITY.PENDING,
     reiTagApplied: r.reiTagApplied || "",
     textSentTimestamp: r.textSentTimestamp || "",
+    processedAt: r.processedAt || "",
+    fromMemory: !!r.fromMemory,
     errorLog: r.errorLog || "",
   };
 }
