@@ -430,7 +430,18 @@ if (els.reverifyBtn) {
   };
 }
 
-if (els.reportBtn) els.reportBtn.onclick = () => window.open("/api/report", "_blank");
+if (els.reportBtn)
+  els.reportBtn.onclick = () => {
+    // Open via a real link click (not window.open) so popup blockers don't
+    // stop it. Opens the report in a new tab.
+    const a = document.createElement("a");
+    a.href = "/api/report";
+    a.target = "_blank";
+    a.rel = "noopener";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
 
 els.exportXlsxBtn.onclick = () => (window.location = "/api/export?format=xlsx");
 els.exportCsvBtn.onclick = () => (window.location = "/api/export?format=csv");
