@@ -24,6 +24,7 @@ import { DISPOSITION } from "./automation/constants.js";
 import { JobLogger } from "./logger.js";
 import { AutomationEngine } from "./automation/engine.js";
 import { assertMessageIntegrity, APPROVED_MESSAGES } from "./automation/message.js";
+import { chromium } from "playwright";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -90,6 +91,51 @@ app.get("/api/report", (req, res) => {
   const scope = String(req.query.scope || "both").toLowerCase(); // today | month | both
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.send(buildReportHtml(store ? store.job : null, scope));
+});
+
+// Launch a headless Chromium for PDF rendering. Tries the default browser
+// first (chrome-headless-shell, bundled by `playwright install`); if that
+// binary is missing, falls back to the full Chromium the automation uses.
+async function launchPdfBrowser() {
+  try {
+    return await chromium.launch({ headless: true });
+  } catch (e1) {
+    let exe;
+    try { exe = chromium.executablePath(); } catch { exe = undefined; }
+    if (exe) return await chromium.launch({ headless: true, executablePath: exe });
+    throw e1;
+  }
+}
+
+// Download the report as a real PDF (rendered by the bundled Chromium) so the
+// Save buttons download a file directly instead of opening the print dialog.
+app.get("/api/report.pdf", async (req, res) => {
+  const scope = String(req.query.scope || "both").toLowerCase();
+  const html = buildReportHtml(store ? store.job : null, scope);
+  let browser = null;
+  try {
+    browser = await launchPdfBrowser();
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: "load" });
+    const pdf = await page.pdf({
+      format: "Letter",
+      printBackground: true,
+      margin: { top: "0.4in", bottom: "0.4in", left: "0.4in", right: "0.4in" },
+    });
+    const day = new Date().toISOString().slice(0, 10);
+    const name =
+      scope === "today" ? `Revival-Report-Today-${day}.pdf`
+      : scope === "month" ? `Revival-Report-Month-${day}.pdf`
+      : `Revival-Report-${day}.pdf`;
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${name}"`);
+    res.send(pdf);
+  } catch (err) {
+    console.error("[report.pdf] failed:", err.message);
+    res.status(500).json({ error: "Could not generate PDF: " + err.message });
+  } finally {
+    if (browser) await browser.close().catch(() => {});
+  }
 });
 
 // Render one report block (tiles + full breakdown) for a summary object.
@@ -235,7 +281,7 @@ function buildReportHtml(job, scope = "both") {
       <div>Lead file: <b>${String(file).replace(/[<>&]/g, "")}</b></div>
     </div>
     ${blocksHtml}
-    <div class="bar"><button class="btn btn-print" onclick="window.print()">💾 Save PDF</button></div>
+    <div class="bar"><a class="btn btn-print" href="/api/report.pdf?scope=${scope}" download>💾 Save PDF</a></div>
     <div class="foot">Revival AI · results are recorded in the dashboard and export. No REI tags are added.</div>
   </div>
 </body></html>`;

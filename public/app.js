@@ -508,17 +508,16 @@ if (els.reportBtn)
       $("reportClose").onclick = hide;
       overlay.addEventListener("click", (e) => { if (e.target === overlay) hide(); });
       document.addEventListener("keydown", (e) => { if (e.key === "Escape") hide(); });
-      // Save just Today or just This Month as a PDF: load that scope into a
-      // hidden iframe and print it, so the on-screen report stays as-is.
+      // Save just Today or just This Month: download a real PDF file directly
+      // (rendered server-side by Chromium) — no printer dialog.
       const savePdf = (scope) => {
-        const f = document.createElement("iframe");
-        f.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;";
-        f.src = "/api/report?scope=" + scope + "&t=" + new Date().getTime();
-        f.onload = () => {
-          try { f.contentWindow.focus(); f.contentWindow.print(); } catch (e) { /* ignore */ }
-          setTimeout(() => f.remove(), 60000);
-        };
-        document.body.appendChild(f);
+        toast("Preparing PDF…");
+        const a = document.createElement("a");
+        a.href = "/api/report.pdf?scope=" + scope + "&t=" + new Date().getTime();
+        a.download = "";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
       };
       $("saveToday").onclick = () => savePdf("today");
       $("saveMonth").onclick = () => savePdf("month");
