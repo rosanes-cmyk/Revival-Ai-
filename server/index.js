@@ -20,6 +20,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { parseSpreadsheet, exportToXlsx, exportToCsv } from "./data/spreadsheet.js";
 import { JobStore, summarizeRows } from "./data/store.js";
+import { DISPOSITION } from "./automation/constants.js";
 import { JobLogger } from "./logger.js";
 import { AutomationEngine } from "./automation/engine.js";
 import { assertMessageIntegrity, APPROVED_MESSAGES } from "./automation/message.js";
@@ -158,7 +159,17 @@ function buildReportHtml(job) {
     if (!iso) return false;
     try { return new Date(iso).toDateString() === nowD.toDateString(); } catch { return false; }
   };
-  const todayRows = rows.filter((r) => isToday(r.processedAt) || isToday(r.textSentTimestamp));
+  // A row counts as worked today if it carries a today timestamp. Rows finished
+  // before the timestamp existed (older runs) have none — attribute those to
+  // the day the batch was loaded, so a batch loaded today still tallies here.
+  const jobCreatedToday = job && isToday(job.createdAt);
+  const isWorked = (r) => r.disposition && r.disposition !== DISPOSITION.PENDING && r.disposition !== DISPOSITION.READY_TO_TEXT;
+  const workedToday = (r) => {
+    if (isToday(r.processedAt) || isToday(r.textSentTimestamp)) return true;
+    if (!r.processedAt && !r.textSentTimestamp && jobCreatedToday && isWorked(r)) return true;
+    return false;
+  };
+  const todayRows = rows.filter(workedToday);
   const todaySummary = summarizeRows(todayRows);
   const monthSummary = summarizeRows(rows);
   const blocksHtml =
