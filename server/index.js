@@ -87,8 +87,9 @@ app.get("/api/events", (req, res) => {
 
 // --- Pretty daily report (styled HTML, print/save-as-PDF friendly) ---------
 app.get("/api/report", (req, res) => {
+  const scope = String(req.query.scope || "both").toLowerCase(); // today | month | both
   res.setHeader("Content-Type", "text/html; charset=utf-8");
-  res.send(buildReportHtml(store ? store.job : null));
+  res.send(buildReportHtml(store ? store.job : null, scope));
 });
 
 // Render one report block (tiles + full breakdown) for a summary object.
@@ -140,14 +141,20 @@ function reportBlock(title, subtitle, s) {
       </tr>`
     )
     .join("");
+  // Plain-English quick brief.
+  const when = title === "Today" ? "today" : "this month";
+  const brief = worked
+    ? `Here are the leads worked ${when} (${subtitle}): <b>${n(worked)}</b> leads worked — <b>${n(s.textSent)}</b> texts sent, ${n(soldListed)} sold/listed, ${n(notIntOut)} not interested / opted out, and ${n(bad)} to delete / bad leads.`
+    : `No leads have been worked ${when} yet (${subtitle}).`;
   return `<div class="block">
     <div class="block-head"><h2>${title}</h2><span>${subtitle}</span></div>
+    <p class="brief">📌 ${brief}</p>
     <div class="tiles">${tileHtml}</div>
     <table>${rowsHtml || '<tr><td colspan="2">No activity yet.</td></tr>'}</table>
   </div>`;
 }
 
-function buildReportHtml(job) {
+function buildReportHtml(job, scope = "both") {
   const nowD = new Date();
   const now = nowD.toLocaleString();
   const todayLabel = nowD.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" });
@@ -172,12 +179,19 @@ function buildReportHtml(job) {
   const todayRows = rows.filter(workedToday);
   const todaySummary = summarizeRows(todayRows);
   const monthSummary = summarizeRows(rows);
+  const todayBlock = reportBlock("Today", todayLabel, todaySummary);
+  const monthBlock = reportBlock("This Month so far", monthLabel, monthSummary);
   const blocksHtml =
-    reportBlock("Today", todayLabel, todaySummary) +
-    reportBlock("This Month so far", monthLabel, monthSummary);
+    scope === "today" ? todayBlock : scope === "month" ? monthBlock : todayBlock + monthBlock;
+  const docTitle =
+    scope === "today"
+      ? `Revival AI — Today ${todayLabel}`
+      : scope === "month"
+      ? `Revival AI — ${monthLabel}`
+      : "Revival AI — Daily Report";
   return `<!doctype html><html><head><meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Revival AI — Daily Report</title>
+<title>${docTitle}</title>
 <style>
   * { box-sizing: border-box; }
   body { margin:0; background:#f1f5f9; color:#0f172a; font-family:'Segoe UI',system-ui,Arial,sans-serif; }
@@ -198,6 +212,8 @@ function buildReportHtml(job) {
   .block-head { display:flex; align-items:baseline; justify-content:space-between; margin:6px 0 4px; }
   .block-head h2 { margin:0; font-size:19px; color:#0f172a; }
   .block-head span { font-size:13px; color:#64748b; font-weight:600; }
+  .brief { margin:4px 0 14px; padding:12px 16px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:10px; font-size:14px; line-height:1.5; color:#14532d; }
+  .brief b { color:#0f172a; }
   table { width:100%; border-collapse:collapse; font-size:14px; }
   td { padding:10px 8px; border-bottom:1px solid #eef2f7; }
   td.num { text-align:right; font-weight:700; font-variant-numeric:tabular-nums; }

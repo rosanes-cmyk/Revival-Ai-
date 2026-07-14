@@ -492,7 +492,8 @@ if (els.reportBtn)
         'gap:12px;max-width:1100px;margin:0 auto 12px;width:100%;">' +
         '<span style="color:#fff;font-weight:700;font-size:18px;">📊 Daily Report</span>' +
         '<span style="display:flex;gap:8px;">' +
-        '<button id="reportPrint" class="btn">💾 Save PDF</button>' +
+        '<button id="saveToday" class="btn">💾 Save Today</button>' +
+        '<button id="saveMonth" class="btn">💾 Save This Month</button>' +
         '<button id="reportClose" class="btn btn-stop">✕ Close</button>' +
         "</span></div>" +
         '<iframe id="reportFrame" style="flex:1;width:100%;max-width:1100px;margin:0 auto;' +
@@ -504,10 +505,20 @@ if (els.reportBtn)
       $("reportClose").onclick = hide;
       overlay.addEventListener("click", (e) => { if (e.target === overlay) hide(); });
       document.addEventListener("keydown", (e) => { if (e.key === "Escape") hide(); });
-      $("reportPrint").onclick = () => {
-        const f = $("reportFrame");
-        if (f && f.contentWindow) f.contentWindow.print();
+      // Save just Today or just This Month as a PDF: load that scope into a
+      // hidden iframe and print it, so the on-screen report stays as-is.
+      const savePdf = (scope) => {
+        const f = document.createElement("iframe");
+        f.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;";
+        f.src = "/api/report?scope=" + scope + "&t=" + new Date().getTime();
+        f.onload = () => {
+          try { f.contentWindow.focus(); f.contentWindow.print(); } catch (e) { /* ignore */ }
+          setTimeout(() => f.remove(), 60000);
+        };
+        document.body.appendChild(f);
       };
+      $("saveToday").onclick = () => savePdf("today");
+      $("saveMonth").onclick = () => savePdf("month");
     }
     overlay.style.display = "flex";
     // Load fresh each time (cache-buster) straight into the iframe.
