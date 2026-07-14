@@ -91,7 +91,7 @@ h2 { margin: 0 0 4px; font-size: 15px; }
 /* Cards */
 .cards {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 14px;
   margin-bottom: 10px;
 }
