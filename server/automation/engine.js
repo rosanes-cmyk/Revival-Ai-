@@ -18,6 +18,7 @@ import { resolveRedfinUrl } from "./redfinLink.js";
 import { decide } from "./sop.js";
 import { assertMessageIntegrity, normalizeCompany, COMPANY } from "./message.js";
 import { JOB_STATUS } from "../data/store.js";
+import { SentLedger } from "../data/sentLedger.js";
 import { DISPOSITION, ELIGIBILITY, REVIVAL_TAG } from "./constants.js";
 
 export class AutomationEngine extends EventEmitter {
@@ -71,6 +72,12 @@ export class AutomationEngine extends EventEmitter {
     this.statusAdapterFactory = () =>
       this.propertySource === "redfin" ? new RedfinAdapter() : new PropertyRadarAdapter();
     this.statusAdapter = null;
+    // Rule: never text the same lead twice in the same calendar month. The
+    // ledger persists across runs / uploads / REI pulls (keyed by REI contact
+    // id and phone). Set SKIP_TEXTED_THIS_MONTH=false to disable.
+    this.skipTextedThisMonth =
+      String(process.env.SKIP_TEXTED_THIS_MONTH ?? "true").toLowerCase() !== "false";
+    this.sentLedger = new SentLedger();
   }
 
   attach(store, logger) {
@@ -367,6 +374,36 @@ export class AutomationEngine extends EventEmitter {
 
       let textSent = false;
 
+      // Rule: if this lead was already texted THIS calendar month, don't text
+      // it again — mark it and skip the send (checked against the persistent
+      // ledger, keyed by REI contact id + phone).
+      if (decision.shouldSend && this.skipTextedThisMonth) {
+        const prevIso = this.sentLedger.sentThisMonth({
+          contactUrl: row.reiContactUrl,
+          phone: facts.phone || row.phone,
+        });
+        if (prevIso) {
+          const when = new Date(prevIso).toLocaleDateString();
+          row.disposition = DISPOSITION.TEXTED_THIS_MONTH;
+          row.eligibilityStatus = ELIGIBILITY.NOT_ELIGIBLE;
+          row.notes = `Already texted this month (${when}) — skipped to avoid a repeat text.`;
+          row.errorLog = "";
+          this.logger.log({
+            ...logBase,
+            searchMethod,
+            matchFound: facts.matchFound,
+            matchStatus,
+            complianceResult: "Already texted this month - skipped",
+            propertyStatus: row.propertyStatus,
+            eligibility: row.eligibilityStatus,
+            textSent: false,
+            disposition: row.disposition,
+            notes: row.notes,
+          });
+          return;
+        }
+      }
+
       if (decision.shouldSend) {
         if (!this.allowLiveSend) {
           row.disposition = DISPOSITION.READY_TO_TEXT;
@@ -388,6 +425,14 @@ export class AutomationEngine extends EventEmitter {
             row.eligibilityStatus = ELIGIBILITY.ELIGIBLE_TEXT_SENT;
             row.textSentTimestamp = result.timestamp;
             row.notes = "Live text sent successfully";
+            // Record in the monthly ledger so this lead isn't texted again
+            // this month (persists across runs / uploads / REI pulls).
+            this.sentLedger.record({
+              contactUrl: row.reiContactUrl,
+              phone: facts.phone || row.phone,
+              company: facts.companySource || decision.company || "",
+              iso: result.timestamp,
+            });
             if (this.writeReiTags) await this._applyTag(row, REVIVAL_TAG[DISPOSITION.TEXT_SENT]);
           } else {
             // Text was NOT sent (couldn't confirm / couldn't open chat / etc.).

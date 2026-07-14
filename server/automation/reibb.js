@@ -404,6 +404,7 @@ export class ReiBlackBookAdapter {
       propertyListed,
       mlsNote,
       phoneExists,
+      phone: reiPhone || lead.phone || "",
       historyText: history.fullText,
       lastMessageFailed,
       alreadySentApproved,

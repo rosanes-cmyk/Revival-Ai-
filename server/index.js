@@ -117,6 +117,7 @@ function buildReportHtml(s, job) {
     ["Wrong Number", s.wrongNumber, "#6b7280"],
     ["Failed Number", s.failedNumber, "#6b7280"],
     ["Already Contacted", s.alreadyContacted, "#94a3b8"],
+    ["Texted This Month", s.textedThisMonth, "#0ea5e9"],
     ["Bad Lead", s.badLead, "#6b7280"],
     ["Out of State", s.outOfState, "#6b7280"],
     ["Lead NOT Found", s.leadNotFound, "#6b7280"],

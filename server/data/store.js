@@ -107,6 +107,7 @@ export class JobStore {
       alreadyContacted: count(DISPOSITION.ALREADY_CONTACTED),
       badLead: count(DISPOSITION.BAD_LEAD),
       outOfState: count(DISPOSITION.OUT_OF_STATE),
+      textedThisMonth: count(DISPOSITION.TEXTED_THIS_MONTH),
       needsReview: count(DISPOSITION.NEEDS_REVIEW),
       errors: count(DISPOSITION.ERROR),
     };
