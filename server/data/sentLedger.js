@@ -139,6 +139,7 @@ export class SentLedger {
         textedIso: result.textedIso || prev.textedIso || "",
         disposition: result.disposition || prev.disposition || "",
         notes: result.notes || "",
+        reiContactUrl: result.reiContactUrl || prev.reiContactUrl || "",
         propertyStatus: result.propertyStatus || "",
         propertyStatusUrl: result.propertyStatusUrl || prev.propertyStatusUrl || "",
         eligibilityStatus: result.eligibilityStatus || "",

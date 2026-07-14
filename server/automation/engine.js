@@ -297,8 +297,9 @@ export class AutomationEngine extends EventEmitter {
   async _processRow(row) {
     const logBase = { row: row.rowNumber, owner: row.ownerName, address: row.propertyAddress, company: row.companySource };
     try {
-      // Rule: only text California properties. Skip out-of-state leads entirely
-      // (no REI search, no text). Blank state is allowed through (can't confirm).
+      // Rule: only text California properties. Skip out-of-state leads (no text)
+      // — but still fetch the REI contact link so you can open the contact in
+      // REI. Blank state is allowed through (can't confirm).
       const st = String(row.state || "").trim().toUpperCase();
       if (st && !this.allowedStates.has(st)) {
         row.disposition = DISPOSITION.OUT_OF_STATE;
@@ -309,9 +310,27 @@ export class AutomationEngine extends EventEmitter {
         row.safetyStatus = "Out of state";
         row.notes = `Property state "${row.state}" is outside California — not texted.`;
         row.errorLog = "";
+        // Best-effort: get the REI contact link so it's clickable in the table.
+        // Pulled-from-REI rows already have it; spreadsheet rows get a quick
+        // lookup (no safety/send work).
+        try {
+          if (row.reiContactUrl) {
+            row.reiMatchStatus = "Found — out of state (not texted)";
+          } else {
+            const located = await this.adapter.locateContact({
+              ownerName: row.ownerName, propertyAddress: row.propertyAddress, city: row.city,
+              state: row.state, zip: row.zip, phone: row.phone, email: row.email,
+            });
+            if (located.contactUrl) row.reiContactUrl = located.contactUrl;
+            row.reiMatchStatus = located.matchFound
+              ? "Found — out of state (not texted)"
+              : "Not found — out of state (not texted)";
+          }
+        } catch { /* link is best-effort; leave the skip status as-is */ }
         this.logger.log({
           ...logBase,
           complianceResult: "Out of state - skipped",
+          matchStatus: row.reiMatchStatus,
           disposition: row.disposition,
           textSent: false,
           notes: row.notes,
@@ -496,6 +515,7 @@ export class AutomationEngine extends EventEmitter {
     this.sentLedger.recordResult({
       contactUrl: row.reiContactUrl,
       phone: row.phone,
+      reiContactUrl: row.reiContactUrl,
       disposition: row.disposition,
       notes: row.notes,
       propertyStatus: row.propertyStatus,
@@ -524,6 +544,7 @@ export class AutomationEngine extends EventEmitter {
       if (!e) continue;
       row.disposition = e.disposition || row.disposition;
       row.notes = e.notes || row.notes;
+      row.reiContactUrl = e.reiContactUrl || row.reiContactUrl || "";
       row.propertyStatus = e.propertyStatus || row.propertyStatus || "";
       row.propertyStatusUrl = e.propertyStatusUrl || row.propertyStatusUrl || "";
       row.eligibilityStatus = e.eligibilityStatus || row.eligibilityStatus;
