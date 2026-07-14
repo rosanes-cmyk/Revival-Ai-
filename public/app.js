@@ -476,50 +476,43 @@ if (els.autoContinue) {
 }
 
 if (els.reportBtn)
-  els.reportBtn.onclick = async () => {
-    // Show the report INSIDE the app in an overlay. Opening a new tab/window
-    // is unreliable in the desktop app (Electron can swallow it), so we fetch
-    // the report HTML and display it in an in-app panel that always appears.
+  els.reportBtn.onclick = () => {
+    // Show the report INSIDE the app in an overlay. Opening a new tab/window is
+    // unreliable in the desktop app (Electron can swallow it), so we load the
+    // report straight into an in-app iframe by URL, which always works.
     let overlay = $("reportOverlay");
     if (!overlay) {
       overlay = document.createElement("div");
       overlay.id = "reportOverlay";
       overlay.style.cssText =
         "position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.55);" +
-        "display:flex;flex-direction:column;padding:24px;box-sizing:border-box;";
+        "flex-direction:column;padding:24px;box-sizing:border-box;";
       overlay.innerHTML =
         '<div style="display:flex;justify-content:space-between;align-items:center;' +
         'gap:12px;max-width:1100px;margin:0 auto 12px;width:100%;">' +
         '<span style="color:#fff;font-weight:700;font-size:18px;">📊 Daily Report</span>' +
         '<span style="display:flex;gap:8px;">' +
-        '<a id="reportOpenTab" class="btn" style="text-decoration:none;">Open in browser</a>' +
         '<button id="reportPrint" class="btn">🖨 Print / Save PDF</button>' +
         '<button id="reportClose" class="btn btn-stop">✕ Close</button>' +
         "</span></div>" +
         '<iframe id="reportFrame" style="flex:1;width:100%;max-width:1100px;margin:0 auto;' +
         'border:0;border-radius:12px;background:#fff;box-shadow:0 20px 60px rgba(0,0,0,.4);"></iframe>';
       document.body.appendChild(overlay);
-      $("reportClose").onclick = () => (overlay.hidden = true);
-      overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.hidden = true; });
+      // Show/hide by toggling display directly (NOT the hidden attribute — an
+      // inline display value would override it and the panel could never close).
+      const hide = () => { overlay.style.display = "none"; };
+      $("reportClose").onclick = hide;
+      overlay.addEventListener("click", (e) => { if (e.target === overlay) hide(); });
+      document.addEventListener("keydown", (e) => { if (e.key === "Escape") hide(); });
       $("reportPrint").onclick = () => {
         const f = $("reportFrame");
         if (f && f.contentWindow) f.contentWindow.print();
       };
     }
-    overlay.hidden = false;
-    const openTab = $("reportOpenTab");
-    if (openTab) { openTab.href = "/api/report"; openTab.target = "_blank"; openTab.rel = "noopener"; }
+    overlay.style.display = "flex";
+    // Load fresh each time (cache-buster) straight into the iframe.
     const frame = $("reportFrame");
-    try {
-      // Fetch the HTML and write it into the iframe so it shows even if the
-      // browser/app blocks direct navigation or new windows.
-      const res = await fetch("/api/report");
-      const html = await res.text();
-      frame.srcdoc = html;
-    } catch (err) {
-      // Fallback: point the iframe straight at the endpoint.
-      frame.src = "/api/report";
-    }
+    frame.src = "/api/report?t=" + new Date().getTime();
   };
 
 els.exportXlsxBtn.onclick = () => (window.location = "/api/export?format=xlsx");
