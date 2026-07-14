@@ -178,8 +178,14 @@ export class AutomationEngine extends EventEmitter {
         const row = rows[i];
 
         if (this.store.isProcessed(row)) {
-          this.emit("row", { row, skipped: true });
-          continue;
+          // Backfill a missing REI link on already-finished out-of-state leads
+          // (older runs didn't capture it). Everything else is skipped as done.
+          const needsLinkBackfill =
+            row.disposition === DISPOSITION.OUT_OF_STATE && !row.reiContactUrl;
+          if (!needsLinkBackfill) {
+            this.emit("row", { row, skipped: true });
+            continue;
+          }
         }
 
         const t0 = Date.now();
