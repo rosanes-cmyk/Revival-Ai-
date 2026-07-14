@@ -3,414 +3,290 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Revival AI — Operating Guide (SOP)</title>
+<title>Revival AI — Standard Operating Procedure</title>
 <style>
   :root {
-    --bg: #eef2ec;
-    --panel: #ffffff;
-    --panel-2: #f5f8f3;
-    --ink: #16210f;
-    --muted: #5c6b58;
-    --line: #dde5d8;
-    --accent: #16a34a;
-    --accent-deep: #14532d;
-    --header-a: #0b0b0d;
-    --header-b: #14532d;
-    --good: #16a34a;
-    --warn: #d97706;
-    --bad: #dc2626;
-    --gray: #6b7280;
-    --info: #0ea5e9;
-    --shadow: 0 10px 40px rgba(6, 24, 12, .10);
-    --radius: 16px;
-    --maxw: 820px;
+    --ink: #1b2430;
+    --muted: #55606e;
+    --accent: #14532d;
+    --accent-2: #1d7a44;
+    --line: #d3dbd6;
+    --line-soft: #e7ece8;
+    --shade: #f3f6f3;
+    --page: #ffffff;
   }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #0e130d;
-      --panel: #161d15;
-      --panel-2: #1b241a;
-      --ink: #e9efe6;
-      --muted: #9db097;
-      --line: #2a352788;
-      --accent: #34d36a;
-      --accent-deep: #86efac;
-      --shadow: 0 12px 44px rgba(0, 0, 0, .5);
-    }
-  }
-  :root[data-theme="light"] {
-    --bg: #eef2ec; --panel: #ffffff; --panel-2: #f5f8f3; --ink: #16210f;
-    --muted: #5c6b58; --line: #dde5d8; --accent: #16a34a; --accent-deep: #14532d;
-    --shadow: 0 10px 40px rgba(6, 24, 12, .10);
-  }
-  :root[data-theme="dark"] {
-    --bg: #0e130d; --panel: #161d15; --panel-2: #1b241a; --ink: #e9efe6;
-    --muted: #9db097; --line: #2a352788; --accent: #34d36a; --accent-deep: #86efac;
-    --shadow: 0 12px 44px rgba(0, 0, 0, .5);
-  }
-
   * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #e9ece9; }
   body {
-    margin: 0;
-    background: var(--bg);
     color: var(--ink);
-    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    line-height: 1.6;
-    -webkit-font-smoothing: antialiased;
+    font-family: "Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
+    font-size: 15px;
+    line-height: 1.62;
   }
-  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 20px 80px; }
+  .sheet {
+    max-width: 820px;
+    margin: 26px auto;
+    background: var(--page);
+    padding: 56px 60px 60px;
+    box-shadow: 0 8px 34px rgba(20, 40, 25, .12);
+  }
+  .serif { font-family: Georgia, "Times New Roman", serif; }
 
-  /* Header */
-  .hero {
-    background: linear-gradient(135deg, var(--header-a), var(--header-b));
-    color: #fff;
-    padding: 44px 20px 40px;
-    text-align: center;
+  /* Masthead */
+  .masthead { border-bottom: 3px solid var(--accent); padding-bottom: 20px; margin-bottom: 8px; }
+  .brandrow { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; }
+  .brandmark {
+    width: 34px; height: 34px; border-radius: 7px; background: var(--accent);
+    color: #fff; display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 17px; flex: none; font-family: Georgia, serif;
   }
-  .hero-inner { max-width: var(--maxw); margin: 0 auto; }
-  .logo {
-    width: 54px; height: 54px; border-radius: 14px;
-    background: rgba(255,255,255,.12);
-    display: inline-flex; align-items: center; justify-content: center;
-    font-size: 30px; margin-bottom: 14px;
-    border: 1px solid rgba(255,255,255,.2);
+  .brandname { font-weight: 700; font-size: 15px; letter-spacing: .3px; }
+  .eyebrow { text-transform: uppercase; letter-spacing: 3px; font-size: 11px; color: var(--accent-2); font-weight: 700; }
+  .masthead h1 {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 30px; line-height: 1.15; margin: 8px 0 6px; color: var(--ink); font-weight: 700;
   }
-  .hero h1 { margin: 0 0 6px; font-size: 30px; letter-spacing: -.3px; text-wrap: balance; }
-  .hero p { margin: 0; opacity: .82; font-size: 15px; }
-  .hero .eyebrow {
-    text-transform: uppercase; letter-spacing: 2px; font-size: 11px;
-    opacity: .7; margin-bottom: 14px; font-weight: 600;
-  }
+  .masthead .lede { color: var(--muted); font-size: 15px; margin: 0; }
+  .meta { display: flex; flex-wrap: wrap; gap: 6px 26px; margin-top: 16px; font-size: 12.5px; color: var(--muted); }
+  .meta b { color: var(--ink); font-weight: 600; }
 
-  /* Cards / sections */
-  section { margin-top: 30px; }
+  /* Sections */
   h2 {
-    font-size: 20px; margin: 0 0 4px; letter-spacing: -.2px;
-    display: flex; align-items: center; gap: 10px;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 19px; color: var(--accent); margin: 34px 0 4px;
+    padding-bottom: 7px; border-bottom: 1px solid var(--line);
   }
-  h2 .n {
-    flex: none;
-    width: 30px; height: 30px; border-radius: 9px;
-    background: var(--accent); color: #fff;
-    display: inline-flex; align-items: center; justify-content: center;
-    font-size: 15px; font-weight: 700;
-  }
-  .sub { color: var(--muted); font-size: 14px; margin: 0 0 14px 40px; }
-  .card {
-    background: var(--panel); border: 1px solid var(--line);
-    border-radius: var(--radius); padding: 20px 22px; box-shadow: var(--shadow);
-  }
-  .card + .card { margin-top: 14px; }
-  p { margin: 0 0 10px; }
-  b, strong { color: var(--ink); }
+  h2 .num { color: var(--ink); }
+  .lead-in { color: var(--muted); font-size: 14px; margin: 8px 0 14px; }
+  h3 { font-size: 15.5px; margin: 18px 0 4px; color: var(--ink); }
+  p { margin: 0 0 11px; }
+  b, strong { color: var(--ink); font-weight: 600; }
+  a { color: var(--accent-2); }
 
-  /* Two-up */
-  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-  @media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } }
-  .tag {
-    display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .5px;
-    text-transform: uppercase; padding: 3px 9px; border-radius: 999px;
-    background: color-mix(in srgb, var(--accent) 15%, transparent);
-    color: var(--accent-deep); margin-bottom: 8px;
-  }
-  :root[data-theme="dark"] .tag, @media (prefers-color-scheme: dark) { }
-
-  /* Steps */
-  ol.steps { list-style: none; counter-reset: s; margin: 0; padding: 0; }
-  ol.steps > li {
-    counter-increment: s; position: relative; padding: 4px 0 18px 46px;
-    border-left: 2px solid var(--line); margin-left: 15px;
-  }
-  ol.steps > li:last-child { border-left-color: transparent; padding-bottom: 0; }
+  /* Lists */
+  ol.steps { margin: 6px 0 12px; padding-left: 0; list-style: none; counter-reset: st; }
+  ol.steps > li { counter-increment: st; position: relative; padding: 0 0 12px 34px; }
   ol.steps > li::before {
-    content: counter(s); position: absolute; left: -16px; top: 0;
-    width: 30px; height: 30px; border-radius: 50%;
-    background: var(--accent); color: #fff; font-weight: 700;
-    display: flex; align-items: center; justify-content: center; font-size: 14px;
+    content: counter(st) "."; position: absolute; left: 0; top: 0;
+    font-family: Georgia, serif; font-weight: 700; color: var(--accent-2); font-size: 15px;
   }
-  ol.steps h3 { margin: 2px 0 4px; font-size: 16px; }
-  ol.steps p { color: var(--muted); font-size: 14.5px; margin: 0; }
-  ol.steps .btnref { color: var(--ink); }
+  ol.steps > li b { color: var(--ink); }
+  ol.steps .lbl { font-weight: 700; }
+  ul.plain { margin: 6px 0 12px; padding-left: 20px; }
+  ul.plain li { margin-bottom: 8px; }
 
-  /* Status chips legend */
-  .legend { display: grid; grid-template-columns: 1fr; gap: 10px; }
-  .row {
-    display: flex; align-items: flex-start; gap: 12px;
-    padding: 12px 0; border-bottom: 1px solid var(--line);
-  }
-  .row:last-child { border-bottom: 0; }
-  .chip {
-    flex: none; font-size: 12.5px; font-weight: 700; padding: 4px 11px;
-    border-radius: 999px; white-space: nowrap; min-width: 116px; text-align: center;
-    color: #fff;
-  }
-  .chip.good { background: var(--good); }
-  .chip.warn { background: var(--warn); }
-  .chip.bad  { background: var(--bad); }
-  .chip.gray { background: var(--gray); }
-  .chip.info { background: var(--info); }
-  .row .desc { font-size: 14.5px; color: var(--muted); }
-  .row .desc b { color: var(--ink); }
+  /* Table */
+  table { width: 100%; border-collapse: collapse; margin: 6px 0 14px; font-size: 14px; }
+  th, td { text-align: left; padding: 9px 12px; border: 1px solid var(--line); vertical-align: top; }
+  th { background: var(--accent); color: #fff; font-weight: 600; font-size: 12.5px; letter-spacing: .3px; }
+  tbody tr:nth-child(even) { background: var(--shade); }
+  td.status { white-space: nowrap; font-weight: 600; }
+  .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 8px; vertical-align: middle; }
 
-  /* Callout */
-  .callout {
-    border-left: 4px solid var(--accent); border-radius: 10px;
-    background: var(--panel-2); padding: 14px 16px; margin: 12px 0;
-    font-size: 14.5px;
+  /* Note box */
+  .note {
+    border: 1px solid var(--line); border-left: 4px solid var(--accent-2);
+    background: var(--shade); padding: 12px 16px; margin: 12px 0; font-size: 14px; border-radius: 3px;
   }
-  .callout.warn { border-left-color: var(--warn); }
-  .callout .t { font-weight: 700; margin-bottom: 4px; display: block; }
+  .note .t { display: block; font-weight: 700; color: var(--accent); margin-bottom: 3px; }
 
-  ul.clean { margin: 6px 0 0; padding-left: 20px; }
-  ul.clean li { margin-bottom: 7px; font-size: 14.5px; color: var(--muted); }
-  ul.clean li b { color: var(--ink); }
+  /* Message quotes */
+  .msg { border-left: 3px solid var(--line); padding: 4px 0 4px 14px; margin: 10px 0; color: var(--ink); font-size: 14px; }
+  .msg .who { font-weight: 700; display: block; color: var(--accent); font-size: 12.5px; margin-bottom: 2px; }
 
-  .kbd {
-    font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
-    background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px;
-    padding: 1px 7px; font-size: 13px; color: var(--ink); white-space: nowrap;
+  .dl {
+    display: inline-block; border: 1.5px solid var(--accent); color: var(--accent);
+    text-decoration: none; font-weight: 700; padding: 10px 18px; border-radius: 6px;
+    font-size: 14.5px; margin: 4px 0 6px;
   }
-  .foot { text-align: center; color: var(--muted); font-size: 13px; margin-top: 40px; }
-  .divider { height: 1px; background: var(--line); border: 0; margin: 34px 0 0; }
+  .url { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; color: var(--muted); word-break: break-all; }
+  .kbd { font-family: ui-monospace, Consolas, monospace; background: var(--shade); border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; font-size: 12.5px; }
+
+  .footer { margin-top: 40px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; text-align: center; }
+
   @media print {
-    section, .card, .callout, .row { break-inside: avoid; }
+    html, body { background: #fff; }
+    .sheet { box-shadow: none; margin: 0; max-width: none; padding: 0; }
     h2 { break-after: avoid; }
-    .wrap { padding-bottom: 20px; }
+    h3 { break-after: avoid; }
+    ol.steps > li, ul.plain li, tr, .note, .msg { break-inside: avoid; }
+    section { break-inside: auto; }
+    thead { display: table-header-group; }
   }
 </style>
+</head>
+<body>
+<div class="sheet">
 
-<div class="hero">
-  <div class="hero-inner">
-    <div class="logo">🏡</div>
+  <!-- MASTHEAD -->
+  <div class="masthead">
+    <div class="brandrow">
+      <span class="brandmark">R</span>
+      <span class="brandname">Twin Home Buyer &nbsp;·&nbsp; Equity Track Inc.</span>
+    </div>
     <div class="eyebrow">Standard Operating Procedure</div>
-    <h1>High Equity Lead Revival</h1>
-    <p>Text Revival Campaign · Twin Home Buyer &amp; Equity Track Inc.</p>
+    <h1>High Equity Lead Revival<br />Text Revival Campaign</h1>
+    <p class="lede">How to run the lead-texting automation — from installing the app to saving the daily report.</p>
+    <div class="meta">
+      <span><b>Document:</b> Operating Guide</span>
+      <span><b>Applies to:</b> Revival AI desktop app &amp; web dashboard</span>
+      <span><b>Audience:</b> Campaign operators</span>
+    </div>
   </div>
-</div>
 
-<div class="wrap">
-
+  <!-- 1. OVERVIEW -->
   <section>
-    <div class="card">
-      <span class="tag">What this tool does</span>
-      <p>It works your leads for you. For every lead it opens the contact in <b>REI BlackBook</b>,
-      checks that it's <b>safe and allowed to text</b>, and — only if it passes every rule — sends the
-      correct <b>approved text message</b> and records the result on the dashboard.</p>
-      <p style="margin-bottom:0">You watch it happen live, and at the end you save a clean report. You never
-      type a message or pick who to text — the tool follows the rules on every single lead, the same way, every time.</p>
+    <h2><span class="num">1.</span> &nbsp;Overview — what the tool does</h2>
+    <p>Revival AI works your leads for you. You load a list of leads and press Start; the tool then handles every
+    lead the same way, automatically — searching, checking the rules, sending the correct approved message, and
+    recording the outcome. You never type a message or decide who to text.</p>
+    <p>For each lead, the tool performs the following steps in order:</p>
+    <ol class="steps">
+      <li><span class="lbl">Find the lead in REI.</span> It searches REI BlackBook by property address, owner name, or phone number and opens that contact.</li>
+      <li><span class="lbl">Check that it is allowed to be texted.</span> Is the property in California? Has it already been texted this month? Is the contact opted out, marked “do not text,” sold, listed, or a wrong number? If any apply, the lead is skipped — no message is sent.</li>
+      <li><span class="lbl">Select the correct message.</span> The tool reads whether the lead belongs to Equity Track (EQT) or Twin Home Buyer (THB) and uses that company's approved message — never the other.</li>
+      <li><span class="lbl">Send and confirm.</span> It sends the approved text, then confirms the message actually went out before marking the lead “Text Sent.”</li>
+      <li><span class="lbl">Record the result.</span> The outcome is shown on the dashboard and saved for the report, so results are accurate and no lead is ever texted twice.</li>
+    </ol>
+    <div class="note">
+      <span class="t">In short</span>
+      You load the leads and press Start. The tool does the searching, the safety checks, the correct message,
+      and the record-keeping — for hundreds of leads — exactly the same way, every time.
     </div>
   </section>
 
-  <!-- HOW IT WORKS -->
+  <!-- 2. DOWNLOAD -->
   <section>
-    <h2><span class="n">i</span> How it works — the journey of one lead</h2>
-    <p class="sub">This is what the tool quietly does to <em>every single lead</em>, one after another.</p>
-    <div class="card">
-      <ol class="steps">
-        <li><h3>Finds the lead in REI</h3><p>It searches REI BlackBook by address, name, or phone and opens that contact.</p></li>
-        <li><h3>Checks it's allowed to text</h3><p>Is the property in California? Was it already texted this month? Is the contact opted out or tagged “do not text,” sold, listed, wrong number? If any of these, it <b>skips</b> — no text.</p></li>
-        <li><h3>Picks the right message</h3><p>It reads whether the lead belongs to <b>EQT</b> or <b>THB</b> and chooses that company's approved message — never the wrong one.</p></li>
-        <li><h3>Sends the text &amp; confirms it</h3><p>It types and sends the approved text, then confirms it actually went out before marking it “Text Sent.”</p></li>
-        <li><h3>Records the result</h3><p>The outcome shows on the dashboard and is saved, so you get an accurate report and no one is ever texted twice.</p></li>
-      </ol>
-    </div>
-    <div class="callout">
-      <span class="t">The big idea</span>
-      You just load the leads and press Start. The tool does the searching, the safety checks, the correct message,
-      and the record-keeping — for hundreds of leads — exactly the same way every time.
+    <h2><span class="num">2.</span> &nbsp;Download and install the app</h2>
+    <p class="lead-in">One-time setup, performed once per computer.</p>
+    <p>Download the installer from Google Drive:</p>
+    <p>
+      <a class="dl" href="https://drive.google.com/file/d/1nMiigz2anRCGX40yHU3sxjbmrVQiEq0U/view?usp=sharing">Download Revival AI (Google Drive)</a>
+    </p>
+    <p class="url">https://drive.google.com/file/d/1nMiigz2anRCGX40yHU3sxjbmrVQiEq0U/view?usp=sharing</p>
+    <ol class="steps">
+      <li><span class="lbl">Open the link and download.</span> Open the Drive page, then click the <b>Download</b> button (top-right). Save the file.</li>
+      <li><span class="lbl">Run the installer.</span> Open the downloaded <b>Revival AI Setup</b> file. If Windows shows a blue “Windows protected your PC” notice, click <b>More info</b>, then <b>Run anyway</b> — the file is safe; the message only appears because it is not distributed through the Microsoft Store.</li>
+      <li><span class="lbl">Finish and open.</span> Complete the installation. A <b>Revival AI</b> icon is added to the desktop. Double-click it to open the tool.</li>
+    </ol>
+    <div class="note">
+      <span class="t">Multiple users</span>
+      Each person installs their own copy from the same Drive link, on any computer or network. All copies operate
+      through the single shared REI account, so runs do not conflict and no lead is texted twice.
     </div>
   </section>
 
-  <!-- DOWNLOAD -->
+  <!-- 3. OPEN -->
   <section>
-    <h2><span class="n">1</span> Download &amp; install the app</h2>
-    <p class="sub">One-time setup. Do this once per computer.</p>
-    <div class="card">
-      <p>Download the installer from Google Drive:</p>
-      <p style="margin:12px 0 16px">
-        <a href="https://drive.google.com/file/d/1nMiigz2anRCGX40yHU3sxjbmrVQiEq0U/view?usp=sharing"
-           style="display:inline-block;background:var(--accent);color:#fff;text-decoration:none;font-weight:700;
-                  padding:12px 20px;border-radius:10px;font-size:15px">⬇ Download Revival AI (Google Drive)</a>
-      </p>
-      <ol class="steps">
-        <li><h3>Open the Drive link</h3><p>Click the button above (or paste the link into your browser), then click <b>Download</b> in the top-right of the Drive page.</p></li>
-        <li><h3>Run the installer</h3><p>Open the downloaded <b>Revival AI Setup.exe</b>. If Windows shows a blue “Windows protected your PC” box, click <b>More info → Run anyway</b> (it's safe — it's just not from the Microsoft store).</p></li>
-        <li><h3>Finish &amp; open</h3><p>Let it install. You'll get a <b>Revival AI</b> icon on your desktop. Double-click it to open the tool.</p></li>
-      </ol>
-    </div>
-    <div class="callout">
-      <span class="t">💡 Each person installs their own copy</span>
-      Colleagues on different computers or WiFi can all install it from the same Drive link. It still all runs
-      through the one REI account, so nothing conflicts and no lead is texted twice.
+    <h2><span class="num">3.</span> &nbsp;Opening the tool and first-time login</h2>
+    <p>Double-click the <b>Revival AI</b> desktop icon to open the dashboard. (On the main office computer, the same
+    dashboard can also be opened in a web browser at <span class="kbd">http://localhost:3000</span> while the program is running.)</p>
+    <div class="note">
+      <span class="t">First run only — log in to REI</span>
+      The first time you run the tool, a browser window opens on the REI BlackBook login page. Log in there once, by
+      hand. The login is remembered afterward, so you will not need to log in again on future runs.
     </div>
   </section>
 
-  <!-- OPEN -->
+  <!-- 4. LOAD LEADS -->
   <section>
-    <h2><span class="n">2</span> Opening the tool &amp; first-time login</h2>
-    <p class="sub">Two ways to open it — both look and work exactly the same.</p>
-    <div class="grid2">
-      <div class="card">
-        <span class="tag">Everyday way</span>
-        <h3 style="margin:0 0 6px">📦 The App</h3>
-        <p style="margin:0;color:var(--muted);font-size:14.5px">Double-click the <b>Revival AI</b> icon on your
-        desktop. A window opens with the dashboard. This is what colleagues install and use.</p>
-      </div>
-      <div class="card">
-        <span class="tag">Main computer</span>
-        <h3 style="margin:0 0 6px">🌐 The Website</h3>
-        <p style="margin:0;color:var(--muted);font-size:14.5px">On the main computer you can also open it in a
-        browser at <span class="kbd">http://localhost:3000</span> while the program is running.</p>
-      </div>
-    </div>
-    <div class="callout">
-      <span class="t">🔑 First time only — log in to REI</span>
-      When you first run it, a browser window opens on REI BlackBook. <b>Log in there once by hand.</b>
-      The tool remembers it, so you won't have to log in again next time.
+    <h2><span class="num">4.</span> &nbsp;Loading your leads</h2>
+    <p class="lead-in">Choose one of the two options below.</p>
+    <ul class="plain">
+      <li><b>Upload a spreadsheet.</b> Click <b>“Choose File”</b> and select your CSV or Excel file. The tool reads your columns automatically and keeps them all.</li>
+      <li><b>Pull all from REI.</b> Click <b>“Pull all from REI”</b> to bring in every contact directly from REI — no file required.</li>
+    </ul>
+    <div class="note">
+      <span class="t">Leads already worked this month are remembered</span>
+      Any lead worked earlier this month appears with its result already filled in and is skipped, not repeated. Only
+      new leads are worked. This record resets automatically at the start of each calendar month.
     </div>
   </section>
 
-  <!-- GET LEADS -->
+  <!-- 5. RUN -->
   <section>
-    <h2><span class="n">3</span> Get your leads in</h2>
-    <p class="sub">Pick ONE of these to load the leads you want to work.</p>
-    <div class="grid2">
-      <div class="card">
-        <h3 style="margin:0 0 6px">📄 Upload a spreadsheet</h3>
-        <p style="margin:0;color:var(--muted);font-size:14.5px">Click <b class="btnref">Choose File</b> and pick
-        your CSV or Excel file. It reads your columns automatically and keeps them all.</p>
-      </div>
-      <div class="card">
-        <h3 style="margin:0 0 6px">⤓ Pull all from REI</h3>
-        <p style="margin:0;color:var(--muted);font-size:14.5px">Click <b class="btnref">⤓ Pull all from REI</b>
-        to bring in every contact straight from REI — no file needed.</p>
-      </div>
-    </div>
-    <div class="callout">
-      <span class="t">↩️ Already worked this month? It's remembered.</span>
-      Leads you already worked this month show up with their result already filled in and are <b>skipped</b>,
-      not redone. Only <b>new</b> leads get worked. It all resets on its own at the start of each month.
+    <h2><span class="num">5.</span> &nbsp;Running the automation</h2>
+    <p class="lead-in">Set it up once, press Start, and let it run.</p>
+    <ol class="steps">
+      <li><span class="lbl">Turn on Live Sending.</span> Click <b>“Live Sending: OFF”</b> so it changes to <b>“Live Sending: ON.”</b> When OFF, the tool checks everything but sends nothing (safe practice mode); when ON, real text messages are sent.</li>
+      <li><span class="lbl">Set the batch size.</span> Set <b>“Texts per run”</b> to <b>100</b> and leave <b>“Auto-continue”</b> checked. The tool sends 100, pauses briefly, then automatically continues with the next 100.</li>
+      <li><span class="lbl">Press Start.</span> Click <b>“Start Live Automation.”</b> The tool works down the list on its own and keeps going, batch after batch, until every lead is finished or you press Stop.</li>
+      <li><span class="lbl">Monitor progress.</span> The summary cards and the table update live as leads are worked. Links open the contact in REI or the property on Redfin for a quick check.</li>
+      <li><span class="lbl">Stop when finished.</span> Click <b>“Stop”</b> to end your shift. Progress is saved; the next time you press Start, it resumes the unfinished leads and skips those already completed.</li>
+    </ol>
+  </section>
+
+  <!-- 6. RESULTS -->
+  <section>
+    <h2><span class="num">6.</span> &nbsp;Understanding the results</h2>
+    <p class="lead-in">Each summary card can be clicked to filter the table to only those leads.</p>
+    <table>
+      <thead>
+        <tr><th style="width:34%">Result</th><th>What it means</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="status"><span class="swatch" style="background:#16a34a"></span>Text Sent</td><td>The approved message was confirmed sent to a clean, eligible lead.</td></tr>
+        <tr><td class="status"><span class="swatch" style="background:#d97706"></span>Property Sold / Listed</td><td>The property is sold or currently listed. Not texted.</td></tr>
+        <tr><td class="status"><span class="swatch" style="background:#dc2626"></span>Not Interested / Opt Out</td><td>The lead declined or opted out of messages. Not texted.</td></tr>
+        <tr><td class="status"><span class="swatch" style="background:#6b7280"></span>To Delete / Bad Leads</td><td>Wrong number, failed number, bad lead, or not found in REI.</td></tr>
+        <tr><td class="status"><span class="swatch" style="background:#6b7280"></span>Out of State</td><td>Property is outside California and is never texted. The REI contact link is still shown for reference.</td></tr>
+      </tbody>
+    </table>
+    <div class="note">
+      <span class="t">Leads that are re-checked automatically</span>
+      A small number of leads that the tool cannot confirm cleanly (for example, when it cannot determine EQT versus
+      THB) are held and re-checked automatically on the next run. Nothing is sent for these; they simply try again
+      later, which is why they are not shown as a separate category.
     </div>
   </section>
 
-  <!-- RUN -->
+  <!-- 7. RULES -->
   <section>
-    <h2><span class="n">4</span> Run the automation</h2>
-    <p class="sub">Set it up once, press Start, and let it go.</p>
-    <div class="card">
-      <ol class="steps">
-        <li>
-          <h3>Turn ON Live Sending</h3>
-          <p>Click <b class="btnref">💤 Live Sending: OFF</b> so it turns <b>🟢 Live Sending: ON</b>.
-          OFF = safe practice mode (checks everything but sends nothing). ON = real texts go out.</p>
-        </li>
-        <li>
-          <h3>Set the batch size &amp; Auto-continue</h3>
-          <p>Set <b class="btnref">Texts per run</b> to <b>100</b> and leave <b class="btnref">Auto-continue</b>
-          checked. It sends 100, pauses a moment, then automatically keeps going — 100 at a time.</p>
-        </li>
-        <li>
-          <h3>Press Start</h3>
-          <p>Click <b class="btnref">▶ Start Live Automation</b>. It works down the list on its own and keeps
-          going batch after batch until every lead is done — or until you press Stop.</p>
-        </li>
-        <li>
-          <h3>Watch it live</h3>
-          <p>The cards at the top and the table fill in as it works. Green links open the contact in REI or the
-          property on Redfin for a quick check.</p>
-        </li>
-        <li>
-          <h3>Stop whenever you want</h3>
-          <p>Click <b class="btnref">⏹ Stop</b> to end your shift. Progress is saved — next time you press Start
-          it picks up the unfinished leads and skips everything already done.</p>
-        </li>
-      </ol>
-    </div>
+    <h2><span class="num">7.</span> &nbsp;Automatic safety rules</h2>
+    <p class="lead-in">These rules are always enforced. No action is required from the operator.</p>
+    <ul class="plain">
+      <li><b>California only.</b> Any property outside California is skipped as Out of State.</li>
+      <li><b>Never twice in one month.</b> A lead already texted during the current month is skipped.</li>
+      <li><b>Correct company every time.</b> The tool determines whether the lead is EQT or THB from REI and sends that company's message. If it cannot determine the company, it holds the lead rather than risk sending the wrong message.</li>
+      <li><b>Opt-outs and blocking tags respected.</b> If REI indicates the contact is opted out or should not be texted, no message is sent.</li>
+      <li><b>Accurate “Text Sent” status.</b> A lead is marked “Text Sent” only when delivery is confirmed. If a send cannot be confirmed, it is held for another attempt and never falsely marked.</li>
+    </ul>
+    <h3>The two approved messages (locked)</h3>
+    <div class="msg"><span class="who">Twin Home Buyer</span>“Hi, this is Juan with Twin Home Buyer. You contacted us before about selling your home. Are you still interested? Reply YES or NO. Thanks!”</div>
+    <div class="msg"><span class="who">Equity Track Inc.</span>“Hi, this is Juan with Equity Track Inc. You contacted us before about selling your home. Are you still interested? Reply YES or NO. Thanks!”</div>
   </section>
 
-  <!-- RESULTS -->
+  <!-- 8. REPORT -->
   <section>
-    <h2><span class="n">5</span> What the results mean</h2>
-    <p class="sub">Click any card at the top to show only those leads in the table.</p>
-    <div class="card">
-      <div class="legend">
-        <div class="row"><span class="chip good">Text Sent</span><span class="desc">The approved text was <b>confirmed sent</b> to a clean, eligible lead.</span></div>
-        <div class="row"><span class="chip warn">Sold / Listed</span><span class="desc">The property is <b>sold or listed</b> — not texted.</span></div>
-        <div class="row"><span class="chip bad">Not Int. / Opt Out</span><span class="desc">The lead said <b>not interested</b> or <b>opted out</b> — not texted.</span></div>
-        <div class="row"><span class="chip gray">To Delete / Bad</span><span class="desc">Wrong number, failed number, bad lead, or <b>not found</b> in REI.</span></div>
-        <div class="row"><span class="chip gray">Out of State</span><span class="desc">Property is <b>outside California</b> — never texted. (REI link still shown.)</span></div>
-      </div>
-    </div>
-    <div class="callout">
-      <span class="t">Why some leads seem to “disappear”</span>
-      A few leads the tool can't confirm cleanly (for example, it couldn't tell EQT from THB) are quietly
-      <b>held and re-checked automatically</b> on the next run. Nothing was texted — they just try again later.
-      That's why they aren't shown as their own category.
-    </div>
+    <h2><span class="num">8.</span> &nbsp;The daily report</h2>
+    <p>At the end of a shift, click <b>“Daily Report.”</b> The report opens inside the tool and shows two sections:</p>
+    <ul class="plain">
+      <li><b>Today</b> — only the leads worked today (the shift's numbers), with a short summary line.</li>
+      <li><b>This Month so far</b> — the running total for the entire month.</li>
+    </ul>
+    <p>Use <b>“Save Today”</b> or <b>“Save This Month”</b> to download a clean, one-page <b>PDF</b> report. It saves
+    directly to the Downloads folder; no printer is required.</p>
   </section>
 
-  <!-- RULES -->
+  <!-- 9. TROUBLESHOOTING -->
   <section>
-    <h2><span class="n">6</span> The safety rules (automatic)</h2>
-    <p class="sub">These are always on — you don't have to do anything.</p>
-    <div class="card">
-      <ul class="clean">
-        <li><b>California only.</b> Anything outside CA is skipped as Out of State.</li>
-        <li><b>Never twice in one month.</b> A lead already texted this month is skipped.</li>
-        <li><b>Right company, every time.</b> It reads whether the lead is <b>EQT</b> or <b>THB</b> in REI and sends
-        that company's message — never the wrong one. If it can't tell, it holds the lead instead of guessing.</li>
-        <li><b>Respects opt-outs &amp; bad tags.</b> If REI shows the lead is opted out or shouldn't be texted, it won't send.</li>
-        <li><b>Only marks “Text Sent” when it really sent.</b> If a send can't be confirmed, it's held for another try — never falsely marked.</li>
-      </ul>
-    </div>
-    <div class="card">
-      <span class="tag">The two approved messages (locked)</span>
-      <p style="font-size:14.5px;margin:0 0 8px"><b>Twin Home Buyer:</b> “Hi, this is Juan with Twin Home Buyer. You contacted us
-      before about selling your home. Are you still interested? Reply YES or NO. Thanks!”</p>
-      <p style="font-size:14.5px;margin:0"><b>Equity Track Inc.:</b> “Hi, this is Juan with Equity Track Inc. You contacted us
-      before about selling your home. Are you still interested? Reply YES or NO. Thanks!”</p>
-    </div>
+    <h2><span class="num">9.</span> &nbsp;Troubleshooting</h2>
+    <table>
+      <thead>
+        <tr><th style="width:38%">Situation</th><th>What to do</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>A login page appears</td><td>Log in once in that window. The login is remembered afterward.</td></tr>
+        <tr><td>Nothing is being sent</td><td>Confirm that Live Sending is ON (green). OFF is safe practice mode.</td></tr>
+        <tr><td>The browser closed by itself</td><td>No action needed — the tool reopens it and continues automatically.</td></tr>
+        <tr><td>A lead shows “Text Sent” but you are unsure</td><td>Click “Re-verify Sent.” The tool checks REI and corrects any that did not truly send.</td></tr>
+        <tr><td>You want errored leads re-checked</td><td>Press “Start” again. The tool re-works anything unfinished and skips what is already done.</td></tr>
+      </tbody>
+    </table>
   </section>
 
-  <!-- REPORT -->
-  <section>
-    <h2><span class="n">7</span> The daily report</h2>
-    <p class="sub">At the end of your shift, capture the numbers.</p>
-    <div class="card">
-      <p>Click <b class="btnref">📊 Daily Report</b>. It opens right inside the tool and shows:</p>
-      <ul class="clean">
-        <li><b>Today</b> — only what was worked today (your shift's numbers), with a plain-English summary line.</li>
-        <li><b>This Month so far</b> — the running total for the whole month.</li>
-      </ul>
-      <p style="margin:10px 0 0">Use <b class="btnref">💾 Save Today</b> or <b class="btnref">💾 Save This Month</b> to
-      download a clean one-page <b>PDF</b> — it saves straight to your Downloads, no printer needed.</p>
-    </div>
-  </section>
-
-  <hr class="divider" />
-
-  <!-- TROUBLESHOOTING -->
-  <section>
-    <h2 style="font-size:18px"><span class="n" style="background:var(--gray)">?</span> Quick fixes</h2>
-    <div class="card">
-      <ul class="clean">
-        <li><b>A login page appears.</b> Just log in once in that window — it's remembered afterward.</li>
-        <li><b>Nothing sends.</b> Check that <b>Live Sending is ON</b> (green). OFF is safe practice mode.</li>
-        <li><b>The browser closed by itself.</b> The tool reopens it and keeps going on its own.</li>
-        <li><b>A lead shows “Text Sent” but you're unsure.</b> Click <b class="btnref">🔁 Re-verify Sent</b> — it checks REI and fixes any that didn't truly send.</li>
-        <li><b>Want to re-check errored leads.</b> Just press <b class="btnref">▶ Start</b> again — it re-works anything unfinished and skips what's done.</li>
-      </ul>
-    </div>
-    <div class="callout">
-      <span class="t">👥 Working with colleagues</span>
-      Everyone can have their own copy installed, even on different WiFi. Because the “already texted this month”
-      rule and REI's own history are shared through the one REI account, <b>no lead ever gets texted twice</b>,
-      even if two people run it at the same time.
-    </div>
-  </section>
-
-  <div class="foot">
-    High Equity Lead Revival · Operating Guide · Keep the window open while it runs.
+  <div class="footer">
+    High Equity Lead Revival — Standard Operating Procedure · Keep the application window open while it is running.
   </div>
 
 </div>
