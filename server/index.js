@@ -268,7 +268,29 @@ function buildReportHtml(job, scope = "both") {
   .bar { padding:16px 32px; display:flex; gap:10px; }
   .btn { border:0; border-radius:10px; padding:10px 16px; font-weight:700; cursor:pointer; }
   .btn-print { background:#16a34a; color:#fff; }
-  @media print { body { background:#fff; } .page { box-shadow:none; margin:0; } .bar { display:none; } }
+  @media print {
+    body { background:#fff; }
+    .page { box-shadow:none; margin:0; max-width:none; border-radius:0; }
+    .bar { display:none; }
+    /* Tighten everything so each section fits on ONE page. */
+    .head { padding:14px 24px; }
+    .head h1 { font-size:19px; }
+    .head p { font-size:11px; margin-top:3px; }
+    .meta { padding:8px 24px; font-size:11px; gap:16px; }
+    .block { padding:6px 24px 8px; }
+    .block-head h2 { font-size:16px; }
+    .block-head span { font-size:11px; }
+    .brief { margin:4px 0 8px; padding:8px 12px; font-size:12px; line-height:1.35; }
+    .tiles { gap:8px; padding:8px 0; }
+    .tile { padding:8px 10px; border-radius:8px; }
+    .tval { font-size:22px; }
+    .tlbl { margin-top:3px; font-size:10px; }
+    table { font-size:12px; }
+    td { padding:4px 8px; }
+    .foot { padding:8px 24px 12px; font-size:10px; }
+    /* When saving both sections, start each on its own page. */
+    .block + .block { break-before:page; border-top:0; margin-top:0; padding-top:14px; }
+  }
   @media (max-width:640px){ .tiles { grid-template-columns:1fr 1fr; } }
 </style></head><body>
   <div class="page">
