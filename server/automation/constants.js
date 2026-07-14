@@ -15,6 +15,7 @@ export const DISPOSITION = Object.freeze({
   FAILED_NUMBER: "Failed Number",
   ALREADY_CONTACTED: "Already Contacted",
   BAD_LEAD: "Bad Lead",
+  OUT_OF_STATE: "Out of State",
   NEEDS_REVIEW: "Needs Review",
   ERROR: "Error",
 });
@@ -48,6 +49,7 @@ export const TERMINAL_DISPOSITIONS = Object.freeze([
   DISPOSITION.FAILED_NUMBER,
   DISPOSITION.ALREADY_CONTACTED,
   DISPOSITION.BAD_LEAD,
+  DISPOSITION.OUT_OF_STATE,
 ]);
 
 export const ELIGIBILITY = Object.freeze({

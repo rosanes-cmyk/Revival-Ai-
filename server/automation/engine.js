@@ -54,6 +54,14 @@ export class AutomationEngine extends EventEmitter {
     // straight there for a manual check. Fast JSON lookup, no browser. On by
     // default; set REDFIN_LINKS=false to disable.
     this.redfinLinks = String(process.env.REDFIN_LINKS ?? "true").toLowerCase() !== "false";
+    // Only text properties in these states (default California). Anything else
+    // is skipped as Out of State. Override with TEXT_STATES="CA,NV" etc.
+    this.allowedStates = new Set(
+      String(process.env.TEXT_STATES || "CA,California")
+        .split(",")
+        .map((s) => s.trim().toUpperCase())
+        .filter(Boolean)
+    );
     this.adapterFactory = () => new ReiBlackBookAdapter();
     this.statusAdapterFactory = () =>
       this.propertySource === "redfin" ? new RedfinAdapter() : new PropertyRadarAdapter();
@@ -251,6 +259,28 @@ export class AutomationEngine extends EventEmitter {
   async _processRow(row) {
     const logBase = { row: row.rowNumber, owner: row.ownerName, address: row.propertyAddress, company: row.companySource };
     try {
+      // Rule: only text California properties. Skip out-of-state leads entirely
+      // (no REI search, no text). Blank state is allowed through (can't confirm).
+      const st = String(row.state || "").trim().toUpperCase();
+      if (st && !this.allowedStates.has(st)) {
+        row.disposition = DISPOSITION.OUT_OF_STATE;
+        row.eligibilityStatus = ELIGIBILITY.NOT_ELIGIBLE;
+        row.reiMatchStatus = "Skipped (out of state)";
+        row.searchMethod = "";
+        row.propertyStatus = "";
+        row.safetyStatus = "Out of state";
+        row.notes = `Property state "${row.state}" is outside California — not texted.`;
+        row.errorLog = "";
+        this.logger.log({
+          ...logBase,
+          complianceResult: "Out of state - skipped",
+          disposition: row.disposition,
+          textSent: false,
+          notes: row.notes,
+        });
+        return;
+      }
+
       // Resolve the exact Redfin page for this address (fast JSON lookup, no
       // browser) so the dashboard Property Status / Address always link straight
       // to Redfin. Runs regardless of PROPERTY_SOURCE; the live Redfin adapter

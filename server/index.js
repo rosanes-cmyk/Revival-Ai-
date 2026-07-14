@@ -107,6 +107,7 @@ function buildReportHtml(s, job) {
     ["Failed Number", s.failedNumber, "#6b7280"],
     ["Already Contacted", s.alreadyContacted, "#94a3b8"],
     ["Bad Lead", s.badLead, "#6b7280"],
+    ["Out of State", s.outOfState, "#6b7280"],
     ["Lead NOT Found", s.leadNotFound, "#6b7280"],
     ["Needs Review", s.needsReview, "#eab308"],
     ["Pending", s.pending, "#94a3b8"],
