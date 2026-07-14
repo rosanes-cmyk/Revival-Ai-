@@ -16,7 +16,8 @@ import { chromium } from "playwright";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SELECTORS_PATH = path.join(__dirname, "..", "..", "config", "propertyradar.selectors.json");
-const AUTH_STATE_PATH = path.join(__dirname, "..", "..", ".propertyradar-auth.json");
+const DATA_ROOT = process.env.REVIVAL_DATA_DIR || path.join(__dirname, "..", "..");
+const AUTH_STATE_PATH = path.join(DATA_ROOT, ".propertyradar-auth.json");
 
 export class PropertyRadarAdapter {
   constructor(opts = {}) {

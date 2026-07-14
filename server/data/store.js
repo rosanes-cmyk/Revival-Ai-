@@ -10,7 +10,10 @@ import { fileURLToPath } from "url";
 import { DISPOSITION, ELIGIBILITY, MATCH_STATUS, TERMINAL_DISPOSITIONS } from "../automation/constants.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const STATE_DIR = path.join(__dirname, "..", "..", "data", "state");
+// State lives in the writable data dir (install dir is read-only in Program Files).
+const STATE_DIR = process.env.REVIVAL_DATA_DIR
+  ? path.join(process.env.REVIVAL_DATA_DIR, "state")
+  : path.join(__dirname, "..", "..", "data", "state");
 fs.mkdirSync(STATE_DIR, { recursive: true });
 const CURRENT_POINTER = path.join(STATE_DIR, "current.json");
 

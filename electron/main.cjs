@@ -37,6 +37,10 @@ function startServer() {
     ...process.env,
     ELECTRON_RUN_AS_NODE: "1", // run the electron binary as plain Node
     PORT: String(PORT),
+    // Writable folder for browser profiles, logins, job state, logs. The app's
+    // install dir (Program Files) is read-only, so everything writable must
+    // live here instead.
+    REVIVAL_DATA_DIR: app.getPath("userData"),
   };
   // In a packaged app the automation browser is bundled inside the app's
   // node_modules (PLAYWRIGHT_BROWSERS_PATH=0), so point Playwright there. In

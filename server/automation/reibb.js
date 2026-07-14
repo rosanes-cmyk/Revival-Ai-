@@ -22,7 +22,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SELECTORS_PATH = path.join(__dirname, "..", "..", "config", "reibb.selectors.json");
 // A dedicated, persistent browser profile so the REI login (incl. 2FA) is done
 // once and remembered across every run — like a normal browser keeps you in.
-const PROFILE_DIR = path.join(__dirname, "..", "..", ".reibb-profile");
+// Browser profile lives in the writable data dir (the app's install dir is
+// read-only when installed to Program Files).
+const DATA_ROOT = process.env.REVIVAL_DATA_DIR || path.join(__dirname, "..", "..");
+const PROFILE_DIR = path.join(DATA_ROOT, ".reibb-profile");
 
 export class ReiBlackBookAdapter {
   constructor(opts = {}) {

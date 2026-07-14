@@ -204,7 +204,11 @@ app.get("/api/config", (req, res) => {
 // --- Daily scheduler --------------------------------------------------------
 // Persisted {enabled, time:"HH:MM", lastRun:"YYYY-MM-DD"}. A timer auto-starts
 // the next batch once per day at the set time (the app must be running).
-const SCHEDULE_FILE = path.join(__dirname, "..", "data", "state", "schedule.json");
+const WRITABLE_STATE_DIR = process.env.REVIVAL_DATA_DIR
+  ? path.join(process.env.REVIVAL_DATA_DIR, "state")
+  : path.join(__dirname, "..", "data", "state");
+fs.mkdirSync(WRITABLE_STATE_DIR, { recursive: true });
+const SCHEDULE_FILE = path.join(WRITABLE_STATE_DIR, "schedule.json");
 
 function loadSchedule() {
   try {
@@ -257,7 +261,7 @@ app.post("/api/schedule", (req, res) => {
 // --- Live-send switch (toggle from the dashboard) ---------------------------
 // Persisted so it survives restarts. Lets each installed copy turn real texting
 // on/off without editing .env. Defaults to the .env value the first time.
-const LIVE_SEND_FILE = path.join(__dirname, "..", "data", "state", "livesend.json");
+const LIVE_SEND_FILE = path.join(WRITABLE_STATE_DIR, "livesend.json");
 
 function loadLiveSend(fallback) {
   try {

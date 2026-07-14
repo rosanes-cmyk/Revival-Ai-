@@ -20,7 +20,8 @@ import { chromium } from "playwright";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SELECTORS_PATH = path.join(__dirname, "..", "..", "config", "redfin.selectors.json");
-const PROFILE_DIR = path.join(__dirname, "..", "..", ".redfin-profile");
+const DATA_ROOT = process.env.REVIVAL_DATA_DIR || path.join(__dirname, "..", "..");
+const PROFILE_DIR = path.join(DATA_ROOT, ".redfin-profile");
 
 // Text that means Redfin is showing its "are you human?" / bot wall.
 const HUMAN_CHECK_MARKERS = [

@@ -9,7 +9,10 @@ import path from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const LOG_DIR = path.join(__dirname, "..", "data", "logs");
+// Logs go to the writable data dir (install dir is read-only in Program Files).
+const LOG_DIR = process.env.REVIVAL_DATA_DIR
+  ? path.join(process.env.REVIVAL_DATA_DIR, "logs")
+  : path.join(__dirname, "..", "data", "logs");
 
 fs.mkdirSync(LOG_DIR, { recursive: true });
 
