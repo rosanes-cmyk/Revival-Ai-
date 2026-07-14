@@ -552,6 +552,76 @@ export class ReiBlackBookAdapter {
     return { readable: true, fullText: trimmed, latestText: trimmed };
   }
 
+  // Enumerate contact-record URLs from the REI Contacts list. Collects every
+  // /contacts/<id> link, then scrolls / clicks "Next" to load more, until no
+  // new ones appear or `max` is reached. DOM-tolerant (keys off the id in the
+  // href). Returns an array of absolute contact URLs.
+  async enumerateContactIds(max = 10000, onProgress = null) {
+    const urls = new Set();
+    const url = this.contactsUrl || "https://my.reiblackbook.com/contacts";
+    await this.page.goto(url, { waitUntil: "domcontentloaded" }).catch(() => {});
+    await this.page.waitForTimeout(2000);
+    let origin = "https://my.reiblackbook.com";
+    try { origin = new URL(this.page.url()).origin; } catch { /* default */ }
+
+    const collect = async () => {
+      const found = await this.page
+        .evaluate(() =>
+          Array.from(document.querySelectorAll("a[href*='/contacts/']"))
+            .map((a) => a.getAttribute("href") || a.href)
+            .filter((h) => /\/contacts\/\d+/i.test(h))
+        )
+        .catch(() => []);
+      for (const h of found) {
+        const m = String(h).match(/\/contacts\/(\d+)/i);
+        if (m) urls.add(`${origin}/contacts/${m[1]}`);
+      }
+    };
+
+    await collect();
+    let stagnant = 0;
+    while (urls.size < max && stagnant < 6) {
+      const before = urls.size;
+      // Infinite-scroll style: scroll the window and any inner scroll area.
+      await this.page.evaluate(() => window.scrollTo(0, document.body.scrollHeight)).catch(() => {});
+      await this.page.waitForTimeout(1200);
+      await collect();
+      // Pagination style: click a Next control if present.
+      const next = this.page
+        .locator("[aria-label*='next' i], button:has-text('Next'), a:has-text('Next'), .pagination-next, li.next a")
+        .first();
+      if ((await next.count().catch(() => 0)) > 0 && (await next.isVisible().catch(() => false)) && !(await next.isDisabled().catch(() => false))) {
+        await next.click().catch(() => {});
+        await this.page.waitForTimeout(1500);
+        await collect();
+      }
+      if (urls.size === before) stagnant++;
+      else stagnant = 0;
+      if (onProgress) onProgress(urls.size);
+    }
+    return Array.from(urls).slice(0, max);
+  }
+
+  // Read a pulled contact's facts by navigating directly to its URL (no search).
+  async gatherFactsByUrl(contactUrl) {
+    try {
+      await this.page.goto(contactUrl, { waitUntil: "domcontentloaded" }).catch(() => {});
+      await this.page.waitForTimeout(1200);
+      const record = await this.readContactFacts({ companySource: "", phone: "" });
+      return {
+        searchMethod: "REI contact (pulled)",
+        matchStatus: MATCH_STATUS.MATCH_CONTACTS_ADDRESS,
+        facts: { matchFound: true, ...record, contactUrl: record.contactUrl || contactUrl },
+      };
+    } catch (err) {
+      return {
+        searchMethod: "REI contact (pulled)",
+        matchStatus: MATCH_STATUS.MATCH_CONTACTS_ADDRESS,
+        facts: { matchFound: true, ...uncertain(`Could not read the pulled contact: ${err.message}`), contactUrl },
+      };
+    }
+  }
+
   // Re-verify: open a contact by URL and report whether an approved revival
   // message is actually present in the chat. Returns true / false, or null if
   // the contact couldn't be opened/checked. Never sends anything.

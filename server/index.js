@@ -292,6 +292,50 @@ app.post("/api/batch-limit", (req, res) => {
 });
 
 // --- Upload -----------------------------------------------------------------
+// Pull ALL contacts straight from REI (no spreadsheet). Enumerates contact
+// URLs, builds a job, and attaches it. Runs in the background; progress via SSE.
+app.post("/api/pull-rei", (req, res) => {
+  if (engine.isBusy()) return res.status(409).json({ error: "Automation is running. Stop it first." });
+  res.json({ ok: true });
+  (async () => {
+    try {
+      const max = Number(process.env.REI_PULL_MAX || 10000);
+      const urls = await engine.enumerateReiContacts(max);
+      if (!urls.length) {
+        broadcast("state", { message: "No REI contacts could be pulled. Check the login/contacts page and try again." });
+        return;
+      }
+      const jobId = `reipull-${new Date().toISOString().replace(/[:.]/g, "-")}`;
+      const rows = urls.map((u, i) => ({
+        rowNumber: i + 1,
+        original: { "REI Contact Link": u },
+        ownerName: "",
+        propertyAddress: "",
+        city: "",
+        state: "",
+        zip: "",
+        phone: "",
+        email: "",
+        reiContactUrl: u,
+        fromRei: true,
+      }));
+      const parsed = {
+        rows,
+        originalHeaders: ["REI Contact Link", "Owner Name", "Property Address", "City", "State", "ZIP", "Phone"],
+        dispositionHeader: "Disposition",
+        notesHeader: "Notes",
+      };
+      store = JobStore.create(jobId, parsed, `REI Contacts (${urls.length})`);
+      logger = new JobLogger(jobId);
+      engine.attach(store, logger);
+      broadcast("summary", store.summary());
+      broadcast("state", { message: `Pulled ${urls.length} REI contacts. Review, set Live Sending, then click Start.` });
+    } catch (err) {
+      broadcast("state", { message: `Pull from REI failed: ${err.message}` });
+    }
+  })();
+});
+
 app.post("/api/upload", upload.single("file"), (req, res) => {
   try {
     if (engine.isBusy()) {

@@ -9,7 +9,7 @@ const els = {
   closeLogsBtn: $("closeLogsBtn"), logsDrawer: $("logsDrawer"), logsBody: $("logsBody"),
   tableBody: $("leadTableBody"), statusLabel: $("statusLabel"), liveFlag: $("liveFlag"),
   approvedTHB: $("approvedTHB"), approvedETI: $("approvedETI"), batchLimit: $("batchLimit"),
-  liveSendBtn: $("liveSendBtn"), reverifyBtn: $("reverifyBtn"),
+  liveSendBtn: $("liveSendBtn"), reverifyBtn: $("reverifyBtn"), pullReiBtn: $("pullReiBtn"),
   schedEnabled: $("schedEnabled"), schedTime: $("schedTime"), schedNote: $("schedNote"),
   progressWrap: $("progressWrap"), progressFill: $("progressFill"), progressText: $("progressText"),
   finalSummary: $("finalSummary"), finalSummaryBody: $("finalSummaryBody"), toast: $("toast"),
@@ -262,17 +262,7 @@ async function init() {
     renderLiveSend(!!cfg.allowLiveSend);
   } catch (e) { /* ignore */ }
 
-  try {
-    const st = await api("/api/state");
-    if (st.job) {
-      hasJob = true;
-      renderSummary(st.job.summary);
-      renderRows(st.job.rows);
-      setStatus(st.engineStatus || st.job.status);
-      setProgress(st.job.cursor, st.job.summary.total);
-      els.fileName.textContent = st.job.sourceFileName || "(restored job)";
-    } else setStatus("idle");
-  } catch (e) { setStatus("idle"); }
+  await refreshState();
 
   connectSSE();
 
@@ -286,6 +276,20 @@ async function init() {
   });
 }
 
+async function refreshState() {
+  try {
+    const st = await api("/api/state");
+    if (st.job) {
+      hasJob = true;
+      renderSummary(st.job.summary);
+      renderRows(st.job.rows);
+      setStatus(st.engineStatus || st.job.status);
+      setProgress(st.job.cursor, st.job.summary.total);
+      els.fileName.textContent = st.job.sourceFileName || "(restored job)";
+    } else setStatus("idle");
+  } catch (e) { setStatus("idle"); }
+}
+
 function connectSSE() {
   const es = new EventSource("/api/events");
   es.addEventListener("state", (e) => {
@@ -293,6 +297,8 @@ function connectSSE() {
     if (d.status) setStatus(d.status);
     if (typeof d.total === "number") setProgress(d.cursor, d.total);
     if (d.message) toast(d.message);
+    // When a REI pull finishes, load the new job's rows into the table.
+    if (d.message && /Pulled \d+ REI contacts/i.test(d.message)) refreshState();
   });
   es.addEventListener("summary", (e) => renderSummary(JSON.parse(e.data)));
   es.addEventListener("progress", (e) => renderEta(JSON.parse(e.data)));
@@ -424,6 +430,21 @@ if (els.reverifyBtn) {
     try {
       await api("/api/reverify", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
       toast("Re-verify started — watch the table update.", "ok");
+    } catch (err) {
+      toast(err.message, "error");
+    }
+  };
+}
+
+if (els.pullReiBtn) {
+  els.pullReiBtn.onclick = async () => {
+    const ok = window.confirm(
+      "Pull ALL contacts from REI?\n\nThis opens REI and lists every contact (can take a while for thousands). Each still goes through all safety checks, and nothing sends unless Live Sending is ON. Make sure the automation is stopped first."
+    );
+    if (!ok) return;
+    try {
+      await api("/api/pull-rei", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      toast("Pulling contacts from REI — log in if the window prompts. This can take a while.", "ok");
     } catch (err) {
       toast(err.message, "error");
     }

@@ -255,6 +255,22 @@ export class AutomationEngine extends EventEmitter {
     }
   }
 
+  // --- Pull all contacts from REI (no spreadsheet) --------------------------
+  // Launches the browser, logs in, and enumerates every contact URL from the
+  // REI Contacts list. Returns an array of contact URLs. The caller turns these
+  // into a job. (Each still goes through all safety checks when processed.)
+  async enumerateReiContacts(max = 10000) {
+    if (this._loopActive) throw new Error("Automation is running. Stop it first.");
+    const adapter = this.adapterFactory();
+    this.emitState("Opening REI to pull all contacts (log in if prompted)...");
+    await adapter.launch();
+    try {
+      return await adapter.enumerateContactIds(max, (n) => this.emitState(`Found ${n} REI contacts...`));
+    } finally {
+      await adapter.close();
+    }
+  }
+
   // --- Per-row SOP processing ----------------------------------------------
   async _processRow(row) {
     const logBase = { row: row.rowNumber, owner: row.ownerName, address: row.propertyAddress, company: row.companySource };
@@ -281,38 +297,41 @@ export class AutomationEngine extends EventEmitter {
         return;
       }
 
-      // Resolve the exact Redfin page for this address (fast JSON lookup, no
-      // browser) so the dashboard Property Status / Address always link straight
-      // to Redfin. Runs regardless of PROPERTY_SOURCE; the live Redfin adapter
-      // (if on) may still refine the URL + status.
-      if (this.redfinLinks && !row.propertyStatusUrl) {
+      // Resolve the exact Redfin page for this address (fast JSON lookup) — only
+      // when we actually have an address (pulled-from-REI rows don't yet).
+      if (this.redfinLinks && !row.propertyStatusUrl && row.propertyAddress) {
         const q = /\d{5}|,/.test(row.propertyAddress)
           ? row.propertyAddress
           : [row.propertyAddress, row.city, row.state, row.zip].filter(Boolean).join(", ");
         row.propertyStatusUrl = await resolveRedfinUrl(q).catch(() => "");
       }
 
-      // Property status (Redfin / PropertyRadar) FIRST (if enabled): if it's
-      // sold/listed, skip the REI checks entirely, tag it, and move on.
-      if (this.statusAdapter) {
+      // Property status (Redfin / PropertyRadar) FIRST (if enabled + we have an
+      // address): if sold/listed, skip the REI checks and move on.
+      if (this.statusAdapter && row.propertyAddress) {
         const handled = await this._propertyStatusFirst(row, logBase);
         if (handled) return;
       }
 
-      const { facts, searchMethod, matchStatus } = await this.adapter.gatherFacts({
-        ownerName: row.ownerName,
-        propertyAddress: row.propertyAddress,
-        street: row.street,
-        city: row.city,
-        state: row.state,
-        zip: row.zip,
-        phone: row.phone,
-        email: row.email,
-        // Only the sheet's own company (if any). The real company is detected
-        // from REI's "From:" persona (EQT/THB). We do NOT inject a default here,
-        // so a failed detection can't cause the WRONG template to be sent.
-        companySource: normalizeCompany(row.companySource) || "",
-      });
+      // Pulled-from-REI rows open the contact directly by URL (no search);
+      // spreadsheet rows search REI by address/owner/phone/email.
+      const { facts, searchMethod, matchStatus } =
+        row.fromRei && row.reiContactUrl
+          ? await this.adapter.gatherFactsByUrl(row.reiContactUrl)
+          : await this.adapter.gatherFacts({
+              ownerName: row.ownerName,
+              propertyAddress: row.propertyAddress,
+              street: row.street,
+              city: row.city,
+              state: row.state,
+              zip: row.zip,
+              phone: row.phone,
+              email: row.email,
+              // Only the sheet's own company (if any). The real company is
+              // detected from REI's "From:" persona (EQT/THB) — no default here,
+              // so a failed detection can't send the WRONG template.
+              companySource: normalizeCompany(row.companySource) || "",
+            });
 
       row.searchMethod = searchMethod;
       row.reiMatchStatus = matchStatus;
