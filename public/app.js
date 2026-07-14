@@ -32,11 +32,12 @@ const FILTERS = {
   notIntOpt: (d) => d === "Not Interested" || d === "Opted Out",
   toDelete: (d) => ["Wrong Number", "Failed Number", "Lead NOT Found", "Bad Lead"].includes(d),
   outOfState: (d) => d === "Out of State",
+  needsReview: (d) => d === "Needs Review",
 };
 const FILTER_LABEL = {
   textSent: "Text Sent", soldListed: "Property Sold / Listed",
   notIntOpt: "Not Interested / Opt Out", toDelete: "To Delete / Bad Leads",
-  outOfState: "Out of State",
+  outOfState: "Out of State", needsReview: "Needs Review",
 };
 
 function toast(msg, kind = "") {
@@ -69,6 +70,7 @@ function renderSummary(s) {
     notIntOpt: (s.notInterested ?? 0) + (s.optedOut ?? 0),
     toDelete: (s.wrongNumber ?? 0) + (s.failedNumber ?? 0) + (s.leadNotFound ?? 0) + (s.badLead ?? 0),
     outOfState: s.outOfState ?? 0,
+    needsReview: s.needsReview ?? 0,
   };
   document.querySelectorAll(".stat").forEach((el) => {
     const k = el.dataset.k;
