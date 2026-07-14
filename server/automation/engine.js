@@ -38,6 +38,11 @@ export class AutomationEngine extends EventEmitter {
     // Defaults to 100 even without a .env; 0 = unlimited. Only successful sends
     // count; skips/other outcomes don't. Adjustable live from the dashboard.
     this.maxSendsPerRun = Number(process.env.MAX_SENDS_PER_RUN ?? 100);
+    // Auto-continue: after each batch of maxSendsPerRun, automatically keep
+    // going (next batch) until all leads are done or the user hits Stop. A short
+    // pause between batches is gentler on the number. Default ON.
+    this.autoContinue = String(process.env.AUTO_CONTINUE ?? "true").toLowerCase() !== "false";
+    this.batchPauseMs = Number(process.env.BATCH_PAUSE_MS ?? 8000);
     // Optional property Sold/Listed verification, checked FIRST for each lead.
     // PROPERTY_SOURCE = "redfin" (free, no login) | "propertyradar" (login) |
     // "none". Back-compat: CHECK_PROPERTYRADAR=true still selects propertyradar.
@@ -147,10 +152,20 @@ export class AutomationEngine extends EventEmitter {
 
         this.store.job.cursor = i;
 
-        // Stop before starting a new lead once the per-run send cap is hit.
+        // Per-batch send cap hit.
         if (this.maxSendsPerRun > 0 && this._runStats.sends >= this.maxSendsPerRun) {
-          batchLimitReached = true;
-          break;
+          if (this.autoContinue) {
+            // Keep going: brief pause, reset the batch counter, continue to the
+            // next batch automatically (until all leads done or user stops).
+            this.emitState(`Sent ${this._runStats.sends} this batch — pausing briefly, then continuing the next ${this.maxSendsPerRun}…`);
+            const until = Date.now() + this.batchPauseMs;
+            while (Date.now() < until && this._control !== "stopping") await sleep(400);
+            if (this._control === "stopping") break;
+            this._runStats.sends = 0;
+          } else {
+            batchLimitReached = true;
+            break;
+          }
         }
 
         const row = rows[i];

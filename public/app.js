@@ -10,6 +10,7 @@ const els = {
   tableBody: $("leadTableBody"), statusLabel: $("statusLabel"), liveFlag: $("liveFlag"),
   approvedTHB: $("approvedTHB"), approvedETI: $("approvedETI"), batchLimit: $("batchLimit"),
   liveSendBtn: $("liveSendBtn"), reverifyBtn: $("reverifyBtn"), pullReiBtn: $("pullReiBtn"),
+  autoContinue: $("autoContinue"),
   schedEnabled: $("schedEnabled"), schedTime: $("schedTime"), schedNote: $("schedNote"),
   progressWrap: $("progressWrap"), progressFill: $("progressFill"), progressText: $("progressText"),
   finalSummary: $("finalSummary"), finalSummaryBody: $("finalSummaryBody"), toast: $("toast"),
@@ -258,6 +259,9 @@ async function init() {
       if (cfg.schedule.time) els.schedTime.value = cfg.schedule.time;
       renderSchedNote();
     }
+    if (els.autoContinue && typeof cfg.autoContinue === "boolean") {
+      els.autoContinue.checked = cfg.autoContinue;
+    }
     els.liveFlag.title = cfg.allowLiveSend ? "Live send ENABLED" : "Live send DISABLED (ALLOW_LIVE_SEND is off)";
     renderLiveSend(!!cfg.allowLiveSend);
   } catch (e) { /* ignore */ }
@@ -445,6 +449,26 @@ if (els.pullReiBtn) {
     try {
       await api("/api/pull-rei", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
       toast("Pulling contacts from REI — log in if the window prompts. This can take a while.", "ok");
+    } catch (err) {
+      toast(err.message, "error");
+    }
+  };
+}
+
+if (els.autoContinue) {
+  els.autoContinue.onchange = async () => {
+    try {
+      await api("/api/auto-continue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: els.autoContinue.checked }),
+      });
+      toast(
+        els.autoContinue.checked
+          ? "Auto-continue ON — it will keep sending batch after batch until you press Stop."
+          : "Auto-continue off — it stops after one batch.",
+        "ok"
+      );
     } catch (err) {
       toast(err.message, "error");
     }

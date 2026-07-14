@@ -197,6 +197,7 @@ app.get("/api/config", (req, res) => {
     approvedMessage: APPROVED_MESSAGES[engine.defaultCompany],
     allowLiveSend: engine.allowLiveSend,
     maxSendsPerRun: engine.maxSendsPerRun,
+    autoContinue: engine.autoContinue,
     schedule,
   });
 });
@@ -296,6 +297,12 @@ app.post("/api/reverify", (req, res) => {
   if (!store) return res.status(400).json({ error: "Upload leads first." });
   engine.reverify().catch((err) => broadcast("state", { message: `Re-verify error: ${err.message}` }));
   res.json({ ok: true });
+});
+
+// Toggle auto-continue (keep sending batch after batch until Stop).
+app.post("/api/auto-continue", (req, res) => {
+  engine.autoContinue = !!(req.body && req.body.enabled);
+  res.json({ ok: true, autoContinue: engine.autoContinue });
 });
 
 // Set the per-run text cap from the dashboard dropdown.
