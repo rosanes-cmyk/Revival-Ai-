@@ -167,7 +167,6 @@ function reportBlock(title, subtitle, s) {
     ["Bad Lead", s.badLead, "#6b7280"],
     ["Out of State", s.outOfState, "#6b7280"],
     ["Lead NOT Found", s.leadNotFound, "#6b7280"],
-    ["Needs Review", s.needsReview, "#eab308"],
     ["Pending", s.pending, "#94a3b8"],
     ["Errors", s.errors, "#ef4444"],
   ].filter((r) => (r[1] || 0) > 0);
