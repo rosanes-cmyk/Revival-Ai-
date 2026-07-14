@@ -97,6 +97,10 @@ export class AutomationEngine extends EventEmitter {
     if (!this.store) throw new Error("No job loaded. Upload a spreadsheet first.");
     if (this._loopActive) return { ok: true, message: "Already running." };
     assertMessageIntegrity();
+    // Fresh start: rewind to the first unfinished lead so errored / held /
+    // pending leads get re-checked (finished ones are still skipped instantly).
+    const firstUnfinished = this.store.rows.findIndex((r) => !this.store.isProcessed(r));
+    this.store.job.cursor = firstUnfinished >= 0 ? firstUnfinished : this.store.rows.length;
     this._control = "running";
     this.store.setStatus(JOB_STATUS.RUNNING);
     this.emitState("Live automation started.");
@@ -190,6 +194,20 @@ export class AutomationEngine extends EventEmitter {
 
         const t0 = Date.now();
         await this._processRow(row);
+        // If the browser closed/crashed mid-check, reopen it and retry this
+        // lead once so a single closed window doesn't error out the whole run.
+        if (
+          row.disposition === DISPOSITION.ERROR &&
+          this._isBrowserGone(row.errorLog) &&
+          this._control !== "stopping"
+        ) {
+          const recovered = await this._recoverBrowser();
+          if (recovered) {
+            row.disposition = DISPOSITION.PENDING;
+            row.errorLog = "";
+            await this._processRow(row);
+          }
+        }
         this._runStats.count += 1;
         this._runStats.totalMs += Date.now() - t0;
 
@@ -296,6 +314,36 @@ export class AutomationEngine extends EventEmitter {
       return await adapter.enumerateContactIds(max, (n) => this.emitState(`Found ${n} REI contacts...`));
     } finally {
       await adapter.close();
+    }
+  }
+
+  // True if an error means the Playwright page/context/browser was closed or
+  // crashed (so the rest of the run would fail until we reopen it).
+  _isBrowserGone(msg) {
+    return /has been closed|Target (page|closed)|browser has been closed|Target closed|crash|Connection closed|Session closed/i.test(
+      String(msg || "")
+    );
+  }
+
+  // Reopen the automation browser (and the property-status browser) after an
+  // unexpected close/crash, so the run can keep going. Returns true on success.
+  async _recoverBrowser() {
+    if (this._control === "stopping") return false;
+    this.emitState("Browser closed unexpectedly — reopening and continuing…");
+    try {
+      try { await this.adapter.close(); } catch { /* already gone */ }
+      this.adapter = this.adapterFactory();
+      await this.adapter.launch();
+      if (this.checkPropertyStatus) {
+        try { if (this.statusAdapter) await this.statusAdapter.close(); } catch { /* ignore */ }
+        this.statusAdapter = this.statusAdapterFactory();
+        await this.statusAdapter.launch();
+      }
+      this.emitState("Browser reopened — continuing.");
+      return true;
+    } catch (e) {
+      this.emitState(`Could not reopen the browser: ${e.message}. It will be retried on the next run.`);
+      return false;
     }
   }
 
