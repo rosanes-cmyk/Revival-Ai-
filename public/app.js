@@ -492,7 +492,7 @@ if (els.reportBtn)
         'gap:12px;max-width:1100px;margin:0 auto 12px;width:100%;">' +
         '<span style="color:#fff;font-weight:700;font-size:18px;">📊 Daily Report</span>' +
         '<span style="display:flex;gap:8px;">' +
-        '<button id="reportPrint" class="btn">🖨 Print / Save PDF</button>' +
+        '<button id="reportPrint" class="btn">💾 Save PDF</button>' +
         '<button id="reportClose" class="btn btn-stop">✕ Close</button>' +
         "</span></div>" +
         '<iframe id="reportFrame" style="flex:1;width:100%;max-width:1100px;margin:0 auto;' +

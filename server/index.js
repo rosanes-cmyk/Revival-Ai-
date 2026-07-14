@@ -219,7 +219,7 @@ function buildReportHtml(job) {
       <div>Lead file: <b>${String(file).replace(/[<>&]/g, "")}</b></div>
     </div>
     ${blocksHtml}
-    <div class="bar"><button class="btn btn-print" onclick="window.print()">🖨️ Print / Save as PDF</button></div>
+    <div class="bar"><button class="btn btn-print" onclick="window.print()">💾 Save PDF</button></div>
     <div class="foot">Revival AI · results are recorded in the dashboard and export. No REI tags are added.</div>
   </div>
 </body></html>`;
