@@ -67,18 +67,24 @@ function startServer() {
   } catch {
     /* ignore */
   }
-  const tee = (d) => { try { logStream && logStream.write(d); } catch {} };
+  // Keep the tail of server output so we can SHOW the real error in the crash
+  // dialog (no need to open a locked log file).
+  let outBuf = "";
+  const tee = (d) => {
+    try { logStream && logStream.write(d); } catch {}
+    outBuf = (outBuf + String(d)).slice(-4000);
+  };
   serverProc.stdout.on("data", (d) => { process.stdout.write(`[server] ${d}`); tee(d); });
   serverProc.stderr.on("data", (d) => { process.stderr.write(`[server] ${d}`); tee(d); });
   serverProc.on("exit", (code) => {
     serverProc = null;
-    // If the server dies unexpectedly while the app is open, tell the user and
-    // point them to the log file.
     if (code && code !== 0 && mainWindow && !mainWindow.isDestroyed()) {
+      // Show the actual error text (last lines) right in the popup so it can be
+      // screenshotted — no locked log file to open.
+      const tail = (outBuf || "(no output captured)").split("\n").slice(-24).join("\n");
       dialog.showErrorBox(
         "Revival Dashboard stopped",
-        `The dashboard engine stopped unexpectedly (code ${code}).\n\n` +
-          `Please close and reopen the app. If it keeps happening, send this log file:\n${serverLogPath || "(log unavailable)"}`
+        `The dashboard engine stopped (code ${code}).\n\n----- ERROR DETAILS -----\n${tail}\n-------------------------\n\nPlease screenshot this and send it. (Full log: ${serverLogPath || "n/a"})`
       );
     }
   });
