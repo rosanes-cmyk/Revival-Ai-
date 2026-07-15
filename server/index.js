@@ -206,21 +206,14 @@ function buildReportHtml(job, scope = "both") {
   const monthLabel = nowD.toLocaleDateString(undefined, { month: "long", year: "numeric" });
   const file = (job && job.sourceFileName) || "—";
   const rows = job && Array.isArray(job.rows) ? job.rows : [];
-  // "Today" = leads whose work happened on today's local calendar date.
+  // "Today" = leads actually worked today (by their real timestamp), so the
+  // Today section resets each day. Leads carried over from earlier this month
+  // keep their original work date and are NOT counted as today.
   const isToday = (iso) => {
     if (!iso) return false;
     try { return new Date(iso).toDateString() === nowD.toDateString(); } catch { return false; }
   };
-  // A row counts as worked today if it carries a today timestamp. Rows finished
-  // before the timestamp existed (older runs) have none — attribute those to
-  // the day the batch was loaded, so a batch loaded today still tallies here.
-  const jobCreatedToday = job && isToday(job.createdAt);
-  const isWorked = (r) => r.disposition && r.disposition !== DISPOSITION.PENDING && r.disposition !== DISPOSITION.READY_TO_TEXT;
-  const workedToday = (r) => {
-    if (isToday(r.processedAt) || isToday(r.textSentTimestamp)) return true;
-    if (!r.processedAt && !r.textSentTimestamp && jobCreatedToday && isWorked(r)) return true;
-    return false;
-  };
+  const workedToday = (r) => isToday(r.processedAt) || isToday(r.textSentTimestamp);
   const todayRows = rows.filter(workedToday);
   const todaySummary = summarizeRows(todayRows);
   const monthSummary = summarizeRows(rows);
