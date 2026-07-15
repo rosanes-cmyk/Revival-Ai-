@@ -268,9 +268,44 @@
     directly to the Downloads folder; no printer is required.</p>
   </section>
 
-  <!-- 9. TROUBLESHOOTING -->
+  <!-- 9. SHARING WITH YOUR TEAM -->
   <section>
-    <h2><span class="num">9.</span> &nbsp;Troubleshooting</h2>
+    <h2><span class="num">9.</span> &nbsp;Sharing with your team</h2>
+    <p class="lead-in">There are three ways for a team to use the tool. Choose the one that fits.</p>
+
+    <h3>Option A — One host computer, team opens a link (same office WiFi)</h3>
+    <p>One person's computer runs the tool (the “host”); everyone else in the same office simply opens a link
+    in their browser. No installation for the team.</p>
+    <ol class="steps">
+      <li><span class="lbl">On the host computer, start the tool.</span> Run it (app icon, or <b>start-windows.bat</b> for the code version). When Windows asks to <b>allow network access</b>, click <b>Allow</b>.</li>
+      <li><span class="lbl">Find the share link.</span> The dashboard shows it at the top: <b>“Share this dashboard with teammates on this computer's WiFi — http://192.168.x.x:3000.”</b></li>
+      <li><span class="lbl">Teammates open that link.</span> Anyone on the <b>same office WiFi</b> opens that address in their browser and sees the host's dashboard. They install nothing.</li>
+    </ol>
+    <div class="note">
+      <span class="t">Notes for Option A</span>
+      The host's window must stay open and the computer on. Only one person should operate (click) at a time.
+      Updating the host updates it for everyone on the link — teammates are all viewing the one host instance.
+    </div>
+
+    <h3>Option B — Remote access with AnyDesk (any location)</h3>
+    <p>If a team member is not on the host's WiFi, they can use AnyDesk to remote into the host computer and operate
+    it on-screen. They see and control the host's dashboard directly. AnyDesk works over any internet connection —
+    the same WiFi is not required. One person operates at a time.</p>
+
+    <h3>Option C — Each person runs their own copy</h3>
+    <p>For fully independent work, each person installs their own copy from the Google Drive link (Section 2) and logs
+    into the shared REI account. Because of the “already texted this month” rule and REI's shared history, no lead is
+    ever texted twice — even if several people run at the same time.</p>
+    <div class="note">
+      <span class="t">Keeping copies updated</span>
+      Code-version hosts update with <b>update-windows.bat</b> (which pulls the latest) and then <b>start-windows.bat</b>.
+      Desktop-app users get updates by installing a refreshed installer from the Google Drive link.
+    </div>
+  </section>
+
+  <!-- 10. TROUBLESHOOTING -->
+  <section>
+    <h2><span class="num">10.</span> &nbsp;Troubleshooting</h2>
     <table>
       <thead>
         <tr><th style="width:38%">Situation</th><th>What to do</th></tr>
