@@ -22,6 +22,14 @@
     </header>
 
     <main>
+      <!-- Share-on-WiFi bar (teammates on this computer's network) -->
+      <div class="share-bar" id="shareBar" hidden>
+        <span class="share-ico">👥</span>
+        <span>Share this dashboard with teammates on <b>this computer's WiFi</b> — have them open:</span>
+        <code id="shareUrl"></code>
+        <button class="btn btn-small" id="copyShareBtn">Copy</button>
+      </div>
+
       <!-- Approved message banners (locked, one per company; picked by Company Source) -->
       <section class="msg-banner" id="msgBanner">
         <div class="msg-head">Approved messages (locked — picked automatically by Company Source)</div>

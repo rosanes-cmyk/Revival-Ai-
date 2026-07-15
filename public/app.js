@@ -11,6 +11,7 @@ const els = {
   approvedTHB: $("approvedTHB"), approvedETI: $("approvedETI"), batchLimit: $("batchLimit"),
   liveSendBtn: $("liveSendBtn"), reverifyBtn: $("reverifyBtn"), pullReiBtn: $("pullReiBtn"),
   autoContinue: $("autoContinue"), reportBtn: $("reportBtn"),
+  shareBar: $("shareBar"), shareUrl: $("shareUrl"), copyShareBtn: $("copyShareBtn"),
   schedEnabled: $("schedEnabled"), schedTime: $("schedTime"), schedNote: $("schedNote"),
   progressWrap: $("progressWrap"), progressFill: $("progressFill"), progressText: $("progressText"),
   finalSummary: $("finalSummary"), finalSummaryBody: $("finalSummaryBody"), toast: $("toast"),
@@ -265,6 +266,10 @@ async function init() {
     if (els.autoContinue && typeof cfg.autoContinue === "boolean") {
       els.autoContinue.checked = cfg.autoContinue;
     }
+    if (els.shareBar && Array.isArray(cfg.shareUrls) && cfg.shareUrls.length) {
+      els.shareUrl.textContent = cfg.shareUrls[0];
+      els.shareBar.hidden = false;
+    }
     els.liveFlag.title = cfg.allowLiveSend ? "Live send ENABLED" : "Live send DISABLED (ALLOW_LIVE_SEND is off)";
     renderLiveSend(!!cfg.allowLiveSend);
   } catch (e) { /* ignore */ }
@@ -477,6 +482,14 @@ if (els.autoContinue) {
     }
   };
 }
+
+if (els.copyShareBtn)
+  els.copyShareBtn.onclick = () => {
+    const url = els.shareUrl.textContent || "";
+    if (navigator.clipboard && url) {
+      navigator.clipboard.writeText(url).then(() => toast("Share address copied.", "ok")).catch(() => {});
+    }
+  };
 
 if (els.reportBtn)
   els.reportBtn.onclick = () => {

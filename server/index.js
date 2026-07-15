@@ -311,6 +311,8 @@ app.get("/api/config", (req, res) => {
     maxSendsPerRun: engine.maxSendsPerRun,
     autoContinue: engine.autoContinue,
     schedule,
+    // Address(es) teammates on THIS computer's WiFi can open to share the dashboard.
+    shareUrls: lanAddresses().map((ip) => `http://${ip}:${PORT}`),
   });
 });
 
