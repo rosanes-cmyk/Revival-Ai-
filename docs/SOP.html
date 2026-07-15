@@ -153,6 +153,17 @@
       You load the leads and press Start. The tool does the searching, the safety checks, the correct message,
       and the record-keeping — for hundreds of leads — exactly the same way, every time.
     </div>
+    <h3>What this version includes</h3>
+    <ul class="plain">
+      <li><b>Auto-continue batches.</b> Sends 100, pauses, then automatically continues the next 100 until every lead is done or you press Stop.</li>
+      <li><b>No repeats this month.</b> A lead already texted this calendar month is skipped; leads already worked this month reappear with their result filled in (not re-checked).</li>
+      <li><b>California only.</b> Out-of-state leads are skipped (their REI link is still shown).</li>
+      <li><b>Correct company every time.</b> EQT vs THB is detected from REI; if unclear, the lead is held, never guessed.</li>
+      <li><b>Accurate results.</b> “Text Sent” only when delivery is confirmed; unconfirmed leads are held and retried, never falsely marked.</li>
+      <li><b>Daily report.</b> Today + This Month sections, with one-click <b>Save as PDF</b> (no printer needed).</li>
+      <li><b>Team share link.</b> The dashboard shows a WiFi address teammates can open in a browser.</li>
+      <li><b>Self-healing.</b> If the browser closes mid-run, the tool reopens it and continues.</li>
+    </ul>
   </section>
 
   <!-- 2. DOWNLOAD -->
@@ -303,9 +314,44 @@
     </div>
   </section>
 
-  <!-- 10. TROUBLESHOOTING -->
+  <!-- 10. UPDATING -->
   <section>
-    <h2><span class="num">10.</span> &nbsp;Troubleshooting</h2>
+    <h2><span class="num">10.</span> &nbsp;Updating the tool (from GitHub)</h2>
+    <p class="lead-in">New versions are published to GitHub. How you update depends on which way the computer runs it.</p>
+
+    <h3>Desktop-app computers (run from the icon)</h3>
+    <p>These get updates by rebuilding the app from the latest code. On a computer set up with the code (Node + Git),
+    it is one double-click:</p>
+    <ol class="steps">
+      <li><span class="lbl">Close the Revival AI app</span> (and any black command window) so files aren't locked.</li>
+      <li><span class="lbl">Double-click <b>Update-App-Windows.bat</b>.</span> It pulls the latest from GitHub, rebuilds the installer, and points to it.</li>
+      <li><span class="lbl">Install the new file.</span> Open the <b>dist</b> folder and double-click <b>Revival AI Setup 1.0.0.exe</b> — it replaces the old app; your REI login and data are kept.</li>
+    </ol>
+    <div class="note">
+      <span class="t">First-build note</span>
+      The very first build downloads its tools and is slow (several minutes) — that is normal. If it fails with a
+      “symbolic link / winCodeSign” message, turn on <b>Windows Developer Mode</b> once (Settings ▸ Update &amp; Security ▸
+      For developers ▸ Developer Mode = On), or run the file as Administrator, then run it again. Later updates are fast.
+    </div>
+
+    <h3>Host / code computers (run with start-windows.bat)</h3>
+    <p>These run straight from the code, so updating needs no rebuild:</p>
+    <ol class="steps">
+      <li><span class="lbl">Double-click <b>update-windows.bat</b></span> — it pulls the latest from GitHub and installs any new components.</li>
+      <li><span class="lbl">Double-click <b>start-windows.bat</b></span> to run again. Teammates on the share link get the update automatically (they view this one computer).</li>
+    </ol>
+
+    <div class="note">
+      <span class="t">If a computer does not have the code yet (one-time setup)</span>
+      Install <b>Node.js</b> (nodejs.org, LTS) and <b>Git</b> (git-scm.com), then in Command Prompt run:
+      <br /><span class="url">git clone -b claude/equity-lead-revival-dashboard-xl9l8j https://github.com/rosanes-cmyk/Revival-Ai-.git Revival-Ai-</span><br />
+      After that, use the double-click scripts above.
+    </div>
+  </section>
+
+  <!-- 11. TROUBLESHOOTING -->
+  <section>
+    <h2><span class="num">11.</span> &nbsp;Troubleshooting</h2>
     <table>
       <thead>
         <tr><th style="width:38%">Situation</th><th>What to do</th></tr>
