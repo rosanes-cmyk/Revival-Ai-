@@ -1,9 +1,9 @@
 @echo off
-title Revival AI
+title Twin Text Platform
 cd /d "%~dp0"
 
 REM ============================================================
-REM  Revival AI - desktop app launcher
+REM  Twin Text Platform - desktop app launcher
 REM  Double-click this file to open the dashboard in its own
 REM  window (no browser, no localhost to type).
 REM ============================================================
@@ -33,5 +33,5 @@ if not exist "node_modules\electron" (
 REM Create the settings file from the template if missing.
 if not exist ".env" copy ".env.example" ".env" >nul
 
-echo Opening Revival AI...
+echo Opening Twin Text Platform...
 call npm run app

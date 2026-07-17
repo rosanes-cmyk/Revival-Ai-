@@ -1,9 +1,9 @@
 @echo off
-title High Equity Lead Revival Dashboard
+title Twin Text Platform
 cd /d "%~dp0"
 
 echo ============================================================
-echo    High Equity Lead Revival Dashboard - Startup
+echo    Twin Text Platform - Startup
 echo ============================================================
 echo.
 

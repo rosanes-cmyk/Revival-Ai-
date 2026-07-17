@@ -1,9 +1,9 @@
 @echo off
-title Build Revival AI Installer
+title Build Twin Text Platform Installer
 cd /d "%~dp0"
 
 echo ============================================================
-echo    Building the Revival AI installer (.exe)
+echo    Building the Twin Text Platform installer (.exe)
 echo    This makes ONE file you can send to colleagues so they
 echo    can install the app on any Windows PC (no Node, no setup).
 echo ============================================================
@@ -42,7 +42,7 @@ echo.
 dir /b dist\*.exe
 echo.
 echo    Send that .exe file to your colleagues. They double-click
-echo    it to install "Revival AI" and get a desktop icon.
+echo    it to install "Twin Text Platform" and get a desktop icon.
 echo ============================================================
 echo.
 pause

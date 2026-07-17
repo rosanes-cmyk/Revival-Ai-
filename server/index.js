@@ -1,4 +1,4 @@
-// Express server for the High Equity Lead Revival Dashboard.
+// Express server for the Twin Text Platform dashboard.
 //
 // Serves the dashboard UI and exposes the control API:
 //   POST /api/upload          - upload CSV/XLSX, create a job
@@ -223,10 +223,10 @@ function buildReportHtml(job, scope = "both") {
     scope === "today" ? todayBlock : scope === "month" ? monthBlock : todayBlock + monthBlock;
   const docTitle =
     scope === "today"
-      ? `Revival AI — Today ${todayLabel}`
+      ? `Twin Text Platform — Today ${todayLabel}`
       : scope === "month"
-      ? `Revival AI — ${monthLabel}`
-      : "Revival AI — Daily Report";
+      ? `Twin Text Platform — ${monthLabel}`
+      : "Twin Text Platform — Daily Report";
   return `<!doctype html><html><head><meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>${docTitle}</title>
@@ -287,8 +287,8 @@ function buildReportHtml(job, scope = "both") {
 </style></head><body>
   <div class="page">
     <div class="head">
-      <h1>High Equity Lead Revival — Daily Report</h1>
-      <p>Twin Home Buyer &amp; Equity Track Inc. · Text Revival Campaign</p>
+      <h1>Twin Text Platform — Daily Report</h1>
+      <p>Twin Home Buyer &amp; Equity Track Inc. · Lead Text-Revival Campaign</p>
     </div>
     <div class="meta">
       <div>Generated: <b>${now}</b></div>
@@ -296,7 +296,7 @@ function buildReportHtml(job, scope = "both") {
     </div>
     ${blocksHtml}
     <div class="bar"><a class="btn btn-print" href="/api/report.pdf?scope=${scope}" download>💾 Save PDF</a></div>
-    <div class="foot">Revival AI · results are recorded in the dashboard and export. No REI tags are added.</div>
+    <div class="foot">Twin Text Platform · results are recorded in the dashboard and export. No REI tags are added.</div>
   </div>
 </body></html>`;
 }
@@ -564,7 +564,7 @@ function lanAddresses() {
 const PORT = Number(process.env.PORT || 3000);
 // Bind to 0.0.0.0 so other computers on the same network can reach it.
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`\nHigh Equity Lead Revival Dashboard running.`);
+  console.log(`\nTwin Text Platform running.`);
   console.log(`  On THIS computer:      http://localhost:${PORT}`);
   const lan = lanAddresses();
   if (lan.length) {

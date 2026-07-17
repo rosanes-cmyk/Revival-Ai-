@@ -1,7 +1,7 @@
 {
-  "name": "high-equity-lead-revival-dashboard",
+  "name": "twin-text-platform",
   "version": "1.0.0",
-  "description": "Live dashboard automation for the High Equity Lead Revival Text Campaign. Uploads old high-equity leads, searches each in REI BlackBook via browser automation, enforces the SOP compliance rules, sends the approved revival text only when eligible, and tracks disposition/notes with resume + export.",
+  "description": "Twin Text Platform — live dashboard automation for the lead text-revival campaign. Uploads old high-equity leads (or pulls from REI), searches each in REI BlackBook via browser automation, enforces the SOP compliance/suppression rules, sends the approved revival text only when eligible, and tracks disposition/notes with resume + export.",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
@@ -25,8 +25,8 @@
     "electron-builder": "^24.13.3"
   },
   "build": {
-    "appId": "com.twinhomebuyer.revivalai",
-    "productName": "Revival AI",
+    "appId": "com.twinhomebuyer.twintextplatform",
+    "productName": "Twin Text Platform",
     "directories": {
       "output": "dist"
     },

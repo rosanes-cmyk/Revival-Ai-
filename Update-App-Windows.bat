@@ -1,16 +1,16 @@
 @echo off
-title Update Revival AI App
+title Update Twin Text Platform
 cd /d "%~dp0"
 
 echo ============================================================
-echo    Update Revival AI App
+echo    Update Twin Text Platform
 echo    This gets the latest version AND rebuilds the app (.exe).
 echo    When it finishes, install the new file from the "dist" folder.
 echo ============================================================
 echo.
 
 REM --- Make sure the app is CLOSED first (so files aren't locked) ---
-echo Before continuing, please CLOSE the Revival AI app if it is open.
+echo Before continuing, please CLOSE the Twin Text Platform app if it is open.
 echo (Also close any black "npm start" window.)
 echo.
 pause
@@ -75,7 +75,7 @@ exit /b 0
 :fail
 echo.
 echo [!] Something went wrong. Two common fixes:
-echo     - Make sure the Revival AI app is fully CLOSED, then run again.
+echo     - Make sure the Twin Text Platform app is fully CLOSED, then run again.
 echo     - If it mentions "symbolic link" or "winCodeSign", turn on
 echo       Windows Developer Mode (Settings ^> Privacy ^& security ^>
 echo       For developers ^> Developer Mode = On), then run again.

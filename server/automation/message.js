@@ -1,7 +1,7 @@
 // Approved revival text messages — one per company source.
 //
 // DO NOT MODIFY THESE STRINGS. They are the exact, compliance-approved copy for
-// the High Equity Lead Revival Text Campaign. They are frozen so no other code
+// the Twin Text Platform lead text-revival campaign. They are frozen so no other code
 // path can alter them, and their integrity is checksummed at startup.
 
 export const COMPANY = Object.freeze({

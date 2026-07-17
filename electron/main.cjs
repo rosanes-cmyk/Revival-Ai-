@@ -1,4 +1,4 @@
-// Electron desktop wrapper for the High Equity Lead Revival Dashboard.
+// Electron desktop wrapper for the Twin Text Platform dashboard.
 //
 // This turns the web dashboard into a real double-click desktop application:
 // it starts the existing Express server in the background, waits for it to be
@@ -66,7 +66,7 @@ function startServer() {
   try {
     const logPath = path.join(app.getPath("userData"), "revival-server.log");
     logStream = fs.createWriteStream(logPath, { flags: "w" });
-    logStream.write(`Revival AI server log — ${new Date().toISOString()}\nEntry: ${SERVER_ENTRY}\n\n`);
+    logStream.write(`Twin Text Platform server log — ${new Date().toISOString()}\nEntry: ${SERVER_ENTRY}\n\n`);
     serverLogPath = logPath;
   } catch {
     /* ignore */
@@ -117,7 +117,7 @@ function openInAppBrowser(url) {
   linkWindow = new BrowserWindow({
     width: 1200,
     height: 850,
-    title: "Revival AI — Web",
+    title: "Twin Text Platform — Web",
     autoHideMenuBar: true,
     webPreferences: {
       partition: "persist:revival-web", // remembers REI/Redfin logins
@@ -136,7 +136,7 @@ function createWindow() {
     minWidth: 1000,
     minHeight: 640,
     backgroundColor: "#0b0b0d",
-    title: "Revival AI — High Equity Lead Revival",
+    title: "Twin Text Platform",
     icon: path.join(APP_ROOT, "build", "icon.png"),
     autoHideMenuBar: true,
     webPreferences: { contextIsolation: true, nodeIntegration: false },
@@ -155,7 +155,7 @@ function createWindow() {
   });
 
   const loading = `data:text/html,${encodeURIComponent(
-    `<body style="margin:0;background:#0b0b0d;color:#eaeaea;font-family:Segoe UI,Arial,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh"><div style="text-align:center"><div style="font-size:22px;margin-bottom:8px">High Equity Lead Revival</div><div style="opacity:.7">Starting the dashboard…</div></div></body>`
+    `<body style="margin:0;background:#0b0b0d;color:#eaeaea;font-family:Segoe UI,Arial,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh"><div style="text-align:center"><div style="font-size:22px;margin-bottom:8px">Twin Text Platform</div><div style="opacity:.7">Starting the dashboard…</div></div></body>`
   )}`;
   mainWindow.loadURL(loading);
 
