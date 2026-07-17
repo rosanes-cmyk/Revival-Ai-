@@ -392,9 +392,15 @@ export class ReiBlackBookAdapter {
 
     const lastMessageFailed = detectFailed(history.latestText);
     const approved = getApprovedMessage(companySource);
-    const alreadySentApproved = approved
-      ? history.fullText.toLowerCase().includes(approved.toLowerCase())
-      : false;
+    // Cross-machine duplicate guard: if OUR revival text is already anywhere in
+    // this contact's REI conversation, don't send again — no matter which
+    // computer sent it or which company (EQT/THB) wording was used. Match on the
+    // distinctive phrase common to both approved messages, plus the exact text.
+    const hist = history.fullText.toLowerCase();
+    const revivalNeedle = "contacted us before about selling your home";
+    const alreadySentApproved =
+      hist.includes(revivalNeedle) ||
+      (approved ? hist.includes(approved.toLowerCase()) : false);
 
     return {
       matchStatus: undefined,
@@ -545,6 +551,10 @@ export class ReiBlackBookAdapter {
       if (await this.isVisible(tab, 800)) {
         await this.click(tab).catch(() => {});
         await this.page.waitForTimeout(500);
+        // On the chat/text tab, scroll the conversation to the top so OLDER
+        // messages (e.g. a revival text sent earlier this month) load into the
+        // DOM and are included below — the duplicate guard depends on this.
+        if (tab === h.chatTab) await this._scrollChatToTop();
       }
       const t = await this.textOf(h.contentArea);
       if (t) text += "\n" + t;
@@ -554,6 +564,36 @@ export class ReiBlackBookAdapter {
     }
     const trimmed = text.trim();
     return { readable: true, fullText: trimmed, latestText: trimmed };
+  }
+
+  // Scroll the chat/message list to the very top so lazy-loaded older messages
+  // render. Finds the tallest scrollable element (the message log) and scrolls
+  // it up repeatedly until it stops growing or reaches the top. Best-effort.
+  async _scrollChatToTop() {
+    try {
+      let lastHeight = -1;
+      for (let i = 0; i < 14; i++) {
+        const info = await this.page.evaluate(() => {
+          let best = null, bestH = 0;
+          for (const el of document.querySelectorAll("div,section,main,ul,ol")) {
+            const s = getComputedStyle(el);
+            if (!/(auto|scroll)/.test(s.overflowY)) continue;
+            if (el.scrollHeight - el.clientHeight > 40 && el.scrollHeight > bestH) {
+              best = el; bestH = el.scrollHeight;
+            }
+          }
+          if (!best) return { atTop: true, height: 0 };
+          const atTop = best.scrollTop <= 0;
+          best.scrollTop = 0;
+          return { atTop, height: best.scrollHeight };
+        });
+        if (!info || (info.atTop && info.height === lastHeight)) break;
+        lastHeight = info.height;
+        await this.page.waitForTimeout(350);
+      }
+    } catch {
+      /* best effort — if scrolling fails we still read what's visible */
+    }
   }
 
   // Enumerate contact-record URLs from the REI Contacts list. Collects every
