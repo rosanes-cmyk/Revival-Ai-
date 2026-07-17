@@ -13,6 +13,8 @@ import {
   SAFETY_TAG_RULES,
   BLOCKING_PHRASES,
   FAILED_MARKERS,
+  OPTOUT_REGEX,
+  DO_NOT_AUTOMATE_REGEX,
 } from "./constants.js";
 import { getApprovedMessage, normalizeCompany } from "./message.js";
 
@@ -183,6 +185,17 @@ const BAD_CONTACT_OUTCOMES = [
  * escalated to Bad Lead (SOP: clearly a junk lead to delete).
  */
 export function evaluateSafety(tags, historyText) {
+  // Combine tags + notes + conversation history into one text to scan (the
+  // suppression spec: read all three together).
+  const tagText = (tags || []).join("  |  ");
+  const combined = `${tagText}\n${historyText || ""}`;
+  const lower = combined.toLowerCase();
+
+  // 0) Do Not Automate — highest precedence. Skip the lead entirely.
+  if (DO_NOT_AUTOMATE_REGEX.test(lower)) {
+    return { outcome: DISPOSITION.OPTED_OUT, reason: "Do Not Automate — suppressed", badTags: [] };
+  }
+
   // Collect every bad tag that matches, remembering its rule outcome.
   const hits = [];
   const seen = new Set();
@@ -211,14 +224,41 @@ export function evaluateSafety(tags, historyText) {
     return { outcome: first.outcome, reason: `Tag: ${first.tag}`, badTags: hits.map((h) => h.tag) };
   }
 
-  // Blocking phrases in history (SOP step 10), in precedence order.
-  const text = String(historyText || "").toLowerCase();
+  // Broad opt-out / do-not-contact anywhere in tags + notes + history.
+  const optMatch = lower.match(OPTOUT_REGEX);
+  if (optMatch) {
+    return { outcome: DISPOSITION.OPTED_OUT, reason: `Opt-out signal: "${optMatch[0].trim()}"`, badTags: [] };
+  }
+  // A standalone, uppercase STOP is a lead's SMS opt-out — but ignore the
+  // instructional footer ("reply STOP to opt out") that appears in outbound.
+  if (detectStopReply(combined)) {
+    return { outcome: DISPOSITION.OPTED_OUT, reason: "SMS opt-out: STOP reply", badTags: [] };
+  }
+
+  // Remaining blocking phrases in history (SOP step 10), in precedence order.
   for (const outcome of [DISPOSITION.OPTED_OUT, DISPOSITION.NOT_INTERESTED, DISPOSITION.WRONG_NUMBER]) {
     for (const phrase of BLOCKING_PHRASES[outcome]) {
-      if (containsPhrase(text, phrase)) return { outcome, reason: `History phrase: "${phrase}"`, badTags: [] };
+      if (containsPhrase(lower, phrase)) return { outcome, reason: `History phrase: "${phrase}"`, badTags: [] };
     }
   }
   return { outcome: null, reason: "", badTags: [] };
+}
+
+/**
+ * True if the text contains a genuine standalone uppercase "STOP" (a lead's SMS
+ * opt-out reply), excluding the instructional footer wording found in outbound
+ * messages ("reply STOP to opt out", "text STOP to unsubscribe", etc.).
+ */
+function detectStopReply(text) {
+  const t = String(text || "");
+  const re = /(?:^|[^A-Za-z])STOP(?:[^A-Za-z]|$)/g;
+  let m;
+  while ((m = re.exec(t)) !== null) {
+    const ctx = t.slice(Math.max(0, m.index - 22), m.index + 26).toLowerCase();
+    if (/reply stop|text stop|send stop|stop to (?:opt|unsub|stop)|'stop'|"stop"/.test(ctx)) continue;
+    return true;
+  }
+  return false;
 }
 
 /** Whole-word / phrase match to avoid false hits like "stop" in "stopwatch". */

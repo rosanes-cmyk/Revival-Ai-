@@ -178,6 +178,16 @@ export const BLOCKING_PHRASES = Object.freeze({
   [DISPOSITION.WRONG_NUMBER]: ["wrong number"],
 });
 
+// Broad opt-out / do-not-contact detector, scanned against the COMBINED text of
+// tags + notes + conversation history. Catches phrasings the tag/phrase lists
+// miss. NOTE: physical-mail-only "do not mail" is intentionally excluded — per
+// the SOP it does not block texting. (Toggle in one place here if that changes.)
+export const OPTOUT_REGEX =
+  /\b(?:unsubscribe|do ?not ?(?:call|text|e-?mail|contact|automate|market|solicit)|opt(?:ed)? ?out|remove me|remove from (?:the )?list|dnc|no (?:more )?(?:texts?|calls?|e-?mails?|contact)|stop (?:texting|calling|contacting|messaging))\b/i;
+
+// "Do Not Automate" — skip the lead entirely (highest precedence).
+export const DO_NOT_AUTOMATE_REGEX = /\bdo ?not ?automate\b/i;
+
 // Markers that indicate the latest outbound message failed / was undelivered.
 export const FAILED_MARKERS = Object.freeze([
   "failed",
