@@ -640,20 +640,50 @@ export class ReiBlackBookAdapter {
     };
 
     await collect();
+    // Try to click a "next page" control. REI uses numbered pages with a "›"
+    // arrow, so we look broadly: aria/title "next", Next text, chevron glyphs
+    // (› » →), and common pagination classes. Returns true if a click happened.
+    const clickNext = async () => {
+      const selectors = [
+        "[aria-label*='next' i]:not([disabled])",
+        "[title*='next' i]:not([disabled])",
+        "button:has-text('Next'):not([disabled])",
+        "a:has-text('Next')",
+        ".pagination-next:not(.disabled)",
+        "li.next:not(.disabled) a",
+        "nav[aria-label*='pag' i] button:last-child:not([disabled])",
+        "[class*='pagination'] button:last-child:not([disabled])",
+      ];
+      for (const sel of selectors) {
+        const el = this.page.locator(sel).first();
+        if ((await el.count().catch(() => 0)) > 0 && (await el.isVisible().catch(() => false)) && !(await el.isDisabled().catch(() => true))) {
+          await el.click().catch(() => {});
+          return true;
+        }
+      }
+      // Fallback: a clickable element whose trimmed text is a right-arrow glyph.
+      const glyph = await this.page.evaluate(() => {
+        const arrows = ["›", "»", "→", ">"];
+        const els = Array.from(document.querySelectorAll("button, a, li, span"));
+        const hit = els.find((e) => arrows.includes((e.textContent || "").trim()) &&
+          !e.hasAttribute("disabled") && !/disabled/i.test(e.className || ""));
+        if (hit) { hit.click(); return true; }
+        return false;
+      }).catch(() => false);
+      return glyph;
+    };
+
     let stagnant = 0;
     while (urls.size < max && stagnant < 6) {
       const before = urls.size;
-      // Infinite-scroll style: scroll the window and any inner scroll area.
+      // Infinite-scroll style: scroll the window in case the list lazy-loads.
       await this.page.evaluate(() => window.scrollTo(0, document.body.scrollHeight)).catch(() => {});
-      await this.page.waitForTimeout(1200);
+      await this.page.waitForTimeout(900);
       await collect();
-      // Pagination style: click a Next control if present.
-      const next = this.page
-        .locator("[aria-label*='next' i], button:has-text('Next'), a:has-text('Next'), .pagination-next, li.next a")
-        .first();
-      if ((await next.count().catch(() => 0)) > 0 && (await next.isVisible().catch(() => false)) && !(await next.isDisabled().catch(() => false))) {
-        await next.click().catch(() => {});
-        await this.page.waitForTimeout(1500);
+      // Numbered-pagination style: advance to the next page.
+      const advanced = await clickNext();
+      if (advanced) {
+        await this.page.waitForTimeout(1600);
         await collect();
       }
       if (urls.size === before) stagnant++;
