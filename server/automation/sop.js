@@ -144,12 +144,13 @@ export function decide(facts) {
     });
   }
 
-  // Step 15: same approved message already sent before (read from REI's chat —
-  // the actual logged-in account, never a local file). If REI shows we sent it
-  // THIS calendar month, label it "Texted This Month"; otherwise "Already
-  // Contacted" (sent in a prior month — still don't repeat the same text).
+  // Step 15: approved revival message already in REI's chat (read from the
+  // actual logged-in account, never a local file). Rule: only block WITHIN THE
+  // SAME calendar month. A send from a prior month is allowed to re-engage this
+  // month (monthly re-engagement).
   if (facts.alreadySentApproved) {
     if (facts.revivalSentThisMonth) {
+      // Sent THIS month → skip (no repeat in the same month).
       return out(DISPOSITION.TEXTED_THIS_MONTH, {
         eligibility: ELIGIBILITY.NOT_ELIGIBLE,
         notes: facts.revivalSentAt
@@ -158,11 +159,17 @@ export function decide(facts) {
         complianceResult: "Texted this month (per REI) - skipped",
       });
     }
-    return out(DISPOSITION.ALREADY_CONTACTED, {
-      eligibility: ELIGIBILITY.NOT_ELIGIBLE,
-      notes: "REI chat shows the approved revival message was already sent to this lead.",
-      complianceResult: "Already contacted",
-    });
+    if (!facts.revivalSentAt) {
+      // Message is present but we could NOT read a date next to it, so we can't
+      // prove it was a prior month. Don't risk a same-month duplicate — skip.
+      return out(DISPOSITION.ALREADY_CONTACTED, {
+        eligibility: ELIGIBILITY.NOT_ELIGIBLE,
+        notes: "REI chat shows the revival text was already sent (date unreadable) — skipped to be safe against a repeat.",
+        complianceResult: "Already contacted (undated)",
+      });
+    }
+    // Otherwise the revival text was sent in a PRIOR month → allowed to
+    // re-engage this month. Fall through and continue the remaining checks.
   }
 
   // Step 17 clean conditions: a usable phone must exist and the company source

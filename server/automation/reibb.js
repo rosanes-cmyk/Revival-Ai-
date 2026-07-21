@@ -1369,7 +1369,7 @@ function nearestDateToPhrase(text, phrase) {
   const p = String(phrase || "").toLowerCase();
   if (!p) return null;
   const lower = t.toLowerCase();
-  const WIN = 200; // chars on each side of the phrase to search for a date
+  const WIN = 400; // chars on each side of the phrase to search for a date
   const dates = [];
   let idx = lower.indexOf(p);
   while (idx !== -1) {
