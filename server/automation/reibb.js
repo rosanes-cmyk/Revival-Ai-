@@ -625,11 +625,47 @@ export class ReiBlackBookAdapter {
   // /contacts/<id> link, then scrolls / clicks "Next" to load more, until no
   // new ones appear or `max` is reached. DOM-tolerant (keys off the id in the
   // href). Returns an array of absolute contact URLs.
+  // Set the contacts list to show as many per page as possible (100) so there
+  // are far fewer pages to walk. Best-effort: native <select> first, then a
+  // custom dropdown. Returns true if it set it.
+  async setPerPage(n = 100) {
+    try {
+      const selects = this.page.locator("select");
+      const cnt = await selects.count().catch(() => 0);
+      for (let i = 0; i < cnt; i++) {
+        const s = selects.nth(i);
+        const opts = (await s.locator("option").allTextContents().catch(() => [])).map((t) => t.trim());
+        if (opts.includes(String(n))) {
+          await s.selectOption(String(n)).catch(() => {});
+          await this.page.waitForTimeout(1800);
+          return true;
+        }
+      }
+      // Custom (Chakra) dropdown: click a per-page trigger, then the option.
+      const trigger = this.page
+        .locator("[data-testid*='per' i], [aria-label*='per page' i], [class*='chakra-select__wrapper'] select")
+        .first();
+      if ((await trigger.count().catch(() => 0)) > 0) {
+        await trigger.click().catch(() => {});
+        await this.page.waitForTimeout(500);
+        const opt = this.page.locator(`[role='option']:has-text("${n}"), li:has-text("${n}"), button:text-is("${n}")`).first();
+        if ((await opt.count().catch(() => 0)) > 0) {
+          await opt.click().catch(() => {});
+          await this.page.waitForTimeout(1800);
+          return true;
+        }
+      }
+    } catch { /* best effort */ }
+    return false;
+  }
+
   async enumerateContactIds(max = 10000, onProgress = null) {
     const urls = new Set();
     const url = this.contactsUrl || "https://my.reiblackbook.com/contacts";
     await this.page.goto(url, { waitUntil: "domcontentloaded" }).catch(() => {});
     await this.page.waitForTimeout(2000);
+    // Show 100 per page (fewer pages to walk = much faster collection).
+    await this.setPerPage(100);
     let origin = "https://my.reiblackbook.com";
     try { origin = new URL(this.page.url()).origin; } catch { /* default */ }
 
