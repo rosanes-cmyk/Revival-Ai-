@@ -684,71 +684,10 @@ export class ReiBlackBookAdapter {
       return glyph;
     };
 
-    // Click the "previous page" control (mirror of next).
-    const clickPrev = async () => {
-      const selectors = [
-        "button[data-testid='prev']:not([disabled])",
-        "[data-testid='prev']:not([disabled])",
-        "[data-testid='pagination-prev']:not([disabled])",
-        "[aria-label*='prev' i]:not([disabled])",
-        "button:has-text('Prev'):not([disabled])",
-      ];
-      for (const sel of selectors) {
-        const el = this.page.locator(sel).first();
-        if ((await el.count().catch(() => 0)) > 0 && (await el.isVisible().catch(() => false)) && !(await el.isDisabled().catch(() => true))) {
-          await el.click().catch(() => {});
-          return true;
-        }
-      }
-      return false;
-    };
-
-    // Jump straight to the LAST page (oldest) with a REAL click on the highest
-    // page number (waits for it to be ready — a synthetic click doesn't take).
-    const jumpToLastPage = async () => {
-      await this.page.waitForTimeout(1200);
-      const maxN = await this.page.evaluate(() => {
-        let m = 1;
-        for (const el of document.querySelectorAll("button, a")) {
-          const t = (el.textContent || "").trim();
-          if (/^\d{1,5}$/.test(t)) { const v = parseInt(t, 10); if (v > m) m = v; }
-        }
-        return m;
-      }).catch(() => 1);
-      if (maxN <= 1) return 0;
-      const btn = this.page.locator(`button:text-is("${maxN}"), a:text-is("${maxN}")`).first();
-      try {
-        await btn.scrollIntoViewIfNeeded().catch(() => {});
-        await btn.click({ timeout: 5000 });
-        await this.page.waitForTimeout(2200);
-        return maxN;
-      } catch { return 0; }
-    };
-
-    // STRATEGY A — start at the OLDEST: jump to the last page, then walk BACKWARD
-    // with "prev". Collection order is oldest -> newest (return as-is).
-    const jumped = await jumpToLastPage();
-    if (jumped > 1) {
-      await collect();
-      let stagnant = 0;
-      while (urls.size < max && stagnant < 6) {
-        const before = urls.size;
-        if (!(await clickPrev())) break;
-        await this.page.waitForTimeout(1400);
-        await collect();
-        if (urls.size === before) stagnant++; else stagnant = 0;
-        if (onProgress) onProgress(urls.size);
-      }
-      if (urls.size > 25) return Array.from(urls).slice(0, max); // oldest -> newest
-      // Jump worked but backward walk stalled — fall through and do it forward.
-    }
-
-    // STRATEGY B (reliable fallback) — reset to page 1 and walk FORWARD with the
-    // confirmed next button, then reverse so the OLDEST come first.
-    await this.page.goto(url, { waitUntil: "domcontentloaded" }).catch(() => {});
-    await this.page.waitForTimeout(1500);
-    urls.clear();
-    await collect();
+    // Walk FORWARD through every page with the confirmed next button
+    // (data-testid='next'), collecting all contact links. REI shows newest on
+    // page 1 and oldest on the last page, so the collected order is newest ->
+    // oldest; we reverse it at the end so the automation works the OLDEST first.
     let stagnant = 0;
     while (urls.size < max && stagnant < 6) {
       const before = urls.size;
