@@ -431,6 +431,8 @@ export class AutomationEngine extends EventEmitter {
       row.searchMethod = searchMethod;
       row.reiMatchStatus = matchStatus;
       if (facts.contactUrl) row.reiContactUrl = facts.contactUrl;
+      // Fill the owner name from REI when the row didn't have one (pulled leads).
+      if (!row.ownerName && facts.ownerName) row.ownerName = facts.ownerName;
 
       const decision = decide(facts);
       row.propertyStatus = decision.propertyStatus;

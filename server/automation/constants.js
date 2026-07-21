@@ -116,12 +116,17 @@ export const SAFETY_TAG_RULES = Object.freeze([
   { match: "bad comments", outcome: DISPOSITION.OPTED_OUT },
   { match: "cursed and reported", outcome: DISPOSITION.OPTED_OUT },
 
-  // Property already sold / closed (report as Property Sold — no text).
+  // Property already sold / closed / bought by us (report as Property Sold — no text).
   { match: "sold", outcome: DISPOSITION.PROPERTY_SOLD },
   { match: "deal closed", outcome: DISPOSITION.PROPERTY_SOLD },
   { match: "under contract", outcome: DISPOSITION.PROPERTY_SOLD },
   { match: "contract signed", outcome: DISPOSITION.PROPERTY_SOLD },
   { match: "signed contract", outcome: DISPOSITION.PROPERTY_SOLD },
+  { match: "acquired", outcome: DISPOSITION.PROPERTY_SOLD },
+  { match: "purchased", outcome: DISPOSITION.PROPERTY_SOLD },
+  { match: "we bought", outcome: DISPOSITION.PROPERTY_SOLD },
+  { match: "in escrow", outcome: DISPOSITION.PROPERTY_SOLD },
+  { match: "closed won", outcome: DISPOSITION.PROPERTY_SOLD },
 
   // Property listed / on market (report as Listed — no text).
   { match: "already listed", outcome: DISPOSITION.LISTED },

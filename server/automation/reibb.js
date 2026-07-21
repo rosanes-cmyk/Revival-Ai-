@@ -359,6 +359,9 @@ export class ReiBlackBookAdapter {
     const reiPhone = await this.readPhone();
     const phoneExists = looksLikePhone(reiPhone) || looksLikePhone(lead.phone);
 
+    // Contact name — so pulled-from-REI leads show a name in the table.
+    const contactName = await this.readContactName();
+
     // Property status (SOP steps 6-8).
     const ps = cr.propertyStatus;
     const propertySold = await this.isVisible(ps.soldMarker, 800);
@@ -421,6 +424,7 @@ export class ReiBlackBookAdapter {
       mlsNote,
       phoneExists,
       phone: reiPhone || lead.phone || "",
+      ownerName: contactName || "",
       historyText: history.fullText,
       lastMessageFailed,
       alreadySentApproved,
@@ -656,7 +660,11 @@ export class ReiBlackBookAdapter {
       else stagnant = 0;
       if (onProgress) onProgress(urls.size);
     }
-    return Array.from(urls).slice(0, max);
+    // Order OLDEST -> LATEST: REI contact ids are sequential, so a lower id means
+    // an older contact. Sort ascending so the automation backtracks in order
+    // (oldest first), one by one — never randomly.
+    const idOf = (u) => { const m = String(u).match(/\/contacts\/(\d+)/i); return m ? Number(m[1]) : Number.MAX_SAFE_INTEGER; };
+    return Array.from(urls).sort((a, b) => idOf(a) - idOf(b)).slice(0, max);
   }
 
   // Read a pulled contact's facts by navigating directly to its URL (no search).
@@ -955,6 +963,32 @@ export class ReiBlackBookAdapter {
   // 1) the configured phone selector, 2) any tel: link's number, 3) a phone
   // pattern anywhere in the visible page text. Returns the digits-string of the
   // first phone found, or "" if none. Survives class-name changes.
+  // Best-effort read of the contact's display name so pulled-from-REI leads
+  // show a name in the table. Tries common name headings, then the page title.
+  async readContactName() {
+    const bad = /rei\s*blackbook|dashboard|contacts?|home|tag\(s\)|activities|notes|about/i;
+    const tries = [
+      "[class*='contact-name']", "[class*='ContactName']", "[class*='profile-name']",
+      "[data-testid*='name']", "header h1", "h1", "h2",
+    ];
+    for (const sel of tries) {
+      try {
+        const el = this.page.locator(sel).first();
+        if ((await el.count().catch(() => 0)) && (await el.isVisible().catch(() => false))) {
+          const t = ((await el.innerText().catch(() => "")) || "").trim().replace(/\s+/g, " ");
+          if (t && t.length >= 2 && t.length <= 60 && /[a-z]/i.test(t) && !bad.test(t)) return t;
+        }
+      } catch { /* try next */ }
+    }
+    try {
+      const title = ((await this.page.title().catch(() => "")) || "")
+        .replace(/\s*[-|].*$/i, "")
+        .trim();
+      if (title && title.length <= 60 && !bad.test(title)) return title;
+    } catch { /* ignore */ }
+    return "";
+  }
+
   async readPhone() {
     const cr = this.selectors.contactRecord;
     // 1) Configured selector.
