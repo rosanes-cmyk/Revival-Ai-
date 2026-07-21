@@ -17,6 +17,7 @@ export const DISPOSITION = Object.freeze({
   BAD_LEAD: "Bad Lead",
   OUT_OF_STATE: "Out of State",
   TEXTED_THIS_MONTH: "Texted This Month",
+  RECENT_CONTACT: "Recent Contact",
   NEEDS_REVIEW: "Needs Review",
   ERROR: "Error",
 });
@@ -52,6 +53,7 @@ export const TERMINAL_DISPOSITIONS = Object.freeze([
   DISPOSITION.BAD_LEAD,
   DISPOSITION.OUT_OF_STATE,
   DISPOSITION.TEXTED_THIS_MONTH,
+  DISPOSITION.RECENT_CONTACT,
 ]);
 
 export const ELIGIBILITY = Object.freeze({
@@ -187,6 +189,16 @@ export const OPTOUT_REGEX =
 
 // "Do Not Automate" — skip the lead entirely (highest precedence).
 export const DO_NOT_AUTOMATE_REGEX = /\bdo ?not ?automate\b/i;
+
+// Active-deal tags: the lead is further along (an appointment is booked or an
+// offer went out). We only re-engage these with a revival text if the deal has
+// gone COLD (no conversation for ~a month); if there was contact within the
+// month, we skip so we don't step on an active negotiation.
+export const ACTIVE_DEAL_TAG_REGEX =
+  /\b(appointment\s*(?:booked|set|scheduled)|appt\s*(?:booked|set)|offer\s*(?:sent|made|submitted|out)|under\s*(?:contract\s*)?negotiation|in\s*negotiation)\b/i;
+
+// A conversation is "recent" if the last message was within this many days.
+export const RECENT_CONVERSATION_DAYS = Number(process.env.RECENT_CONVERSATION_DAYS || 31);
 
 // Markers that indicate the latest outbound message failed / was undelivered.
 export const FAILED_MARKERS = Object.freeze([

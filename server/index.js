@@ -183,6 +183,7 @@ function reportBlock(title, subtitle, s) {
     ["Failed Number", s.failedNumber, "#6b7280"],
     ["Already Contacted", s.alreadyContacted, "#94a3b8"],
     ["Texted This Month", s.textedThisMonth, "#0ea5e9"],
+    ["Recent Contact (active deal)", s.recentContact, "#8b5cf6"],
     ["Bad Lead", s.badLead, "#6b7280"],
     ["Out of State", s.outOfState, "#6b7280"],
     ["Lead NOT Found", s.leadNotFound, "#6b7280"],

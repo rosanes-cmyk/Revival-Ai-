@@ -16,6 +16,7 @@ import {
   OPTOUT_REGEX,
   DO_NOT_AUTOMATE_REGEX,
 } from "./constants.js";
+import { RECENT_CONVERSATION_DAYS } from "./constants.js";
 import { getApprovedMessage, normalizeCompany } from "./message.js";
 
 /**
@@ -116,6 +117,22 @@ export function decide(facts) {
     if (safety.outcome === DISPOSITION.PROPERTY_SOLD) extra.propertyStatus = "Sold (tag)";
     if (safety.outcome === DISPOSITION.LISTED) extra.propertyStatus = "Listed (tag)";
     return out(safety.outcome, extra);
+  }
+
+  // Active-deal tags (appointment booked / offer sent): only re-engage if the
+  // conversation has gone COLD (~a month+). If there was contact within the
+  // month — or we can't confirm it's stale — skip, so we don't step on an
+  // active negotiation.
+  if (facts.activeDealTag) {
+    if (facts.lastConversationWithinMonth !== false) {
+      const when = facts.lastConversationAt ? ` (last contact ${String(facts.lastConversationAt).slice(0, 10)})` : "";
+      return out(DISPOSITION.RECENT_CONTACT, {
+        eligibility: ELIGIBILITY.NOT_ELIGIBLE,
+        notes: `Appointment-booked / offer-sent lead with recent or unconfirmed conversation${when} — skipped so the revival text doesn't interfere with an active deal.`,
+        complianceResult: "Active deal - recent contact (skip)",
+      });
+    }
+    // Cold for ~a month+: allow the revival text to re-engage (fall through).
   }
 
   // Step 14: latest outbound failed / undelivered.

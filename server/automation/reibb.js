@@ -14,7 +14,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { chromium } from "playwright";
-import { MATCH_STATUS, SEARCH_METHOD } from "./constants.js";
+import { MATCH_STATUS, SEARCH_METHOD, ACTIVE_DEAL_TAG_REGEX, RECENT_CONVERSATION_DAYS } from "./constants.js";
 import { detectFailed } from "./sop.js";
 import { getApprovedMessage } from "./message.js";
 
@@ -402,6 +402,16 @@ export class ReiBlackBookAdapter {
       hist.includes(revivalNeedle) ||
       (approved ? hist.includes(approved.toLowerCase()) : false);
 
+    // Active-deal recency: for appointment-booked / offer-sent contacts, find the
+    // most recent conversation date so the SOP can decide re-engage vs. skip.
+    const activeDealTag = ACTIVE_DEAL_TAG_REGEX.test((tags || []).join(" ") + " " + hist);
+    const lastConversationAt = parseLatestDate(history.fullText);
+    let lastConversationWithinMonth = null; // null = unknown
+    if (lastConversationAt) {
+      const ageDays = (Date.now() - lastConversationAt.getTime()) / 86400000;
+      lastConversationWithinMonth = ageDays >= 0 && ageDays <= RECENT_CONVERSATION_DAYS;
+    }
+
     return {
       matchStatus: undefined,
       tags,
@@ -414,6 +424,9 @@ export class ReiBlackBookAdapter {
       historyText: history.fullText,
       lastMessageFailed,
       alreadySentApproved,
+      activeDealTag,
+      lastConversationAt: lastConversationAt ? lastConversationAt.toISOString() : "",
+      lastConversationWithinMonth,
       companySource,
       contactUrl,
       uncertain: false,
@@ -1021,6 +1034,36 @@ function houseAndStreet(address) {
 
 function looksLikePhone(v) {
   return (String(v || "").replace(/\D/g, "").length >= 7);
+}
+
+// Best-effort: find the MOST RECENT date mentioned in a contact's history text
+// (chat/activity). Handles "Jul 9, 2026", "July 9 2026", "7/9/2026", "7/9/26",
+// and relative "Today"/"Yesterday". Returns a Date or null if none found.
+function parseLatestDate(text) {
+  const t = String(text || "");
+  const now = new Date();
+  const found = [];
+  const MONTHS = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
+  let m;
+  const reMonth = /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2}),?\s+(\d{4})\b/gi;
+  while ((m = reMonth.exec(t))) {
+    const mo = MONTHS[m[1].toLowerCase().slice(0, 3)];
+    const d = new Date(Number(m[3]), mo, Number(m[2]));
+    if (!isNaN(d.getTime())) found.push(d);
+  }
+  const reNum = /\b(\d{1,2})\/(\d{1,2})\/(\d{2,4})\b/g;
+  while ((m = reNum.exec(t))) {
+    let y = Number(m[3]);
+    if (y < 100) y += 2000;
+    const d = new Date(y, Number(m[1]) - 1, Number(m[2]));
+    if (!isNaN(d.getTime())) found.push(d);
+  }
+  if (/\btoday\b/i.test(t)) found.push(new Date(now.getFullYear(), now.getMonth(), now.getDate()));
+  if (/\byesterday\b/i.test(t)) { const d = new Date(now); d.setDate(d.getDate() - 1); found.push(d); }
+  // Ignore obviously-future dates (parse noise); keep the newest sane one.
+  const sane = found.filter((d) => d.getTime() <= now.getTime() + 86400000);
+  if (!sane.length) return null;
+  return new Date(Math.max(...sane.map((d) => d.getTime())));
 }
 
 function uncertain(reason) {

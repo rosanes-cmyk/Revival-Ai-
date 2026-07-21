@@ -125,6 +125,7 @@ export function summarizeRows(rows) {
     badLead: count(DISPOSITION.BAD_LEAD),
     outOfState: count(DISPOSITION.OUT_OF_STATE),
     textedThisMonth: count(DISPOSITION.TEXTED_THIS_MONTH),
+    recentContact: count(DISPOSITION.RECENT_CONTACT),
     needsReview: count(DISPOSITION.NEEDS_REVIEW),
     errors: count(DISPOSITION.ERROR),
   };
