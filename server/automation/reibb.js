@@ -690,11 +690,15 @@ export class ReiBlackBookAdapter {
       else stagnant = 0;
       if (onProgress) onProgress(urls.size);
     }
-    // Order OLDEST -> LATEST: REI contact ids are sequential, so a lower id means
-    // an older contact. Sort ascending so the automation backtracks in order
-    // (oldest first), one by one — never randomly.
-    const idOf = (u) => { const m = String(u).match(/\/contacts\/(\d+)/i); return m ? Number(m[1]) : Number.MAX_SAFE_INTEGER; };
-    return Array.from(urls).sort((a, b) => idOf(a) - idOf(b)).slice(0, max);
+    // Order OLDEST -> NEWEST following REI's OWN list order. REI shows the newest
+    // on page 1 and the OLDEST on the last page, and we collect page 1 first, so
+    // the collected order is newest -> oldest. Reverse it so the automation works
+    // the oldest (last-page) contacts FIRST, one by one — matching what you see
+    // in REI (start at the last page). Set REI_PULL_ORDER=asis to keep REI order.
+    const list = Array.from(urls).slice(0, max);
+    return String(process.env.REI_PULL_ORDER || "oldest").toLowerCase() === "asis"
+      ? list
+      : list.reverse();
   }
 
   // Read a pulled contact's facts by navigating directly to its URL (no search).
