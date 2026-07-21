@@ -40,44 +40,6 @@
         <div class="msg-body" id="approvedETI" style="margin-top:8px;">…</div>
       </section>
 
-      <!-- How leads are decided (reference; click to expand) -->
-      <details class="rules-panel">
-        <summary>📋 How leads are decided — who gets texted</summary>
-        <div class="rules-body">
-          <p class="rules-note">Checked in order; stops at the first that applies.</p>
-          <ol class="rules-flow">
-            <li><b>In California?</b> No → ❌ Out of State</li>
-            <li><b>Found in REI?</b> (address → owner → phone → email) No → ❌ Lead NOT Found</li>
-            <li><b>Contact readable?</b> No → ❌ Lead NOT Found (never guesses)</li>
-            <li><b>Sold or Listed?</b> → ❌ Sold / Listed</li>
-            <li><b>Bad-tag / opt-out scan</b> (tags + notes + full chat history):
-              <ul>
-                <li>Do Not Automate → ❌ skip</li>
-                <li>Opt-out / Do Not Contact / DNC / STOP / unsubscribe / remove me → ❌ Opted Out</li>
-                <li>Low Equity / We're Passing / Not a Fit / Not Qualified → ❌ Bad Lead</li>
-                <li>Not Interested → ❌ Not Interested</li>
-                <li>Wrong Number → ❌ Wrong Number</li>
-                <li>2+ bad tags → ❌ Bad Lead</li>
-              </ul>
-            </li>
-            <li><b>Active-deal tag?</b> (Offer Sent / Appointment Booked / Follow up):
-              <ul>
-                <li>conversation within ~a month → ❌ Recent Contact (don't disturb an active deal)</li>
-                <li>cold ~a month+ → ✅ continue (re-engage)</li>
-              </ul>
-            </li>
-            <li><b>Last text failed / undelivered?</b> → ❌ Failed Number</li>
-            <li><b>Already sent the revival text?</b> (anywhere in the REI thread) → ❌ Already Contacted</li>
-            <li><b>Already texted this month?</b> → ❌ Texted This Month</li>
-            <li><b>Usable phone?</b> No → ❌ Lead NOT Found</li>
-            <li><b>EQT or THB clear?</b> Can't tell → ⏸ held (never guesses company)</li>
-            <li><b>✅ Clean</b> → text the correct company's approved message</li>
-          </ol>
-          <div class="rules-cta rules-yes"><b>✅ WILL be texted (all true):</b> CA · found &amp; readable · not sold/listed · no opt-out / do-not-automate / low-equity / passing / not-interested / wrong-number / bad tags · not an active deal with recent contact · last text didn't fail · not already sent &amp; not texted this month · has phone · company is EQT or THB · Live Sending ON</div>
-          <div class="rules-cta rules-no"><b>❌ will NOT be texted (any one):</b> out of state · not found · sold/listed · Do Not Automate · opted out/DNC/STOP · low equity / we're passing / not a fit · not interested · wrong number · bad lead · active deal with recent contact · failed number · already contacted · texted this month · no phone · company unclear</div>
-        </div>
-      </details>
-
       <!-- Upload -->
       <section class="card upload-card">
         <div class="upload-row">
