@@ -72,6 +72,13 @@
   }
   ol.steps > li b { color: var(--ink); }
   ol.steps .lbl { font-weight: 700; }
+  ol.steps ul.sub { margin: 5px 0 0; padding-left: 18px; list-style: none; }
+  ol.steps ul.sub li { position: relative; padding-left: 14px; margin: 3px 0; font-size: 13.5px; }
+  ol.steps ul.sub li::before { content: "\25AA"; position: absolute; left: 0; color: var(--accent-2); font-size: 11px; top: 1px; }
+  p.gate {
+    background: var(--shade); border-left: 4px solid var(--accent-2);
+    padding: 9px 14px; margin: 6px 0 12px; font-size: 14px; border-radius: 3px;
+  }
   ul.plain { margin: 6px 0 12px; padding-left: 20px; }
   ul.plain li { margin-bottom: 8px; }
 
@@ -109,7 +116,7 @@
     .sheet { box-shadow: none; margin: 0; max-width: none; padding: 0; }
     h2 { break-after: avoid; }
     h3 { break-after: avoid; }
-    ol.steps > li, ul.plain li, tr, .note, .msg { break-inside: avoid; }
+    ol.steps > li, ul.plain li, tr, .note, .msg, p.gate { break-inside: avoid; }
     section { break-inside: auto; }
     thead { display: table-header-group; }
   }
@@ -264,36 +271,45 @@
     </ul>
     <h3>How eligibility is decided (the full flow)</h3>
     <p class="lead-in">For each contact, the tool checks these in order and stops at the first one that applies.</p>
+    <p class="gate"><b>Is the property in California?</b> &nbsp;No → ❌ <b>Out of State.</b> We only work CA.</p>
     <ol class="steps">
-      <li><span class="lbl">In California?</span> No → Out of State.</li>
-      <li><span class="lbl">Found in REI?</span> (address → owner → phone → email) No → Lead NOT Found.</li>
-      <li><span class="lbl">Contact readable?</span> No → Lead NOT Found (never guesses).</li>
-      <li><span class="lbl">Sold or Listed?</span> → Sold / Listed.</li>
+      <li><span class="lbl">Can we find the lead in REI?</span> (searches address → owner → phone → email)<br />
+        No → ❌ Lead Not Found.</li>
+      <li><span class="lbl">Can it read the contact info clearly?</span><br />
+        No → ❌ Lead Not Found. (It never guesses a name or number.)</li>
+      <li><span class="lbl">Is the property already sold or listed?</span> (checks REI tags + Redfin)<br />
+        Yes → ❌ Sold / Listed.</li>
       <li><span class="lbl">Bad-tag / opt-out scan</span> (tags + notes + full chat history):
-        Do Not Automate → skip · Opt-out / Do Not Contact / DNC / STOP / unsubscribe / remove me → Opted Out ·
-        Low Equity / We're Passing / Not a Fit / Not Qualified → Bad Lead · Not Interested → Not Interested ·
-        Wrong Number → Wrong Number · 2+ bad tags → Bad Lead.</li>
-      <li><span class="lbl">Active-deal tag?</span> (Offer Sent / Appointment Booked / Follow up): conversation within
-        ~a month → Recent Contact (skip, don't disturb an active deal); cold ~a month+ → continue (re-engage).</li>
-      <li><span class="lbl">Last text failed / undelivered?</span> → Failed Number.</li>
-      <li><span class="lbl">Already sent the revival text?</span> (anywhere in the REI thread) → Already Contacted.</li>
-      <li><span class="lbl">Already texted this month?</span> → Texted This Month.</li>
-      <li><span class="lbl">Usable phone?</span> No → Lead NOT Found.</li>
-      <li><span class="lbl">EQT or THB clear?</span> Can't tell → held (never guesses the company).</li>
-      <li><span class="lbl">Clean</span> → text the correct company's approved message.</li>
+        <ul class="sub">
+          <li>Do Not Automate → ❌ Skip</li>
+          <li>Opt-out / Do Not Contact / DNC / STOP / unsubscribe / remove me → ❌ Opted Out</li>
+          <li>Low Equity / We're Passing / Not a Fit / Not Qualified → ❌ Bad Lead</li>
+          <li>Not Interested → ❌ Not Interested</li>
+          <li>Wrong Number → ❌ Wrong Number</li>
+          <li>2 or more bad tags → ❌ Bad Lead</li>
+        </ul>
+      </li>
+      <li><span class="lbl">Active-deal tag?</span> (Offer Sent / Appointment Booked / Follow up)
+        <ul class="sub">
+          <li>Conversation within ~a month → ❌ Recent Contact (don't disturb an active deal)</li>
+          <li>Cold for ~a month or more → ✅ Continue (safe to re-engage)</li>
+        </ul>
+      </li>
+      <li><span class="lbl">Did the last text fail or not deliver?</span><br />
+        Yes → ❌ Failed Number.</li>
+      <li><span class="lbl">Did we already send the revival text before?</span> (anywhere in the REI thread)<br />
+        Yes → ❌ Already Contacted.</li>
+      <li><span class="lbl">Have we already texted them this month?</span><br />
+        Yes → ❌ Texted This Month.</li>
+      <li><span class="lbl">Is there a usable phone number?</span><br />
+        No → ❌ Lead Not Found.</li>
+      <li><span class="lbl">Is the company clearly EQT or THB?</span><br />
+        Can't tell → ⏸ Held (it never guesses which company).</li>
+      <li><span class="lbl">Passed everything?</span><br />
+        ✅ Clean — send the correct company's approved message (EQT or THB). It's marked
+        <b>Text Sent</b> only after the send is confirmed; if it can't confirm, it's held and retried
+        (never falsely marked).</li>
     </ol>
-    <div class="note">
-      <span class="t">✅ WILL be texted — all true</span>
-      In California · found &amp; readable · not sold/listed · no opt-out / do-not-automate / low-equity / passing /
-      not-interested / wrong-number / bad tags · not an active deal with recent contact · last text didn't fail ·
-      not already sent &amp; not texted this month · has a usable phone · company is EQT or THB · Live Sending is ON.
-    </div>
-    <div class="note">
-      <span class="t">❌ will NOT be texted — any one of these</span>
-      Out of state · not found · sold/listed · Do Not Automate · opted out / DNC / STOP · low equity / we're passing
-      / not a fit · not interested · wrong number · bad lead · active deal with recent contact · failed number ·
-      already contacted · texted this month · no phone · company unclear.
-    </div>
 
     <h3>The two approved messages (locked)</h3>
     <div class="msg"><span class="who">Twin Home Buyer</span>“Hi, this is Juan with Twin Home Buyer. You contacted us before about selling your home. Are you still interested? Reply YES or NO. Thanks!”</div>
