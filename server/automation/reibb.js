@@ -720,25 +720,85 @@ export class ReiBlackBookAdapter {
       return glyph;
     };
 
-    // Walk FORWARD through every page with the confirmed next button
-    // (data-testid='next'), collecting all contact links. REI shows newest on
-    // page 1 and oldest on the last page, so the collected order is newest ->
-    // oldest; we reverse it at the end so the automation works the OLDEST first.
-    let stagnant = 0;
-    while (urls.size < max && stagnant < 6) {
-      const before = urls.size;
-      await this.page.evaluate(() => window.scrollTo(0, document.body.scrollHeight)).catch(() => {});
-      await this.page.waitForTimeout(700);
-      await collect();
-      const advanced = await clickNext();
-      if (advanced) {
-        await this.page.waitForTimeout(1500);
-        await collect();
+    // Signature of the current page = the list of contact ids visible right now.
+    // We use it to confirm that a "Next" click actually loaded a different page
+    // before we collect, instead of trusting a fixed wait.
+    const pageSignature = async () =>
+      (await this.page
+        .evaluate(() =>
+          Array.from(document.querySelectorAll("a[href*='/contacts/']"))
+            .map((a) => (a.getAttribute("href") || "").match(/\/contacts\/(\d+)/i)?.[1])
+            .filter(Boolean)
+            .join(",")
+        )
+        .catch(() => "")) || "";
+
+    // Is there a Next control that is present, visible and NOT disabled?
+    const nextEnabled = async () => {
+      const selectors = [
+        "button[data-testid='next']",
+        "[data-testid='next']",
+        "[data-testid='pagination-next']",
+        "[aria-label*='next' i]",
+        "[title*='next' i]",
+      ];
+      for (const sel of selectors) {
+        const el = this.page.locator(sel).first();
+        if (
+          (await el.count().catch(() => 0)) > 0 &&
+          (await el.isVisible().catch(() => false)) &&
+          !(await el.isDisabled().catch(() => true))
+        ) {
+          return true;
+        }
       }
-      if (urls.size === before) stagnant++;
-      else stagnant = 0;
+      return false;
+    };
+
+    // Wait until the page id-signature changes (real advance) or time runs out.
+    const waitForChange = async (prevSig, timeoutMs = 9000) => {
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        await this.page.waitForTimeout(400);
+        const sig = await pageSignature();
+        if (sig && sig !== prevSig) return sig;
+      }
+      return null;
+    };
+
+    // Walk FORWARD through every page. REI shows newest on page 1 and oldest on
+    // the last page, so the collected order is newest -> oldest; we reverse it at
+    // the end so the automation works the OLDEST first. We stop ONLY when Next is
+    // genuinely disabled (true last page) or after repeated failures to advance.
+    let stagnant = 0;
+    let pages = 1;
+    while (urls.size < max) {
+      await this.page.evaluate(() => window.scrollTo(0, document.body.scrollHeight)).catch(() => {});
+      await this.page.waitForTimeout(500);
+      await collect();
       if (onProgress) onProgress(urls.size);
+
+      // Truly the last page? Then we're done.
+      if (!(await nextEnabled())) break;
+
+      const sigBefore = await pageSignature();
+      const advanced = await clickNext();
+      if (!advanced) { stagnant++; if (stagnant >= 4) break; continue; }
+
+      // Confirm the list actually changed before collecting the new page.
+      const newSig = await waitForChange(sigBefore);
+      if (newSig) {
+        stagnant = 0;
+        pages++;
+        await collect();
+      } else {
+        // Click registered but page didn't change yet — retry a couple times
+        // (slow load) before giving up.
+        stagnant++;
+        if (stagnant >= 4) break;
+      }
     }
+    if (onProgress) onProgress(urls.size);
     const list = Array.from(urls).slice(0, max);
     return String(process.env.REI_PULL_ORDER || "oldest").toLowerCase() === "asis"
       ? list
