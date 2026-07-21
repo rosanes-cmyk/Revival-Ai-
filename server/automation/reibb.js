@@ -645,6 +645,9 @@ export class ReiBlackBookAdapter {
     // (› » →), and common pagination classes. Returns true if a click happened.
     const clickNext = async () => {
       const selectors = [
+        "button[data-testid='next']:not([disabled])",   // REI (Chakra) next-page button
+        "[data-testid='next']:not([disabled])",
+        "[data-testid='pagination-next']:not([disabled])",
         "[aria-label*='next' i]:not([disabled])",
         "[title*='next' i]:not([disabled])",
         "button:has-text('Next'):not([disabled])",
