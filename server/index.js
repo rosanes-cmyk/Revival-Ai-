@@ -468,6 +468,14 @@ app.post("/api/pull-rei", (req, res) => {
   res.json({ ok: true });
   (async () => {
     try {
+      // Clean the dashboard first so the pull starts from a fresh slate (old
+      // rows/counts cleared). The monthly "already texted" memory is kept.
+      store = null;
+      logger = null;
+      JobStore.clearCurrent();
+      broadcast("summary", null);
+      broadcast("state", { status: "idle", cursor: 0, total: 0, message: "Cleared. Collecting ALL contacts from REI (oldest first)…" });
+
       const max = Number(process.env.REI_PULL_MAX || 10000);
       const urls = await engine.enumerateReiContacts(max);
       if (!urls.length) {
