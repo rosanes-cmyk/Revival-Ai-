@@ -271,13 +271,14 @@
     </ul>
     <h3>How eligibility is decided (the full flow)</h3>
     <p class="lead-in">For each contact, the tool checks these in order and stops at the first one that applies.</p>
-    <p class="gate"><b>Is the property in California?</b> &nbsp;No → ❌ <b>Out of State.</b> We only work CA.</p>
     <ol class="steps">
-      <li><span class="lbl">Can we find the lead in REI?</span> (searches address → owner → phone → email)<br />
+      <li><span class="lbl">Is the property in California?</span><br />
+        No → ❌ Out of State. We only work CA.</li>
+      <li><span class="lbl">Can we find the lead in REI?</span> (address → owner → phone → email)<br />
         No → ❌ Lead Not Found.</li>
       <li><span class="lbl">Can it read the contact info clearly?</span><br />
-        No → ❌ Lead Not Found. (It never guesses a name or number.)</li>
-      <li><span class="lbl">Is the property already sold or listed?</span> (checks REI tags + Redfin)<br />
+        No → ❌ Lead Not Found. (Never guesses a name or number.)</li>
+      <li><span class="lbl">Is the property sold or listed?</span> (REI tags + Redfin)<br />
         Yes → ❌ Sold / Listed.</li>
       <li><span class="lbl">Bad-tag / opt-out scan</span> (tags + notes + full chat history):
         <ul class="sub">
@@ -292,21 +293,21 @@
       <li><span class="lbl">Active-deal tag?</span> (Offer Sent / Appointment Booked / Follow up)
         <ul class="sub">
           <li>Conversation within ~a month → ❌ Recent Contact (don't disturb an active deal)</li>
-          <li>Cold for ~a month or more → ✅ Continue (safe to re-engage)</li>
+          <li>Cold ~a month or more → ✅ Continue (safe to re-engage)</li>
         </ul>
       </li>
       <li><span class="lbl">Did the last text fail or not deliver?</span><br />
         Yes → ❌ Failed Number.</li>
-      <li><span class="lbl">Did we already send the revival text before?</span> (anywhere in the REI thread)<br />
+      <li><span class="lbl">Did we already send the revival text?</span> (anywhere in the REI thread)<br />
         Yes → ❌ Already Contacted.</li>
-      <li><span class="lbl">Have we already texted them this month?</span><br />
+      <li><span class="lbl">Already texted this month?</span><br />
         Yes → ❌ Texted This Month.</li>
-      <li><span class="lbl">Is there a usable phone number?</span><br />
+      <li><span class="lbl">Usable phone number?</span><br />
         No → ❌ Lead Not Found.</li>
-      <li><span class="lbl">Is the company clearly EQT or THB?</span><br />
-        Can't tell → ⏸ Held (it never guesses which company).</li>
+      <li><span class="lbl">Company clearly EQT or THB?</span><br />
+        Can't tell → ⏸ Held (never guesses the company).</li>
       <li><span class="lbl">Passed everything?</span><br />
-        ✅ Clean — send the correct company's approved message (EQT or THB). It's marked
+        ✅ Clean — send the correct company's approved message (EQT or THB). Marked
         <b>Text Sent</b> only after the send is confirmed; if it can't confirm, it's held and retried
         (never falsely marked).</li>
     </ol>
