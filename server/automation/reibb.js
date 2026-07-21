@@ -359,8 +359,11 @@ export class ReiBlackBookAdapter {
     const reiPhone = await this.readPhone();
     const phoneExists = looksLikePhone(reiPhone) || looksLikePhone(lead.phone);
 
-    // Contact name — so pulled-from-REI leads show a name in the table.
+    // Contact name + address/email — so pulled-from-REI leads show these in the
+    // table (they start blank on a pull).
     const contactName = await this.readContactName();
+    const addr = await this.readAddressParts();
+    const email = await this.readEmailAddress();
 
     // Property status (SOP steps 6-8).
     const ps = cr.propertyStatus;
@@ -425,6 +428,11 @@ export class ReiBlackBookAdapter {
       phoneExists,
       phone: reiPhone || lead.phone || "",
       ownerName: contactName || "",
+      email: email || "",
+      propertyAddress: addr.propertyAddress || "",
+      city: addr.city || "",
+      state: addr.state || "",
+      zip: addr.zip || "",
       historyText: history.fullText,
       lastMessageFailed,
       alreadySentApproved,
@@ -1071,6 +1079,40 @@ export class ReiBlackBookAdapter {
       if (title && title.length <= 60 && !bad.test(title)) return title;
     } catch { /* ignore */ }
     return "";
+  }
+
+  // Best-effort read of an email address anywhere on the contact page.
+  async readEmailAddress() {
+    try {
+      const mailto = await this.page.evaluate(() => {
+        const a = document.querySelector("a[href^='mailto:']");
+        return a ? (a.getAttribute("href") || "").replace(/^mailto:/i, "").trim() : "";
+      }).catch(() => "");
+      if (mailto && /@/.test(mailto)) return mailto;
+      const text = (await this.page.locator("body").innerText().catch(() => "")) || "";
+      const m = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+      return m ? m[0] : "";
+    } catch { return ""; }
+  }
+
+  // Best-effort read of a US property address from the contact page text, split
+  // into address / city / state / zip. Grabs the first "123 St, City, ST 12345".
+  async readAddressParts() {
+    try {
+      const text = ((await this.page.locator("body").innerText().catch(() => "")) || "").replace(/ /g, " ");
+      const m = text.match(/\d{1,6}\s+[^\n,]{2,45},\s*[A-Za-z .'-]{2,30},\s*[A-Z]{2}\s*\d{5}(?:-\d{4})?/);
+      if (!m) return {};
+      const full = m[0].replace(/\s+/g, " ").trim();
+      const parts = full.split(",").map((s) => s.trim());
+      const stZip = (parts[2] || "").match(/([A-Z]{2})\s*(\d{5})/);
+      return {
+        propertyAddress: full,
+        street: parts[0] || "",
+        city: parts[1] || "",
+        state: stZip ? stZip[1] : "",
+        zip: stZip ? stZip[2] : "",
+      };
+    } catch { return {}; }
   }
 
   async readPhone() {

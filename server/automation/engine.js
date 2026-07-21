@@ -431,8 +431,29 @@ export class AutomationEngine extends EventEmitter {
       row.searchMethod = searchMethod;
       row.reiMatchStatus = matchStatus;
       if (facts.contactUrl) row.reiContactUrl = facts.contactUrl;
-      // Fill the owner name from REI when the row didn't have one (pulled leads).
+      // Fill details from REI when the row didn't have them (pulled leads start
+      // blank): owner name, phone, email, and property address/city/state/zip.
       if (!row.ownerName && facts.ownerName) row.ownerName = facts.ownerName;
+      if (!row.phone && facts.phone) row.phone = facts.phone;
+      if (!row.email && facts.email) row.email = facts.email;
+      if (!row.propertyAddress && facts.propertyAddress) row.propertyAddress = facts.propertyAddress;
+      if (!row.city && facts.city) row.city = facts.city;
+      if (!row.state && facts.state) row.state = facts.state;
+      if (!row.zip && facts.zip) row.zip = facts.zip;
+
+      // California-only, second chance: pulled leads have no state up front, so
+      // the early check was skipped. Now that REI gave us the state, enforce it.
+      const stNow = String(row.state || "").trim().toUpperCase();
+      if (stNow && !this.allowedStates.has(stNow)) {
+        row.disposition = DISPOSITION.OUT_OF_STATE;
+        row.eligibilityStatus = ELIGIBILITY.NOT_ELIGIBLE;
+        row.propertyStatus = "";
+        row.safetyStatus = "Out of state";
+        row.notes = `Property state "${row.state}" is outside California — not texted.`;
+        row.errorLog = "";
+        this.logger.log({ ...logBase, complianceResult: "Out of state - skipped", disposition: row.disposition, textSent: false, notes: row.notes });
+        return;
+      }
 
       const decision = decide(facts);
       row.propertyStatus = decision.propertyStatus;
