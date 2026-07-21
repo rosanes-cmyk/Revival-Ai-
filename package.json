@@ -8,6 +8,7 @@
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
     "app": "electron electron/main.cjs",
+    "predist": "node scripts/write-build-info.js",
     "dist": "electron-builder --win --publish never",
     "postinstall": "node -e \"console.log('Reminder: run npx playwright install chromium if browser automation is not already available.')\""
   },
@@ -39,6 +40,7 @@
       "data/**/*",
       "build/icon.png",
       "package.json",
+      "build-info.json",
       "node_modules/**/*"
     ],
     "win": {

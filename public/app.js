@@ -12,6 +12,7 @@ const els = {
   liveSendBtn: $("liveSendBtn"), reverifyBtn: $("reverifyBtn"), pullReiBtn: $("pullReiBtn"),
   autoContinue: $("autoContinue"), reportBtn: $("reportBtn"),
   shareBar: $("shareBar"), shareUrl: $("shareUrl"), copyShareBtn: $("copyShareBtn"),
+  buildTag: $("buildTag"),
   schedEnabled: $("schedEnabled"), schedTime: $("schedTime"), schedNote: $("schedNote"),
   progressWrap: $("progressWrap"), progressFill: $("progressFill"), progressText: $("progressText"),
   finalSummary: $("finalSummary"), finalSummaryBody: $("finalSummaryBody"), toast: $("toast"),
@@ -269,6 +270,12 @@ async function init() {
     if (els.shareBar && Array.isArray(cfg.shareUrls) && cfg.shareUrls.length) {
       els.shareUrl.textContent = cfg.shareUrls[0];
       els.shareBar.hidden = false;
+    }
+    if (els.buildTag && cfg.build) {
+      const b = cfg.build;
+      const date = (b.commitDate || b.builtAt || "").slice(0, 10);
+      els.buildTag.textContent = `v ${b.commit || "?"}${date ? " · " + date : ""}`;
+      els.buildTag.title = `Running code: ${b.commit || "?"}${date ? " (" + date + ")" : ""} · source: ${b.source || "?"}`;
     }
     els.liveFlag.title = cfg.allowLiveSend ? "Live send ENABLED" : "Live send DISABLED (ALLOW_LIVE_SEND is off)";
     renderLiveSend(!!cfg.allowLiveSend);

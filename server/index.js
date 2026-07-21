@@ -25,8 +25,27 @@ import { JobLogger } from "./logger.js";
 import { AutomationEngine } from "./automation/engine.js";
 import { assertMessageIntegrity, APPROVED_MESSAGES } from "./automation/message.js";
 import { chromium } from "playwright";
+import { execSync } from "child_process";
 
+// Which code is this instance running? Prefer live git (accurate for the
+// localhost/code version); fall back to build-info.json (bundled into the
+// packaged app, which has no .git); finally just the package version.
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+function getBuildInfo() {
+  const repoRoot = path.join(__dirname, "..");
+  try {
+    const commit = execSync("git rev-parse --short HEAD", { cwd: repoRoot, stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
+    const commitDate = execSync("git show -s --format=%cI HEAD", { cwd: repoRoot, stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
+    if (commit) return { source: "git", commit, commitDate, builtAt: "" };
+  } catch { /* not a git checkout (packaged app) */ }
+  try {
+    const info = JSON.parse(fs.readFileSync(path.join(repoRoot, "build-info.json"), "utf8"));
+    return { source: "build", ...info };
+  } catch { /* no build-info.json */ }
+  return { source: "version", commit: "unknown", commitDate: "", builtAt: "" };
+}
+const BUILD_INFO = getBuildInfo();
 
 // Safety net: keep the server ALIVE if an async error slips through. An
 // unhandled rejection/exception would otherwise kill the Node process and show
@@ -313,6 +332,7 @@ app.get("/api/config", (req, res) => {
     schedule,
     // Address(es) teammates on THIS computer's WiFi can open to share the dashboard.
     shareUrls: lanAddresses().map((ip) => `http://${ip}:${PORT}`),
+    build: BUILD_INFO,
   });
 });
 
@@ -573,4 +593,6 @@ app.listen(PORT, "0.0.0.0", () => {
     console.log(`  (Keep this window open. First time, click "Allow" if Windows asks about the network.)`);
   }
   console.log(`Live send: ${engine.allowLiveSend ? "ENABLED" : "DISABLED (ALLOW_LIVE_SEND is not true)"}`);
+  const bd = BUILD_INFO.commitDate || BUILD_INFO.builtAt || "";
+  console.log(`Version: ${BUILD_INFO.commit}${bd ? " · " + bd.slice(0, 10) : ""}`);
 });

@@ -260,3 +260,7 @@ td.error { color: var(--err); }
   padding: 3px 10px; border-radius: 6px; color: #fff; font-weight: 700; font-size: 14px;
 }
 .btn-small { padding: 5px 12px; font-size: 12px; }
+
+/* Version / build tag */
+.status-wrap { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.build-tag { font-size: 11px; color: var(--muted); font-family: ui-monospace, Consolas, monospace; }
