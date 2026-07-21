@@ -195,7 +195,7 @@ export const DO_NOT_AUTOMATE_REGEX = /\bdo ?not ?automate\b/i;
 // gone COLD (no conversation for ~a month); if there was contact within the
 // month, we skip so we don't step on an active negotiation.
 export const ACTIVE_DEAL_TAG_REGEX =
-  /\b(appointment\s*(?:booked|set|scheduled)|appt\s*(?:booked|set)|offer\s*(?:sent|made|submitted|out)|under\s*(?:contract\s*)?negotiation|in\s*negotiation)\b/i;
+  /\b(appointment\s*(?:booked|set|scheduled)|appt\s*(?:booked|set)|offer\s*(?:sent|made|submitted|out)|under\s*(?:contract\s*)?negotiation|in\s*negotiation|follow[\s-]*up)\b/i;
 
 // A conversation is "recent" if the last message was within this many days.
 export const RECENT_CONVERSATION_DAYS = Number(process.env.RECENT_CONVERSATION_DAYS || 31);
