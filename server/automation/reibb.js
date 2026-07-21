@@ -660,7 +660,12 @@ export class ReiBlackBookAdapter {
   }
 
   async enumerateContactIds(max = 10000, onProgress = null) {
-    const urls = new Set();
+    // Keep insertion order and capture name/phone per contact straight from the
+    // LIST page (names are shown there, so we don't depend on the detail-page
+    // DOM to fill the dashboard). info: url -> { name, phone }.
+    const info = new Map();
+    // Names/phones read from the list, keyed by url — exposed for the caller.
+    this._pulledInfo = info;
     const url = this.contactsUrl || "https://my.reiblackbook.com/contacts";
     await this.page.goto(url, { waitUntil: "domcontentloaded" }).catch(() => {});
     await this.page.waitForTimeout(2000);
@@ -670,16 +675,57 @@ export class ReiBlackBookAdapter {
     try { origin = new URL(this.page.url()).origin; } catch { /* default */ }
 
     const collect = async () => {
-      const found = await this.page
-        .evaluate(() =>
-          Array.from(document.querySelectorAll("a[href*='/contacts/']"))
-            .map((a) => a.getAttribute("href") || a.href)
-            .filter((h) => /\/contacts\/\d+/i.test(h))
-        )
+      // For each contact link, grab the visible name (link text or the row's
+      // first text cell) and a phone number from the same row if present.
+      const records = await this.page
+        .evaluate(() => {
+          const out = [];
+          const nav = /^(rei\s*blackbook|dashboard|contacts?|home|pipeline|notes|activities|tag\(s\)|about|smart|all)$/i;
+          const phoneRe = /(\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/;
+          const anchors = Array.from(document.querySelectorAll("a[href*='/contacts/']"))
+            .filter((a) => /\/contacts\/\d+/i.test(a.getAttribute("href") || a.href || ""));
+          for (const a of anchors) {
+            const href = a.getAttribute("href") || a.href || "";
+            const m = href.match(/\/contacts\/(\d+)/i);
+            if (!m) continue;
+            const id = m[1];
+            // Name: the anchor's own text if it reads like a name.
+            let name = (a.textContent || "").trim().replace(/\s+/g, " ");
+            if (!name || name.length > 60 || nav.test(name) || !/[a-z]/i.test(name) || /^\d/.test(name)) {
+              name = "";
+            }
+            // Row container to pull name/phone from if the link text wasn't a name.
+            const row = a.closest("tr,[role='row'],li,[class*='row'],[class*='Row']") || a.parentElement;
+            const rowText = row ? (row.innerText || row.textContent || "") : "";
+            let phone = "";
+            const pm = rowText.match(phoneRe);
+            if (pm) phone = pm[0].trim();
+            if (!name && row) {
+              // First non-empty, name-looking line in the row.
+              const lines = rowText.split("\n").map((s) => s.trim()).filter(Boolean);
+              const cand = lines.find(
+                (l) => l.length >= 2 && l.length <= 60 && /[a-z]/i.test(l) && !/^\d/.test(l) &&
+                  !nav.test(l) && !phoneRe.test(l) && !/@/.test(l)
+              );
+              if (cand) name = cand;
+            }
+            // Address, if the list row happens to show one (free — no detail page).
+            let address = "";
+            const am = rowText.match(/\d{1,6}\s+[^\n,]{2,45},\s*[A-Za-z .'-]{2,30},\s*[A-Z]{2}\s*\d{5}(?:-\d{4})?/);
+            if (am) address = am[0].replace(/\s+/g, " ").trim();
+            out.push({ id, name, phone, address });
+          }
+          return out;
+        })
         .catch(() => []);
-      for (const h of found) {
-        const m = String(h).match(/\/contacts\/(\d+)/i);
-        if (m) urls.add(`${origin}/contacts/${m[1]}`);
+      for (const r of records) {
+        const u = `${origin}/contacts/${r.id}`;
+        const prev = info.get(u) || {};
+        info.set(u, {
+          name: prev.name || r.name || "",
+          phone: prev.phone || r.phone || "",
+          address: prev.address || r.address || "",
+        });
       }
     };
 
@@ -772,11 +818,11 @@ export class ReiBlackBookAdapter {
     // genuinely disabled (true last page) or after repeated failures to advance.
     let stagnant = 0;
     let pages = 1;
-    while (urls.size < max) {
+    while (info.size < max) {
       await this.page.evaluate(() => window.scrollTo(0, document.body.scrollHeight)).catch(() => {});
       await this.page.waitForTimeout(500);
       await collect();
-      if (onProgress) onProgress(urls.size);
+      if (onProgress) onProgress(info.size);
 
       // Truly the last page? Then we're done.
       if (!(await nextEnabled())) break;
@@ -798,8 +844,8 @@ export class ReiBlackBookAdapter {
         if (stagnant >= 4) break;
       }
     }
-    if (onProgress) onProgress(urls.size);
-    const list = Array.from(urls).slice(0, max);
+    if (onProgress) onProgress(info.size);
+    const list = Array.from(info.keys()).slice(0, max);
     return String(process.env.REI_PULL_ORDER || "oldest").toLowerCase() === "asis"
       ? list
       : list.reverse();

@@ -311,7 +311,10 @@ export class AutomationEngine extends EventEmitter {
     this.emitState("Opening REI to pull all contacts (log in if prompted)...");
     await adapter.launch();
     try {
-      return await adapter.enumerateContactIds(max, (n) => this.emitState(`Found ${n} REI contacts...`));
+      const urls = await adapter.enumerateContactIds(max, (n) => this.emitState(`Found ${n} REI contacts...`));
+      // Name/phone captured from the list page, keyed by contact url.
+      const info = adapter._pulledInfo instanceof Map ? adapter._pulledInfo : new Map();
+      return { urls, info };
     } finally {
       await adapter.close();
     }

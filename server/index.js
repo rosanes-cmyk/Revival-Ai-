@@ -477,25 +477,44 @@ app.post("/api/pull-rei", (req, res) => {
       broadcast("state", { status: "idle", cursor: 0, total: 0, message: "Cleared. Collecting ALL contacts from REI (oldest first)…" });
 
       const max = Number(process.env.REI_PULL_MAX || 10000);
-      const urls = await engine.enumerateReiContacts(max);
+      const { urls, info } = await engine.enumerateReiContacts(max);
       if (!urls.length) {
         broadcast("state", { message: "No REI contacts could be pulled. Check the login/contacts page and try again." });
         return;
       }
       const jobId = `reipull-${new Date().toISOString().replace(/[:.]/g, "-")}`;
-      const rows = urls.map((u, i) => ({
-        rowNumber: i + 1,
-        original: { "REI Contact Link": u },
-        ownerName: "",
-        propertyAddress: "",
-        city: "",
-        state: "",
-        zip: "",
-        phone: "",
-        email: "",
-        reiContactUrl: u,
-        fromRei: true,
-      }));
+      const rows = urls.map((u, i) => {
+        const meta = (info && info.get && info.get(u)) || {};
+        // Split "123 St, City, ST 12345" into parts if the list gave us one.
+        let street = "", city = "", state = "", zip = "";
+        if (meta.address) {
+          const parts = meta.address.split(",").map((s) => s.trim());
+          const stZip = (parts[2] || "").match(/([A-Z]{2})\s*(\d{5})/);
+          street = parts[0] || "";
+          city = parts[1] || "";
+          state = stZip ? stZip[1] : "";
+          zip = stZip ? stZip[2] : "";
+        }
+        return {
+          rowNumber: i + 1,
+          original: {
+            "REI Contact Link": u,
+            "Owner Name": meta.name || "",
+            "Property Address": meta.address || "",
+            Phone: meta.phone || "",
+          },
+          ownerName: meta.name || "",
+          propertyAddress: meta.address || "",
+          street,
+          city,
+          state,
+          zip,
+          phone: meta.phone || "",
+          email: "",
+          reiContactUrl: u,
+          fromRei: true,
+        };
+      });
       const parsed = {
         rows,
         originalHeaders: ["REI Contact Link", "Owner Name", "Property Address", "City", "State", "ZIP", "Phone"],
