@@ -262,6 +262,39 @@
       <li><b>Opt-outs and blocking tags respected.</b> If REI indicates the contact is opted out or should not be texted, no message is sent.</li>
       <li><b>Accurate “Text Sent” status.</b> A lead is marked “Text Sent” only when delivery is confirmed. If a send cannot be confirmed, it is held for another attempt and never falsely marked.</li>
     </ul>
+    <h3>How eligibility is decided (the full flow)</h3>
+    <p class="lead-in">For each contact, the tool checks these in order and stops at the first one that applies.</p>
+    <ol class="steps">
+      <li><span class="lbl">In California?</span> No → Out of State.</li>
+      <li><span class="lbl">Found in REI?</span> (address → owner → phone → email) No → Lead NOT Found.</li>
+      <li><span class="lbl">Contact readable?</span> No → Lead NOT Found (never guesses).</li>
+      <li><span class="lbl">Sold or Listed?</span> → Sold / Listed.</li>
+      <li><span class="lbl">Bad-tag / opt-out scan</span> (tags + notes + full chat history):
+        Do Not Automate → skip · Opt-out / Do Not Contact / DNC / STOP / unsubscribe / remove me → Opted Out ·
+        Low Equity / We're Passing / Not a Fit / Not Qualified → Bad Lead · Not Interested → Not Interested ·
+        Wrong Number → Wrong Number · 2+ bad tags → Bad Lead.</li>
+      <li><span class="lbl">Active-deal tag?</span> (Offer Sent / Appointment Booked / Follow up): conversation within
+        ~a month → Recent Contact (skip, don't disturb an active deal); cold ~a month+ → continue (re-engage).</li>
+      <li><span class="lbl">Last text failed / undelivered?</span> → Failed Number.</li>
+      <li><span class="lbl">Already sent the revival text?</span> (anywhere in the REI thread) → Already Contacted.</li>
+      <li><span class="lbl">Already texted this month?</span> → Texted This Month.</li>
+      <li><span class="lbl">Usable phone?</span> No → Lead NOT Found.</li>
+      <li><span class="lbl">EQT or THB clear?</span> Can't tell → held (never guesses the company).</li>
+      <li><span class="lbl">Clean</span> → text the correct company's approved message.</li>
+    </ol>
+    <div class="note">
+      <span class="t">✅ WILL be texted — all true</span>
+      In California · found &amp; readable · not sold/listed · no opt-out / do-not-automate / low-equity / passing /
+      not-interested / wrong-number / bad tags · not an active deal with recent contact · last text didn't fail ·
+      not already sent &amp; not texted this month · has a usable phone · company is EQT or THB · Live Sending is ON.
+    </div>
+    <div class="note">
+      <span class="t">❌ will NOT be texted — any one of these</span>
+      Out of state · not found · sold/listed · Do Not Automate · opted out / DNC / STOP · low equity / we're passing
+      / not a fit · not interested · wrong number · bad lead · active deal with recent contact · failed number ·
+      already contacted · texted this month · no phone · company unclear.
+    </div>
+
     <h3>The two approved messages (locked)</h3>
     <div class="msg"><span class="who">Twin Home Buyer</span>“Hi, this is Juan with Twin Home Buyer. You contacted us before about selling your home. Are you still interested? Reply YES or NO. Thanks!”</div>
     <div class="msg"><span class="who">Equity Track Inc.</span>“Hi, this is Juan with Equity Track Inc. You contacted us before about selling your home. Are you still interested? Reply YES or NO. Thanks!”</div>
