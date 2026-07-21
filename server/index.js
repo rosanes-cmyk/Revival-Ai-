@@ -451,6 +451,18 @@ app.post("/api/batch-limit", (req, res) => {
 // --- Upload -----------------------------------------------------------------
 // Pull ALL contacts straight from REI (no spreadsheet). Enumerates contact
 // URLs, builds a job, and attaches it. Runs in the background; progress via SSE.
+// Clear the dashboard — forget the current job so it starts empty. Keeps the
+// monthly "texted this month" memory so duplicate protection stays intact.
+app.post("/api/reset", (req, res) => {
+  if (engine.isBusy()) return res.status(409).json({ error: "Automation is running. Stop it first." });
+  store = null;
+  logger = null;
+  JobStore.clearCurrent();
+  broadcast("summary", null);
+  broadcast("state", { status: "idle", cursor: 0, total: 0, message: "Dashboard cleared. Upload a file or pull from REI to begin." });
+  res.json({ ok: true });
+});
+
 app.post("/api/pull-rei", (req, res) => {
   if (engine.isBusy()) return res.status(409).json({ error: "Automation is running. Stop it first." });
   res.json({ ok: true });

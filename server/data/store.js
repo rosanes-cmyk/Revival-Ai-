@@ -72,6 +72,12 @@ export class JobStore {
     fs.writeFileSync(CURRENT_POINTER, JSON.stringify({ jobId: this.job.jobId }));
   }
 
+  // Forget the current job so the dashboard starts empty (does NOT touch the
+  // monthly "texted this month" memory, so duplicate protection stays intact).
+  static clearCurrent() {
+    try { fs.unlinkSync(CURRENT_POINTER); } catch { /* already gone */ }
+  }
+
   persist() {
     fs.writeFileSync(JobStore.file(this.job.jobId), JSON.stringify(this.job, null, 2));
   }

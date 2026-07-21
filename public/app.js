@@ -12,7 +12,7 @@ const els = {
   liveSendBtn: $("liveSendBtn"), reverifyBtn: $("reverifyBtn"), pullReiBtn: $("pullReiBtn"),
   autoContinue: $("autoContinue"), reportBtn: $("reportBtn"),
   shareBar: $("shareBar"), shareUrl: $("shareUrl"), copyShareBtn: $("copyShareBtn"),
-  buildTag: $("buildTag"),
+  buildTag: $("buildTag"), resetBtn: $("resetBtn"),
   schedEnabled: $("schedEnabled"), schedTime: $("schedTime"), schedNote: $("schedNote"),
   progressWrap: $("progressWrap"), progressFill: $("progressFill"), progressText: $("progressText"),
   finalSummary: $("finalSummary"), finalSummaryBody: $("finalSummaryBody"), toast: $("toast"),
@@ -466,6 +466,32 @@ if (els.pullReiBtn) {
     try {
       await api("/api/pull-rei", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
       toast("Pulling contacts from REI — log in if the window prompts. This can take a while.", "ok");
+    } catch (err) {
+      toast(err.message, "error");
+    }
+  };
+}
+
+if (els.resetBtn) {
+  els.resetBtn.onclick = async () => {
+    const ok = window.confirm(
+      "Clear the dashboard?\n\nThis removes the current leads and counts from the screen so you can start fresh.\n\nYour 'texted this month' memory is KEPT (so no one gets double-texted). Make sure the automation is stopped first."
+    );
+    if (!ok) return;
+    try {
+      await api("/api/reset", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      // Clear the screen right away.
+      hasJob = false;
+      allRows = [];
+      filterKey = null;
+      renderRows([]);
+      renderSummary({ total: 0 });
+      setStatus("idle");
+      setProgress(0, 0);
+      els.finalSummary.hidden = true;
+      els.fileName.textContent = "No file selected";
+      els.uploadStatus.textContent = "";
+      toast("Dashboard cleared. Upload a file or pull from REI to begin.", "ok");
     } catch (err) {
       toast(err.message, "error");
     }
