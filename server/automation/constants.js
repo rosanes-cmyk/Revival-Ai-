@@ -147,6 +147,13 @@ export const SAFETY_TAG_RULES = Object.freeze([
   { match: "fake lead", outcome: DISPOSITION.OPTED_OUT },
   { match: "invalid lead", outcome: DISPOSITION.OPTED_OUT },
   { match: "delete", outcome: DISPOSITION.OPTED_OUT },
+
+  // Not-a-fit / internally disqualified (we're not pursuing — never text).
+  { match: "low equity", outcome: DISPOSITION.BAD_LEAD },
+  { match: "no equity", outcome: DISPOSITION.BAD_LEAD },
+  { match: "passing", outcome: DISPOSITION.BAD_LEAD },   // "We're Passing" (any apostrophe)
+  { match: "not a fit", outcome: DISPOSITION.BAD_LEAD },
+  { match: "not qualified", outcome: DISPOSITION.BAD_LEAD },
 ]);
 
 // --- Compliance: blocking phrases in notes/activity/chat/SMS (SOP step 10) --
