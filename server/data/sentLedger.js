@@ -58,11 +58,18 @@ function sameMonth(iso, when) {
 }
 
 export class SentLedger {
-  constructor() {
+  // `namespace` scopes the memory to a specific REI account, so opening a
+  // DIFFERENT REI account uses a DIFFERENT file — the saved data from one
+  // account can never be reused for another. Empty namespace = the default
+  // shared file (back-compat, e.g. spreadsheet uploads before login).
+  constructor(namespace = "") {
+    const ns = String(namespace || "").replace(/[^a-z0-9._-]+/gi, "_").slice(0, 80);
+    this.namespace = ns;
+    this.file = ns ? path.join(STATE_DIR, `sent-ledger-${ns}.json`) : LEDGER_FILE;
     this.map = {};
     try {
-      if (fs.existsSync(LEDGER_FILE)) {
-        this.map = JSON.parse(fs.readFileSync(LEDGER_FILE, "utf8")) || {};
+      if (fs.existsSync(this.file)) {
+        this.map = JSON.parse(fs.readFileSync(this.file, "utf8")) || {};
       }
     } catch {
       this.map = {};
@@ -71,7 +78,7 @@ export class SentLedger {
 
   _save() {
     try {
-      fs.writeFileSync(LEDGER_FILE, JSON.stringify(this.map));
+      fs.writeFileSync(this.file, JSON.stringify(this.map));
     } catch (err) {
       console.error("[sentLedger] failed to save:", err.message);
     }

@@ -342,6 +342,33 @@ export class ReiBlackBookAdapter {
     await this.page.waitForTimeout(500);
   }
 
+  // Best-effort fingerprint of the CURRENTLY logged-in REI account, read from
+  // the live app (localStorage / cookies), so the monthly memory can be scoped
+  // per account. Returns a stable short string (email or user id) or "".
+  async accountFingerprint() {
+    try {
+      const blob = await this.page.evaluate(() => {
+        const parts = [];
+        try {
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            parts.push(k + "=" + (localStorage.getItem(k) || ""));
+          }
+        } catch { /* ignore */ }
+        try { parts.push(document.cookie || ""); } catch { /* ignore */ }
+        return parts.join("\n");
+      }).catch(() => "");
+      const s = String(blob || "");
+      const email = s.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+      if (email) return email[0].toLowerCase();
+      const uid = s.match(/"(?:userId|user_id|accountId|account_id|agencyId|agency_id|uid|id)"\s*:\s*"?(\d{3,})"?/i);
+      if (uid) return "uid-" + uid[1];
+      return "";
+    } catch {
+      return "";
+    }
+  }
+
   // ----- Read the contact record -------------------------------------------
   async readContactFacts(lead) {
     const cr = this.selectors.contactRecord;
@@ -408,6 +435,20 @@ export class ReiBlackBookAdapter {
       hist.includes(revivalNeedle) ||
       (approved ? hist.includes(approved.toLowerCase()) : false);
 
+    // REI is the source of truth (NOT any local file): find the date next to the
+    // revival message in this account's chat. If that date is in the CURRENT
+    // calendar month, we've already texted this contact this month. Works no
+    // matter which computer or which REI account is logged in.
+    const revivalSentAt = alreadySentApproved
+      ? nearestDateToPhrase(history.fullText, revivalNeedle)
+      : null;
+    const _now = new Date();
+    const revivalSentThisMonth = !!(
+      revivalSentAt &&
+      revivalSentAt.getFullYear() === _now.getFullYear() &&
+      revivalSentAt.getMonth() === _now.getMonth()
+    );
+
     // Active-deal recency: for appointment-booked / offer-sent contacts, find the
     // most recent conversation date so the SOP can decide re-engage vs. skip.
     const activeDealTag = ACTIVE_DEAL_TAG_REGEX.test((tags || []).join(" ") + " " + hist);
@@ -436,6 +477,8 @@ export class ReiBlackBookAdapter {
       historyText: history.fullText,
       lastMessageFailed,
       alreadySentApproved,
+      revivalSentAt: revivalSentAt ? revivalSentAt.toISOString() : "",
+      revivalSentThisMonth,
       activeDealTag,
       lastConversationAt: lastConversationAt ? lastConversationAt.toISOString() : "",
       lastConversationWithinMonth,
@@ -1318,6 +1361,28 @@ function parseLatestDate(text) {
   return new Date(Math.max(...sane.map((d) => d.getTime())));
 }
 
+// Find the date closest to a phrase in chat text (chat bubbles show the message
+// and its timestamp near each other). Scans a window around every occurrence of
+// the phrase and returns the most recent sane date found, or null.
+function nearestDateToPhrase(text, phrase) {
+  const t = String(text || "");
+  const p = String(phrase || "").toLowerCase();
+  if (!p) return null;
+  const lower = t.toLowerCase();
+  const WIN = 200; // chars on each side of the phrase to search for a date
+  const dates = [];
+  let idx = lower.indexOf(p);
+  while (idx !== -1) {
+    const from = Math.max(0, idx - WIN);
+    const to = Math.min(t.length, idx + p.length + WIN);
+    const d = parseLatestDate(t.slice(from, to));
+    if (d) dates.push(d);
+    idx = lower.indexOf(p, idx + p.length);
+  }
+  if (!dates.length) return null;
+  return new Date(Math.max(...dates.map((d) => d.getTime())));
+}
+
 function uncertain(reason) {
   return {
     matchStatus: undefined,
@@ -1330,6 +1395,8 @@ function uncertain(reason) {
     historyText: "",
     lastMessageFailed: false,
     alreadySentApproved: false,
+    revivalSentAt: "",
+    revivalSentThisMonth: false,
     companySource: "",
     uncertain: true,
     uncertainReason: reason,
@@ -1348,6 +1415,8 @@ function notFoundFacts() {
     historyText: "",
     lastMessageFailed: false,
     alreadySentApproved: false,
+    revivalSentAt: "",
+    revivalSentThisMonth: false,
     companySource: "",
     uncertain: false,
     uncertainReason: "",

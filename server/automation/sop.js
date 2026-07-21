@@ -144,11 +144,23 @@ export function decide(facts) {
     });
   }
 
-  // Step 15: same approved message already sent before.
+  // Step 15: same approved message already sent before (read from REI's chat —
+  // the actual logged-in account, never a local file). If REI shows we sent it
+  // THIS calendar month, label it "Texted This Month"; otherwise "Already
+  // Contacted" (sent in a prior month — still don't repeat the same text).
   if (facts.alreadySentApproved) {
+    if (facts.revivalSentThisMonth) {
+      return out(DISPOSITION.TEXTED_THIS_MONTH, {
+        eligibility: ELIGIBILITY.NOT_ELIGIBLE,
+        notes: facts.revivalSentAt
+          ? `REI chat shows the revival text was sent this month (${new Date(facts.revivalSentAt).toLocaleDateString()}) — skipped to avoid a repeat.`
+          : "REI chat shows the revival text was already sent this month — skipped to avoid a repeat.",
+        complianceResult: "Texted this month (per REI) - skipped",
+      });
+    }
     return out(DISPOSITION.ALREADY_CONTACTED, {
       eligibility: ELIGIBILITY.NOT_ELIGIBLE,
-      notes: "Approved revival message was already sent to this lead.",
+      notes: "REI chat shows the approved revival message was already sent to this lead.",
       complianceResult: "Already contacted",
     });
   }

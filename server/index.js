@@ -477,7 +477,7 @@ app.post("/api/pull-rei", (req, res) => {
       broadcast("state", { status: "idle", cursor: 0, total: 0, message: "Cleared. Collecting ALL contacts from REI (oldest first)…" });
 
       const max = Number(process.env.REI_PULL_MAX || 10000);
-      const { urls, info } = await engine.enumerateReiContacts(max);
+      const { urls, info, account } = await engine.enumerateReiContacts(max);
       if (!urls.length) {
         broadcast("state", { message: "No REI contacts could be pulled. Check the login/contacts page and try again." });
         return;
@@ -529,10 +529,11 @@ app.post("/api/pull-rei", (req, res) => {
       engine.attach(store, logger);
       broadcast("summary", store.summary());
       const fresh = urls.length - filled;
+      const acct = account ? ` · REI account: ${account}` : "";
       broadcast("state", {
         message: filled
-          ? `Pulled ${urls.length} REI contacts — ${filled} already worked this month (shown, will be skipped), ${fresh} new to work. Set Live Sending, then click Start.`
-          : `Pulled ${urls.length} REI contacts. Review, set Live Sending, then click Start.`,
+          ? `Pulled ${urls.length} REI contacts — ${filled} already worked this month (shown, will be skipped), ${fresh} new to work${acct}. Set Live Sending, then click Start.`
+          : `Pulled ${urls.length} REI contacts${acct}. Review, set Live Sending, then click Start.`,
       });
     } catch (err) {
       broadcast("state", { message: `Pull from REI failed: ${err.message}` });

@@ -146,6 +146,9 @@ export class AutomationEngine extends EventEmitter {
       this.adapter = this.adapterFactory();
       this.emitState("Opening REI BlackBook. If a login page appears in the browser window, log in there once — it will be remembered for next time.");
       await this.adapter.launch();
+      // Scope the monthly memory to whichever REI account is logged in now, so
+      // a different account never reuses another account's saved data.
+      await this._bindLedgerToAccount();
       if (this.checkPropertyStatus) {
         const label = this.propertySource === "redfin" ? "Redfin" : "PropertyRadar";
         this.emitState(`Opening ${label} for Sold/Listed verification...`);
@@ -311,13 +314,42 @@ export class AutomationEngine extends EventEmitter {
     this.emitState("Opening REI to pull all contacts (log in if prompted)...");
     await adapter.launch();
     try {
+      // Scope the monthly memory to the logged-in REI account before we build
+      // rows / apply memory, so a different account uses a different file.
+      const account = await this._bindLedgerFromAdapter(adapter);
       const urls = await adapter.enumerateContactIds(max, (n) => this.emitState(`Found ${n} REI contacts...`));
       // Name/phone captured from the list page, keyed by contact url.
       const info = adapter._pulledInfo instanceof Map ? adapter._pulledInfo : new Map();
-      return { urls, info };
+      return { urls, info, account };
     } finally {
       await adapter.close();
     }
+  }
+
+  // Point this.sentLedger at the file for the given account fingerprint. Safe to
+  // call repeatedly; only rebuilds when the account actually changes. Returns
+  // the account label ("" if it couldn't be detected).
+  _bindLedger(account) {
+    const ns = String(account || "");
+    if (this._ledgerAccount === ns && this.sentLedger) return ns;
+    this._ledgerAccount = ns;
+    this.sentLedger = new SentLedger(ns);
+    return ns;
+  }
+
+  async _bindLedgerFromAdapter(adapter) {
+    let account = "";
+    try {
+      if (adapter && typeof adapter.accountFingerprint === "function") {
+        account = await adapter.accountFingerprint();
+      }
+    } catch { /* best-effort */ }
+    this._bindLedger(account);
+    return account;
+  }
+
+  async _bindLedgerToAccount() {
+    return this._bindLedgerFromAdapter(this.adapter);
   }
 
   // True if an error means the Playwright page/context/browser was closed or
