@@ -264,3 +264,25 @@ td.error { color: var(--err); }
 /* Version / build tag */
 .status-wrap { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
 .build-tag { font-size: 11px; color: var(--muted); font-family: ui-monospace, Consolas, monospace; }
+
+/* How-leads-are-decided reference panel */
+.rules-panel {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+  padding: 4px 16px; margin-bottom: 20px;
+}
+.rules-panel > summary {
+  cursor: pointer; font-weight: 700; font-size: 13.5px; color: var(--text);
+  padding: 10px 2px; list-style: none; user-select: none;
+}
+.rules-panel > summary::-webkit-details-marker { display: none; }
+.rules-panel > summary::before { content: "▸ "; color: var(--accent); }
+.rules-panel[open] > summary::before { content: "▾ "; }
+.rules-body { padding: 4px 2px 14px; font-size: 13px; color: var(--text); }
+.rules-note { color: var(--muted); font-size: 12px; margin: 0 0 8px; }
+.rules-flow { margin: 0 0 12px; padding-left: 20px; }
+.rules-flow > li { margin-bottom: 6px; }
+.rules-flow ul { margin: 4px 0 4px; padding-left: 18px; color: var(--muted); }
+.rules-flow ul li { margin-bottom: 2px; }
+.rules-cta { border-radius: 8px; padding: 10px 12px; margin-top: 8px; font-size: 12.5px; line-height: 1.5; }
+.rules-yes { background: rgba(36,180,126,0.12); border: 1px solid rgba(36,180,126,0.4); }
+.rules-no { background: rgba(224,83,61,0.10); border: 1px solid rgba(224,83,61,0.35); }
