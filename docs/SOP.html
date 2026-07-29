@@ -314,14 +314,22 @@
         (never falsely marked).</li>
     </ol>
 
-    <h3>The two approved messages (locked)</h3>
-    <p class="lead-in">To avoid carrier spam-blocking from identical copy, the app keeps a <b>pool of approved templates per company</b> and picks one <b>at random</b> for each send. The wording below is for Twin Home Buyer; Equity Track Inc. uses the same set with its own company name.</p>
+    <h3>The approved messages (locked)</h3>
+    <p class="lead-in">To avoid carrier spam-blocking from identical copy, the app keeps a <b>pool of 5 approved templates per company</b> and picks one <b>at random</b> for each send. The wording below is for Twin Home Buyer; Equity Track Inc. uses the same set with its own company name.</p>
     <div class="msg"><span class="who">Twin Home Buyer — preferred</span>“Hi {{first_name}}, it's Juan with Twin Home Buyer. You reached out about your property a while back, and I realized we never heard what you ended up doing with it. Did you end up selling it, or do you still have it?”</div>
     <div class="msg"><span class="who">Variant 2</span>“Hi {{first_name}}, Juan here with Twin Home Buyer. I was looking back through our notes and saw we never found out what happened with your property. Did you end up selling, or are you still holding onto it?”</div>
     <div class="msg"><span class="who">Variant 3</span>“Hi {{first_name}}, it's Juan with Twin Home Buyer. I was reviewing some older conversations and yours came up. Just curious—what ever happened with the property?”</div>
     <div class="msg"><span class="who">Variant 4</span>“Hey {{first_name}}, it's Juan with Twin Home Buyer. Been a while since we last talked. Is the property still yours, or did you end up selling it?”</div>
     <div class="msg"><span class="who">Variant 5</span>“Hey {{first_name}}, Juan with Twin Home Buyer. Quick question—did you ever end up selling the property, or do you still have it?”</div>
-    <p class="lead-in" style="margin-top:6px;"><b>{{first_name}}</b> is automatically replaced with the contact's first name from REI. When no name is known it reads “Hi there,” so it never sends a blank or a literal <span class="kbd">{{first_name}}</span>. The duplicate guard recognizes <b>all</b> variants (and the previous wording), so a lead is never double-texted regardless of which template was used.</p>
+    <p class="lead-in" style="margin-top:6px;"><b>{{first_name}}</b> is automatically replaced with the contact's first name from REI. When no name is known it reads “Hi there,” so it never sends a blank or a literal <span class="kbd">{{first_name}}</span>.</p>
+
+    <h3>How the random message is checked</h3>
+    <p class="lead-in">The message is random, so the safety checks recognize <b>any</b> of the templates — a lead is never double-texted and a send is never falsely marked.</p>
+    <ol class="steps">
+      <li><span class="lbl">Pick (sending)</span> — right before each text, the app randomly chooses one of the 5 templates for that company. Each send is its own independent pick (not a fixed 1–2–3–4–5 order), so the wording is unpredictable.</li>
+      <li><span class="lbl">Duplicate check (before sending)</span> — the app scans the REI chat for a distinctive phrase from <b>each</b> of the 5 templates (plus the older wording). If any is found, it knows a revival text was already sent — no matter which template, computer, or REI account sent it. Found <b>this month</b> → skip; found in a <b>prior month</b> → allowed to re-text; phrase there but <b>date unreadable</b> → skip to be safe.</li>
+      <li><span class="lbl">Send confirmation (after sending)</span> — it then looks in the chat for a piece of the <b>exact</b> message it just sent (the specific random one). Only when that appears is the lead marked <b>Text Sent</b>. If it can't confirm, the lead is held and retried — never falsely marked.</li>
+    </ol>
   </section>
 
   <!-- 8. REPORT -->
