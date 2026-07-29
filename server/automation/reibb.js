@@ -1036,16 +1036,15 @@ export class ReiBlackBookAdapter {
     // box for opted-out numbers without sending.) While waiting, also watch for
     // an opt-out / undelivered notice so we can mark Opted Out instead.
     const norm = (s) => String(s || "").replace(/\s+/g, " ").trim().toLowerCase();
-    // Distinctive, name-free phrases from the CURRENT approved message (both
-    // companies share them). We confirm the send by finding one of these in the
-    // MAIN page (the conversation) — NOT inside the reply-box iframe, so the text
-    // we just typed doesn't count as "sent". We deliberately use only the CURRENT
-    // wording (not the legacy phrase) so an older message already in the thread
-    // can't falsely confirm a re-engagement send that didn't actually go out.
-    const needles = [
-      "we never found out how everything turned out",
-      "what ended up happening",
-    ];
+    // Confirm the send by finding a distinctive chunk of the EXACT text we just
+    // sent in the conversation (main page, not the reply-box iframe). We derive
+    // it from `message` after dropping the first sentence (which carries the
+    // contact's name + company), so whichever rotating template was picked is
+    // confirmed correctly — and an older message already in the thread can't
+    // falsely confirm this send.
+    const afterFirst = String(message).split(/[.?!]\s+/).slice(1).join(" ");
+    const derived = norm(afterFirst).slice(0, 45);
+    const needles = derived.length >= 15 ? [derived] : [norm(message).slice(-45)];
     // Only send-rejection toast phrases (e.g. "This number is opted out.") —
     // deliberately narrow so an OLD "reply STOP to opt out" or an old
     // "Undelivered" message in the history doesn't trigger a false block.

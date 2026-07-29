@@ -16,7 +16,7 @@ import { PropertyRadarAdapter } from "./propertyradar.js";
 import { RedfinAdapter } from "./redfin.js";
 import { resolveRedfinUrl } from "./redfinLink.js";
 import { decide } from "./sop.js";
-import { assertMessageIntegrity, normalizeCompany, COMPANY, renderMessage } from "./message.js";
+import { assertMessageIntegrity, normalizeCompany, COMPANY, renderMessage, pickApprovedTemplate } from "./message.js";
 import { JOB_STATUS } from "../data/store.js";
 import { SentLedger } from "../data/sentLedger.js";
 import { DISPOSITION, ELIGIBILITY, REVIVAL_TAG } from "./constants.js";
@@ -503,6 +503,52 @@ export class AutomationEngine extends EventEmitter {
       row.notes = decision.notes;
       row.errorLog = "";
 
+      // Bug fix: the property SOLD after our last contact with the lead. Redfin
+      // may not flag it "sold" (e.g. the sale is outside the recent window, or it
+      // shows as Off Market), but if the recorded sale date is LATER than our
+      // last conversation, the deal is done — do NOT text. (A sale BEFORE our
+      // last contact means they already owned it when we spoke, so that stays
+      // textable.) Only applies when we could read both dates.
+      if (decision.shouldSend && row._redfinSoldDateISO && facts.lastConversationAt) {
+        const soldT = Date.parse(row._redfinSoldDateISO);
+        const lastT = Date.parse(facts.lastConversationAt);
+        if (soldT && lastT && soldT > lastT) {
+          row.disposition = DISPOSITION.PROPERTY_SOLD;
+          row.eligibilityStatus = ELIGIBILITY.NOT_ELIGIBLE;
+          row.propertyStatus = `Sold ${row._redfinSoldDateText} (after last contact)`;
+          row.notes = `Redfin shows the property sold (${row._redfinSoldDateText}) AFTER our last contact (${new Date(facts.lastConversationAt).toLocaleDateString()}) — sold since we last spoke, not texted.`;
+          row.errorLog = "";
+          if (this.writeReiTags && row.reiContactUrl) {
+            try { await this._applyTag(row, REVIVAL_TAG[DISPOSITION.PROPERTY_SOLD]); } catch { /* best-effort */ }
+          }
+          this.logger.log({
+            ...logBase,
+            searchMethod,
+            matchFound: facts.matchFound,
+            matchStatus,
+            complianceResult: "Sold after last contact - skipped",
+            propertyStatus: row.propertyStatus,
+            eligibility: row.eligibilityStatus,
+            textSent: false,
+            disposition: row.disposition,
+            notes: row.notes,
+          });
+          // Record so a re-pull shows it and skips re-checking this month.
+          this.sentLedger.recordResult({
+            contactUrl: row.reiContactUrl,
+            phone: facts.phone || row.phone,
+            disposition: row.disposition,
+            notes: row.notes,
+            propertyStatus: row.propertyStatus,
+            eligibilityStatus: row.eligibilityStatus,
+            reiMatchStatus: row.reiMatchStatus,
+            searchMethod: row.searchMethod,
+            companySource: facts.companySource || "",
+          });
+          return;
+        }
+      }
+
       let textSent = false;
 
       // Rule: if this lead was already texted THIS calendar month, don't text
@@ -541,10 +587,13 @@ export class AutomationEngine extends EventEmitter {
           row.eligibilityStatus = ELIGIBILITY.ELIGIBLE_SEND_BLOCKED;
           row.notes = "Clean & ready, but ALLOW_LIVE_SEND is off. No text sent.";
         } else {
-          // Fill {{first_name}} with the contact's first name (from REI), or a
-          // clean "there" fallback when no name is known — never sends a blank
-          // or a literal {{first_name}}.
-          const outbound = renderMessage(decision.message, facts.ownerName || row.ownerName);
+          // Pick a random approved template for this company (rotation avoids
+          // carrier spam-blocking from identical copy), then fill {{first_name}}
+          // with the contact's first name (or a clean "there" fallback) — never
+          // sends a blank or a literal {{first_name}}.
+          const template =
+            pickApprovedTemplate(facts.companySource || decision.company) || decision.message;
+          const outbound = renderMessage(template, facts.ownerName || row.ownerName);
           const result = await this.adapter.sendText(outbound);
           if (result && result.blocked) {
             // REI wouldn't let us send (e.g. the contact is opted out — the Send
@@ -691,6 +740,10 @@ export class AutomationEngine extends EventEmitter {
     // Remember a non-blocking status (e.g. Off Market) to show in the dashboard
     // even though the lead still proceeds to REI.
     if (pr && pr.statusLabel) row._redfinStatus = pr.statusLabel;
+    // Remember any sold date Redfin reported — even for an off-market property
+    // whose sale is outside the "recent" window — so the post-facts step can
+    // compare it against our last contact date.
+    if (pr && pr.soldDateISO) { row._redfinSoldDateISO = pr.soldDateISO; row._redfinSoldDateText = pr.soldDate || ""; }
     if (!pr || !pr.checked || pr.uncertain || (!pr.sold && !pr.listed)) return false;
 
     const sold = pr.sold;

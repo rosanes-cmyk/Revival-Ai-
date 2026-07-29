@@ -279,7 +279,9 @@
       <li><span class="lbl">Can it read the contact info clearly?</span><br />
         No → ❌ Lead Not Found. (Never guesses a name or number.)</li>
       <li><span class="lbl">Is the property sold or listed?</span> (REI tags + Redfin)<br />
-        Yes → ❌ Sold / Listed.</li>
+        Yes → ❌ Sold / Listed. <b>Also:</b> if Redfin shows the property <b>sold AFTER our last contact</b>
+        with the lead (they sold it since we last spoke), it's treated as Sold and skipped — even if the
+        sale is older than the usual recent-sale window.</li>
       <li><span class="lbl">Bad-tag / opt-out scan</span> (tags + notes + full chat history):
         <ul class="sub">
           <li>Do Not Automate → ❌ Skip</li>
@@ -313,9 +315,13 @@
     </ol>
 
     <h3>The two approved messages (locked)</h3>
-    <div class="msg"><span class="who">Twin Home Buyer</span>“Hi {{first_name}}, it's Juan with Twin Home Buyer. You reached out to us about your property, but we never found out how everything turned out. What ended up happening?”</div>
-    <div class="msg"><span class="who">Equity Track Inc.</span>“Hi {{first_name}}, it's Juan with Equity Track Inc. You reached out to us about your property, but we never found out how everything turned out. What ended up happening?”</div>
-    <p class="lead-in" style="margin-top:6px;"><b>{{first_name}}</b> is automatically replaced with the contact's first name from REI. When no name is known it reads “Hi there,” so it never sends a blank or a literal <span class="kbd">{{first_name}}</span>.</p>
+    <p class="lead-in">To avoid carrier spam-blocking from identical copy, the app keeps a <b>pool of approved templates per company</b> and picks one <b>at random</b> for each send. The wording below is for Twin Home Buyer; Equity Track Inc. uses the same set with its own company name.</p>
+    <div class="msg"><span class="who">Twin Home Buyer — preferred</span>“Hi {{first_name}}, it's Juan with Twin Home Buyer. You reached out about your property a while back, and I realized we never heard what you ended up doing with it. Did you end up selling it, or do you still have it?”</div>
+    <div class="msg"><span class="who">Variant 2</span>“Hi {{first_name}}, Juan here with Twin Home Buyer. I was looking back through our notes and saw we never found out what happened with your property. Did you end up selling, or are you still holding onto it?”</div>
+    <div class="msg"><span class="who">Variant 3</span>“Hi {{first_name}}, it's Juan with Twin Home Buyer. I was reviewing some older conversations and yours came up. Just curious—what ever happened with the property?”</div>
+    <div class="msg"><span class="who">Variant 4</span>“Hey {{first_name}}, it's Juan with Twin Home Buyer. Been a while since we last talked. Is the property still yours, or did you end up selling it?”</div>
+    <div class="msg"><span class="who">Variant 5</span>“Hey {{first_name}}, Juan with Twin Home Buyer. Quick question—did you ever end up selling the property, or do you still have it?”</div>
+    <p class="lead-in" style="margin-top:6px;"><b>{{first_name}}</b> is automatically replaced with the contact's first name from REI. When no name is known it reads “Hi there,” so it never sends a blank or a literal <span class="kbd">{{first_name}}</span>. The duplicate guard recognizes <b>all</b> variants (and the previous wording), so a lead is never double-texted regardless of which template was used.</p>
   </section>
 
   <!-- 8. REPORT -->

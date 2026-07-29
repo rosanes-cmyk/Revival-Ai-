@@ -112,7 +112,7 @@ export class RedfinAdapter {
    *            listed:boolean, listingNote:string, uncertain:boolean, reason:string}}
    */
   async lookupStatus(lead) {
-    const out = { checked: true, found: false, sold: false, soldDate: "", listed: false, listingNote: "", offMarket: false, statusLabel: "", propertyUrl: "", uncertain: false, reason: "" };
+    const out = { checked: true, found: false, sold: false, soldDate: "", soldDateISO: "", listed: false, listingNote: "", offMarket: false, statusLabel: "", propertyUrl: "", uncertain: false, reason: "" };
     // Build accurate search terms. Street-only matches the wrong city (e.g.
     // "Country Club Dr" exists in many towns), so we use street + city + state
     // + ZIP. We de-duplicate parts so a full-address column plus separate
@@ -160,13 +160,16 @@ export class RedfinAdapter {
         out.statusLabel = /pending|contingent|under contract|backup/i.test(listedHit) ? "Pending" : "For Sale";
       }
 
-      // SOLD: find a "sold on <date>" and check it is within the window.
+      // SOLD: find a "sold on <date>". Always expose the date (so callers can
+      // compare it against our last contact date), and flag `sold` when it is
+      // within the recent window.
       const soldDate = extractSoldDate(hay);
       if (soldDate.date) {
+        out.soldDate = soldDate.text;
+        out.soldDateISO = soldDate.date.toISOString();
         const months = monthsBetween(soldDate.date, new Date());
         if (months >= 0 && months <= this.soldWindowMonths) {
           out.sold = true;
-          out.soldDate = soldDate.text;
           out.listed = false; // an actual recent sale outranks a stale listing note
           out.listingNote = "";
           out.statusLabel = "Sold";
