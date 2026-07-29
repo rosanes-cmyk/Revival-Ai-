@@ -16,7 +16,7 @@ import { PropertyRadarAdapter } from "./propertyradar.js";
 import { RedfinAdapter } from "./redfin.js";
 import { resolveRedfinUrl } from "./redfinLink.js";
 import { decide } from "./sop.js";
-import { assertMessageIntegrity, normalizeCompany, COMPANY } from "./message.js";
+import { assertMessageIntegrity, normalizeCompany, COMPANY, renderMessage } from "./message.js";
 import { JOB_STATUS } from "../data/store.js";
 import { SentLedger } from "../data/sentLedger.js";
 import { DISPOSITION, ELIGIBILITY, REVIVAL_TAG } from "./constants.js";
@@ -541,7 +541,11 @@ export class AutomationEngine extends EventEmitter {
           row.eligibilityStatus = ELIGIBILITY.ELIGIBLE_SEND_BLOCKED;
           row.notes = "Clean & ready, but ALLOW_LIVE_SEND is off. No text sent.";
         } else {
-          const result = await this.adapter.sendText(decision.message);
+          // Fill {{first_name}} with the contact's first name (from REI), or a
+          // clean "there" fallback when no name is known — never sends a blank
+          // or a literal {{first_name}}.
+          const outbound = renderMessage(decision.message, facts.ownerName || row.ownerName);
+          const result = await this.adapter.sendText(outbound);
           if (result && result.blocked) {
             // REI wouldn't let us send (e.g. the contact is opted out — the Send
             // button stays disabled). Record it as Opted Out, not an error.

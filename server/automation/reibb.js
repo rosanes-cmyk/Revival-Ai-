@@ -16,7 +16,7 @@ import { fileURLToPath } from "url";
 import { chromium } from "playwright";
 import { MATCH_STATUS, SEARCH_METHOD, ACTIVE_DEAL_TAG_REGEX, RECENT_CONVERSATION_DAYS } from "./constants.js";
 import { detectFailed } from "./sop.js";
-import { getApprovedMessage } from "./message.js";
+import { getApprovedMessage, REVIVAL_NEEDLES } from "./message.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SELECTORS_PATH = path.join(__dirname, "..", "..", "config", "reibb.selectors.json");
@@ -424,23 +424,21 @@ export class ReiBlackBookAdapter {
     const companySource = detectedCompany || lead.companySource || "";
 
     const lastMessageFailed = detectFailed(history.latestText);
-    const approved = getApprovedMessage(companySource);
     // Cross-machine duplicate guard: if OUR revival text is already anywhere in
     // this contact's REI conversation, don't send again — no matter which
     // computer sent it or which company (EQT/THB) wording was used. Match on the
-    // distinctive phrase common to both approved messages, plus the exact text.
+    // distinctive, name-free phrases shared by the approved messages (current +
+    // previous script), since the sent text has the contact's real name filled in.
     const hist = history.fullText.toLowerCase();
-    const revivalNeedle = "contacted us before about selling your home";
-    const alreadySentApproved =
-      hist.includes(revivalNeedle) ||
-      (approved ? hist.includes(approved.toLowerCase()) : false);
+    const matchedNeedle = REVIVAL_NEEDLES.find((n) => hist.includes(n));
+    const alreadySentApproved = !!matchedNeedle;
 
     // REI is the source of truth (NOT any local file): find the date next to the
     // revival message in this account's chat. If that date is in the CURRENT
     // calendar month, we've already texted this contact this month. Works no
     // matter which computer or which REI account is logged in.
-    const revivalSentAt = alreadySentApproved
-      ? nearestDateToPhrase(history.fullText, revivalNeedle)
+    const revivalSentAt = matchedNeedle
+      ? nearestDateToPhrase(history.fullText, matchedNeedle)
       : null;
     const _now = new Date();
     const revivalSentThisMonth = !!(
@@ -930,11 +928,7 @@ export class ReiBlackBookAdapter {
         .replace(/\s+/g, " ")
         .toLowerCase();
       if (!body) return null;
-      const needles = [
-        "contacted us before about selling your home",
-        "are you still interested? reply yes or no",
-      ];
-      return needles.some((n) => body.includes(n));
+      return REVIVAL_NEEDLES.some((n) => body.includes(n));
     } catch {
       return null;
     }
@@ -1042,12 +1036,15 @@ export class ReiBlackBookAdapter {
     // box for opted-out numbers without sending.) While waiting, also watch for
     // an opt-out / undelivered notice so we can mark Opted Out instead.
     const norm = (s) => String(s || "").replace(/\s+/g, " ").trim().toLowerCase();
-    // Company-independent phrases present in BOTH approved messages. We look for
-    // these in the MAIN page only (the conversation) — NOT inside the reply-box
-    // iframe, so the text we just typed doesn't count as "sent".
+    // Distinctive, name-free phrases from the CURRENT approved message (both
+    // companies share them). We confirm the send by finding one of these in the
+    // MAIN page (the conversation) — NOT inside the reply-box iframe, so the text
+    // we just typed doesn't count as "sent". We deliberately use only the CURRENT
+    // wording (not the legacy phrase) so an older message already in the thread
+    // can't falsely confirm a re-engagement send that didn't actually go out.
     const needles = [
-      "contacted us before about selling your home",
-      "are you still interested? reply yes or no",
+      "we never found out how everything turned out",
+      "what ended up happening",
     ];
     // Only send-rejection toast phrases (e.g. "This number is opted out.") —
     // deliberately narrow so an OLD "reply STOP to opt out" or an old

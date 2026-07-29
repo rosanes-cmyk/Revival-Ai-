@@ -313,8 +313,9 @@
     </ol>
 
     <h3>The two approved messages (locked)</h3>
-    <div class="msg"><span class="who">Twin Home Buyer</span>“Hi, this is Juan with Twin Home Buyer. You contacted us before about selling your home. Are you still interested? Reply YES or NO. Thanks!”</div>
-    <div class="msg"><span class="who">Equity Track Inc.</span>“Hi, this is Juan with Equity Track Inc. You contacted us before about selling your home. Are you still interested? Reply YES or NO. Thanks!”</div>
+    <div class="msg"><span class="who">Twin Home Buyer</span>“Hi {{first_name}}, it's Juan with Twin Home Buyer. You reached out to us about your property, but we never found out how everything turned out. What ended up happening?”</div>
+    <div class="msg"><span class="who">Equity Track Inc.</span>“Hi {{first_name}}, it's Juan with Equity Track Inc. You reached out to us about your property, but we never found out how everything turned out. What ended up happening?”</div>
+    <p class="lead-in" style="margin-top:6px;"><b>{{first_name}}</b> is automatically replaced with the contact's first name from REI. When no name is known it reads “Hi there,” so it never sends a blank or a literal <span class="kbd">{{first_name}}</span>.</p>
   </section>
 
   <!-- 8. REPORT -->
