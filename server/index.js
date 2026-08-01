@@ -19,7 +19,7 @@ import os from "os";
 import path from "path";
 import { fileURLToPath } from "url";
 import { parseSpreadsheet, exportToXlsx, exportToCsv } from "./data/spreadsheet.js";
-import { JobStore, summarizeRows } from "./data/store.js";
+import { JobStore, summarizeRows, rowsForTab, tabCounts, TAB, TAB_FILE } from "./data/store.js";
 import { DISPOSITION } from "./automation/constants.js";
 import { JobLogger } from "./logger.js";
 import { AutomationEngine } from "./automation/engine.js";
@@ -593,19 +593,29 @@ app.get("/api/logs", (req, res) => {
 });
 
 // --- Export -----------------------------------------------------------------
+// ?format=xlsx|csv  &tab=all|text-sent|property-sold|not-interested|bad-leads|
+//   out-of-state|active-deal|needs-review
+// Exports ONLY the leads in the selected tab (defaults to all). Filenames are
+// clean and date-stamped, e.g. text-sent-2026-08-01.xlsx.
 app.get("/api/export", (req, res) => {
   if (!store) return res.status(400).json({ error: "No job to export." });
   const format = (req.query.format || "xlsx").toLowerCase();
-  const base = (store.job.sourceFileName || "leads").replace(/\.[^.]+$/, "");
+  const tab = String(req.query.tab || TAB.ALL).toLowerCase();
+  const subsetRows = rowsForTab(store.job.rows, tab);
+  // Export a shallow job whose rows are just this tab's rows (headers + summary
+  // sheet follow the subset). Nothing on the real job is mutated.
+  const subJob = { ...store.job, rows: subsetRows };
+  const stem = TAB_FILE[tab] || "all-leads";
+  const day = new Date().toISOString().slice(0, 10);
   if (format === "csv") {
-    const csv = exportToCsv(store.job);
+    const csv = exportToCsv(subJob);
     res.setHeader("Content-Type", "text/csv");
-    res.setHeader("Content-Disposition", `attachment; filename="${base}-updated.csv"`);
+    res.setHeader("Content-Disposition", `attachment; filename="${stem}-${day}.csv"`);
     return res.send(csv);
   }
-  const buffer = exportToXlsx(store.job);
+  const buffer = exportToXlsx(subJob);
   res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-  res.setHeader("Content-Disposition", `attachment; filename="${base}-updated.xlsx"`);
+  res.setHeader("Content-Disposition", `attachment; filename="${stem}-${day}.xlsx"`);
   res.send(buffer);
 });
 

@@ -111,6 +111,27 @@ export class SentLedger {
   }
 
   /**
+   * How many DISTINCT leads were actually texted on the same calendar DAY as
+   * `when`. Persists across runs/restarts, so the backend daily send cap holds
+   * even if the app is restarted mid-day. Deduped by contact-url + timestamp
+   * (each send writes two keys — one per contact id and phone).
+   */
+  textedCountOn(when = new Date()) {
+    const dayKey = (iso) => {
+      try { const d = new Date(iso); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; }
+      catch { return ""; }
+    };
+    const target = dayKey(when.toISOString());
+    const seen = new Set();
+    for (const e of Object.values(this.map)) {
+      if (!e || !e.textedIso) continue;
+      if (dayKey(e.textedIso) !== target) continue;
+      seen.add(`${e.reiContactUrl || ""}|${e.textedIso}`);
+    }
+    return seen.size;
+  }
+
+  /**
    * Record a confirmed send (back-compat helper). Sets both the texted and
    * checked timestamps.
    */

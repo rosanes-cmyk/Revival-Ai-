@@ -25,6 +25,7 @@ const ALIASES = {
 };
 
 // Automation columns appended to the export (in addition to your originals).
+// Includes every useful saved field — not just the on-screen columns.
 const AUTOMATION_COLUMNS = [
   "REI Match Status",
   "REI Contact Link",
@@ -34,6 +35,20 @@ const AUTOMATION_COLUMNS = [
   "Opt-Out / Safety",
   "Eligibility Status",
   "Text Sent Timestamp",
+  "Message Sent",
+  "Delivery Status",
+  "Delivery Evidence",
+  "Status Last Checked",
+  "Reply Received",
+  "Reply Text",
+  "Reply Received At",
+  "Reply Classification",
+  "Reply Reason",
+  "Needs Manual Review",
+  "Active Deal",
+  "Active Deal Reason",
+  "Recheck Completed",
+  "Recheck Error",
   "Error Log",
 ];
 
@@ -151,6 +166,20 @@ function toRecord(job, r) {
   rec["Opt-Out / Safety"] = r.safetyStatus;
   rec["Eligibility Status"] = r.eligibilityStatus;
   rec["Text Sent Timestamp"] = r.textSentTimestamp;
+  rec["Message Sent"] = r.sentMessageBody || "";
+  rec["Delivery Status"] = r.messageDeliveryStatus || "";
+  rec["Delivery Evidence"] = r.deliveryStatusEvidence || "";
+  rec["Status Last Checked"] = r.messageStatusLastCheckedAt || "";
+  rec["Reply Received"] = r.replyReceived ? "Yes" : "";
+  rec["Reply Text"] = r.replyText || "";
+  rec["Reply Received At"] = r.replyReceivedAt || "";
+  rec["Reply Classification"] = r.replyClassification || "";
+  rec["Reply Reason"] = r.replyClassificationReason || "";
+  rec["Needs Manual Review"] = r.needsManualReview ? "Yes" : "";
+  rec["Active Deal"] = r.activeDeal ? "Yes" : "";
+  rec["Active Deal Reason"] = r.activeDealReason || "";
+  rec["Recheck Completed"] = r.recheckCompleted ? "Yes" : "";
+  rec["Recheck Error"] = r.recheckError || "";
   rec["Error Log"] = r.errorLog;
   return rec;
 }

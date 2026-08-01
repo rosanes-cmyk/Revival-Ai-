@@ -35,15 +35,24 @@ export class AutomationEngine extends EventEmitter {
     // Source. The two approved messages differ only by this name, so a sheet
     // never needs a Company Source column — it just falls back to this.
     this.defaultCompany = normalizeCompany(process.env.DEFAULT_COMPANY) || COMPANY.TWIN_HOME_BUYER;
-    // Max texts to actually SEND per run (batching to protect the number).
-    // Defaults to 100 even without a .env; 0 = unlimited. Only successful sends
-    // count; skips/other outcomes don't. Adjustable live from the dashboard.
-    this.maxSendsPerRun = Number(process.env.MAX_SENDS_PER_RUN ?? 100);
-    // Auto-continue: after each batch of maxSendsPerRun, automatically keep
-    // going (next batch) until all leads are done or the user hits Stop. A short
-    // pause between batches is gentler on the number. Default ON.
+    // DEPRECATED (kept for back-compat with old .env / saved config): the
+    // per-run "Texts per Run" cap is no longer used to stop a run and is no
+    // longer shown in the UI. Sending is now governed by the backend daily hard
+    // cap below. The field remains so old configs / the /api/batch-limit route
+    // don't break.
+    this.maxSendsPerRun = Number(process.env.MAX_SENDS_PER_RUN ?? 0);
     this.autoContinue = String(process.env.AUTO_CONTINUE ?? "true").toLowerCase() !== "false";
     this.batchPauseMs = Number(process.env.BATCH_PAUSE_MS ?? 8000);
+    // Backend SAFETY MAXIMUM: never send more than this many texts in one
+    // calendar day (across runs/restarts — counted from the ledger). This is the
+    // guardrail that replaces the removed UI batch control so removing it can't
+    // create an uncontrolled sending loop. 0 = unlimited (not recommended).
+    this.dailySendHardCap = Number(process.env.DAILY_SEND_HARD_CAP ?? 300);
+    // Gentle pacing: pause briefly every N successful sends to protect the
+    // number from carrier spam flags (replaces the old per-batch stop).
+    this.pacingEvery = Number(process.env.SEND_PACING_EVERY ?? 40);
+    this._dailySends = 0;        // sends counted this run (seeded from ledger)
+    this._pacedAtSends = 0;      // guard so a pacing pause fires once per step
     // Optional property Sold/Listed verification, checked FIRST for each lead.
     // PROPERTY_SOURCE = "redfin" (free, no login) | "propertyradar" (login) |
     // "none". Back-compat: CHECK_PROPERTYRADAR=true still selects propertyradar.
@@ -159,27 +168,36 @@ export class AutomationEngine extends EventEmitter {
 
       const rows = this.store.rows;
       this._runStats = { count: 0, totalMs: 0, sends: 0 };
-      let batchLimitReached = false;
+      // Seed today's send count from the ledger so the daily cap holds across
+      // restarts within the same day.
+      this._dailySends = this.sentLedger.textedCountOn(new Date());
+      this._pacedAtSends = 0;
+      let batchLimitReached = false; // = daily hard cap reached
       for (let i = this.store.job.cursor; i < rows.length; i++) {
         while (this._control === "paused") await sleep(400);
         if (this._control === "stopping") break;
 
         this.store.job.cursor = i;
 
-        // Per-batch send cap hit.
-        if (this.maxSendsPerRun > 0 && this._runStats.sends >= this.maxSendsPerRun) {
-          if (this.autoContinue) {
-            // Keep going: brief pause, reset the batch counter, continue to the
-            // next batch automatically (until all leads done or user stops).
-            this.emitState(`Sent ${this._runStats.sends} this batch — pausing briefly, then continuing the next ${this.maxSendsPerRun}…`);
-            const until = Date.now() + this.batchPauseMs;
-            while (Date.now() < until && this._control !== "stopping") await sleep(400);
-            if (this._control === "stopping") break;
-            this._runStats.sends = 0;
-          } else {
-            batchLimitReached = true;
-            break;
-          }
+        // Backend daily hard cap hit → stop this run (progress saved). Protects
+        // the number no matter how many leads remain.
+        if (this.dailySendHardCap > 0 && this._dailySends >= this.dailySendHardCap) {
+          batchLimitReached = true;
+          break;
+        }
+
+        // Gentle pacing: brief pause every `pacingEvery` successful sends.
+        if (
+          this.pacingEvery > 0 &&
+          this._runStats.sends > 0 &&
+          this._runStats.sends % this.pacingEvery === 0 &&
+          this._pacedAtSends !== this._runStats.sends
+        ) {
+          this._pacedAtSends = this._runStats.sends;
+          this.emitState(`Sent ${this._runStats.sends} so far — brief pause to protect the number…`);
+          const until = Date.now() + this.batchPauseMs;
+          while (Date.now() < until && this._control !== "stopping") await sleep(400);
+          if (this._control === "stopping") break;
         }
 
         const row = rows[i];
@@ -226,7 +244,7 @@ export class AutomationEngine extends EventEmitter {
       } else if (batchLimitReached) {
         this.store.setStatus(JOB_STATUS.STOPPED);
         this.emitState(
-          `Batch limit reached: ${this._runStats.sends} text(s) sent this run. Progress saved — click Resume/Start for the next batch.`
+          `Daily send limit reached (${this.dailySendHardCap} texts today). Progress saved — it will continue automatically tomorrow, or click Start to resume other checks.`
         );
       } else {
         this.store.job.cursor = rows.length;
@@ -605,9 +623,14 @@ export class AutomationEngine extends EventEmitter {
           } else if (result && result.sent) {
             textSent = true;
             this._runStats.sends += 1;
+            this._dailySends += 1; // backend daily hard-cap counter
             row.disposition = DISPOSITION.TEXT_SENT;
             row.eligibilityStatus = ELIGIBILITY.ELIGIBLE_TEXT_SENT;
             row.textSentTimestamp = result.timestamp;
+            // Save the EXACT text sent so the Recheck can verify the right
+            // message (templates rotate + {{first_name}} is filled per lead).
+            row.sentMessageBody = outbound;
+            row.messageDeliveryStatus = "Sent"; // confirmed present in REI chat
             row.notes = "Live text sent successfully";
             // Record in the monthly ledger so this lead isn't texted again
             // this month (persists across runs / uploads / REI pulls).

@@ -165,5 +165,95 @@ function normalizeRow(r) {
     processedAt: r.processedAt || "",
     fromMemory: !!r.fromMemory,
     errorLog: r.errorLog || "",
+
+    // --- Verification / reply fields (added for Recheck Text Sent). Old job
+    // files without these load fine — every field defaults here. ---------------
+    sentMessageBody: r.sentMessageBody || "",             // exact text sent
+    messageDeliveryStatus: r.messageDeliveryStatus || "", // Sent|Delivered|Failed|Undelivered|Unknown|Needs Recheck
+    deliveryStatusEvidence: r.deliveryStatusEvidence || "",
+    messageStatusLastCheckedAt: r.messageStatusLastCheckedAt || "",
+    messageStatusCheckAttempts: Number(r.messageStatusCheckAttempts || 0),
+    replyReceived: !!r.replyReceived,
+    replyText: r.replyText || "",
+    replyReceivedAt: r.replyReceivedAt || "",
+    replyClassification: r.replyClassification || "",     // interested|not_interested|needs_review|""
+    replyClassificationReason: r.replyClassificationReason || "",
+    needsManualReview: !!r.needsManualReview,
+    activeDeal: !!r.activeDeal,
+    activeDealReason: r.activeDealReason || "",
+    recheckCompleted: !!r.recheckCompleted,
+    recheckError: r.recheckError || "",
   };
+}
+
+// -------- Tab categorization (non-destructive; computed from saved fields) ----
+// Every lead ALWAYS appears in "all". Outside "all", each lead lands in exactly
+// ONE result tab, chosen by precedence below from its latest disposition / reply
+// / review flags. Nothing here mutates the row.
+export const TAB = Object.freeze({
+  ALL: "all",
+  TEXT_SENT: "text-sent",
+  PROPERTY_SOLD: "property-sold",
+  NOT_INTERESTED: "not-interested",
+  BAD_LEADS: "bad-leads",
+  OUT_OF_STATE: "out-of-state",
+  ACTIVE_DEAL: "active-deal",
+  NEEDS_REVIEW: "needs-review",
+});
+
+// Clean, download-friendly filename stem per tab.
+export const TAB_FILE = Object.freeze({
+  [TAB.ALL]: "all-leads",
+  [TAB.TEXT_SENT]: "text-sent",
+  [TAB.PROPERTY_SOLD]: "property-sold",
+  [TAB.NOT_INTERESTED]: "not-interested-to-delete",
+  [TAB.BAD_LEADS]: "bad-leads",
+  [TAB.OUT_OF_STATE]: "out-of-state",
+  [TAB.ACTIVE_DEAL]: "active-deals",
+  [TAB.NEEDS_REVIEW]: "needs-review",
+});
+
+/** The single result tab a row belongs to (besides "all"), or null. */
+export function categorizeRow(row) {
+  const d = row.disposition;
+  // 1) Needs Review — unclear reply, uncertain match, or a TECHNICAL error
+  //    (temporary browser/login/selector issues are NOT bad leads).
+  if (row.needsManualReview || d === DISPOSITION.NEEDS_REVIEW || d === DISPOSITION.ERROR) {
+    return TAB.NEEDS_REVIEW;
+  }
+  // 2) Active Deal — reply shows interest, or an active-deal REI tag/stage.
+  if (row.activeDeal || d === DISPOSITION.RECENT_CONTACT) return TAB.ACTIVE_DEAL;
+  // 3) Text Sent — the app completed a send.
+  if (d === DISPOSITION.TEXT_SENT) return TAB.TEXT_SENT;
+  // 4) Not Interested / To Delete — negative replies, opt-outs, wrong number.
+  if (d === DISPOSITION.NOT_INTERESTED || d === DISPOSITION.OPTED_OUT || d === DISPOSITION.WRONG_NUMBER) {
+    return TAB.NOT_INTERESTED;
+  }
+  // 5) Property Sold / Listed.
+  if (d === DISPOSITION.PROPERTY_SOLD || d === DISPOSITION.LISTED) return TAB.PROPERTY_SOLD;
+  // 6) Out of State.
+  if (d === DISPOSITION.OUT_OF_STATE) return TAB.OUT_OF_STATE;
+  // 7) Bad Leads — junk / unusable contact or a real send failure.
+  if (d === DISPOSITION.BAD_LEAD || d === DISPOSITION.FAILED_NUMBER || d === DISPOSITION.LEAD_NOT_FOUND) {
+    return TAB.BAD_LEADS;
+  }
+  // Pending / Ready / Already-contacted / Texted-this-month → only in "all".
+  return null;
+}
+
+/** Rows belonging to a given tab ("all" returns everything). */
+export function rowsForTab(rows, tab) {
+  if (!tab || tab === TAB.ALL) return rows.slice();
+  return rows.filter((r) => categorizeRow(r) === tab);
+}
+
+/** Count of rows per tab (for tab badges). */
+export function tabCounts(rows) {
+  const counts = { [TAB.ALL]: rows.length };
+  for (const key of Object.values(TAB)) if (key !== TAB.ALL) counts[key] = 0;
+  for (const r of rows) {
+    const t = categorizeRow(r);
+    if (t) counts[t] += 1;
+  }
+  return counts;
 }
