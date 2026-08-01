@@ -18,7 +18,8 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { fileURLToPath } from "url";
-import { parseSpreadsheet, exportToXlsx, exportToCsv } from "./data/spreadsheet.js";
+import { parseSpreadsheet, exportToXlsx, exportToCsv, rowsToXlsxBuffer, rowsToCsv } from "./data/spreadsheet.js";
+import { computePercentageReport, reportTableRows } from "./reports/percentage.js";
 import { JobStore, summarizeRows, rowsForTab, tabCounts, TAB, TAB_FILE } from "./data/store.js";
 import { DISPOSITION } from "./automation/constants.js";
 import { JobLogger } from "./logger.js";
@@ -92,6 +93,7 @@ engine.on("row", (d) => broadcast("row", d));
 engine.on("summary", (d) => broadcast("summary", d));
 engine.on("progress", (d) => broadcast("progress", d));
 engine.on("final", (d) => broadcast("final", d));
+engine.on("recheck", (d) => broadcast("recheck", d));
 engine.on("error", (err) => broadcast("state", { message: `Error: ${err.message}` }));
 
 app.get("/api/events", (req, res) => {
@@ -321,6 +323,101 @@ function buildReportHtml(job, scope = "both") {
 </body></html>`;
 }
 
+// --- Percentage Report ------------------------------------------------------
+// Filters via query: company, state, deliveryStatus, replyClassification,
+// leadSource, sentDate (YYYY-MM-DD), recheckDate (YYYY-MM-DD).
+function currentPercentageReport(query = {}) {
+  const rows = store && Array.isArray(store.job.rows) ? store.job.rows : [];
+  return computePercentageReport(rows, {
+    company: query.company, state: query.state,
+    deliveryStatus: query.deliveryStatus, replyClassification: query.replyClassification,
+    leadSource: query.leadSource, sentDate: query.sentDate, recheckDate: query.recheckDate,
+  });
+}
+
+app.get("/api/percentage", (req, res) => {
+  res.json({
+    report: currentPercentageReport(req.query),
+    jobId: store ? store.job.jobId : null,
+    jobName: store ? store.job.sourceFileName : null,
+  });
+});
+
+function percentageMetaRows(rep, jobName) {
+  const day = new Date();
+  return [
+    { Metric: "Report generated", Total: day.toLocaleString(), Percentage: "", "Percentage Based On": "" },
+    { Metric: "Job", Total: jobName || "—", Percentage: "", "Percentage Based On": "" },
+    { Metric: "Recheck completion", Total: `${rep.recheck.recheckedCount}/${rep.totals.totalTextsSent}`, Percentage: rep.recheck.recheckCompletePct.toFixed(2) + "%", "Percentage Based On": "Texts Sent" },
+    { Metric: "", Total: "", Percentage: "", "Percentage Based On": "" },
+  ];
+}
+
+app.get("/api/percentage.xlsx", (req, res) => {
+  const rep = currentPercentageReport(req.query);
+  const jobName = store ? store.job.sourceFileName : "";
+  const records = [...percentageMetaRows(rep, jobName), ...reportTableRows(rep)];
+  const buf = rowsToXlsxBuffer(records, "Percentage Report", ["Metric", "Total", "Percentage", "Percentage Based On"]);
+  const day = new Date().toISOString().slice(0, 10);
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.setHeader("Content-Disposition", `attachment; filename="revival-percentage-report-${day}.xlsx"`);
+  res.send(buf);
+});
+app.get("/api/percentage.csv", (req, res) => {
+  const rep = currentPercentageReport(req.query);
+  const jobName = store ? store.job.sourceFileName : "";
+  const records = [...percentageMetaRows(rep, jobName), ...reportTableRows(rep)];
+  const csv = rowsToCsv(records, ["Metric", "Total", "Percentage", "Percentage Based On"]);
+  const day = new Date().toISOString().slice(0, 10);
+  res.setHeader("Content-Type", "text/csv");
+  res.setHeader("Content-Disposition", `attachment; filename="revival-percentage-report-${day}.csv"`);
+  res.send(csv);
+});
+app.get("/api/percentage.pdf", async (req, res) => {
+  const rep = currentPercentageReport(req.query);
+  const jobName = store ? store.job.sourceFileName : "";
+  const html = buildPercentageHtml(rep, jobName);
+  let browser = null;
+  try {
+    browser = await launchPdfBrowser();
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: "load" });
+    const pdf = await page.pdf({ format: "Letter", printBackground: true, margin: { top: "0.4in", bottom: "0.4in", left: "0.4in", right: "0.4in" } });
+    const day = new Date().toISOString().slice(0, 10);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="revival-percentage-report-${day}.pdf"`);
+    res.send(pdf);
+  } catch (err) {
+    res.status(500).json({ error: "Could not generate PDF: " + err.message });
+  } finally {
+    if (browser) await browser.close().catch(() => {});
+  }
+});
+
+function buildPercentageHtml(rep, jobName) {
+  const rows = reportTableRows(rep)
+    .map((r) => `<tr><td>${String(r.Metric).replace(/[<>&]/g, "")}</td><td class="num">${Number(r.Total || 0).toLocaleString()}</td><td class="num">${r.Percentage || ""}</td><td>${r["Percentage Based On"] || ""}</td></tr>`)
+    .join("");
+  const now = new Date().toLocaleString();
+  return `<!doctype html><html><head><meta charset="utf-8"/><title>Revival Percentage Report</title>
+<style>
+ body{margin:0;background:#f1f5f9;color:#0f172a;font-family:'Segoe UI',system-ui,Arial,sans-serif;}
+ .page{max-width:900px;margin:24px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 10px 40px rgba(2,6,23,.10);}
+ .head{padding:26px 32px;background:linear-gradient(135deg,#0b0b0d,#14532d);color:#fff;}
+ .head h1{margin:0;font-size:22px;} .head p{margin:6px 0 0;opacity:.85;font-size:13px;}
+ .meta{padding:12px 32px;background:#f8fafc;border-bottom:1px solid #e2e8f0;font-size:13px;color:#475569;}
+ table{width:100%;border-collapse:collapse;font-size:13px;} th,td{padding:9px 32px;text-align:left;border-bottom:1px solid #eef2f7;}
+ th{background:#f8fafc;color:#334155;font-size:11px;text-transform:uppercase;letter-spacing:.4px;}
+ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;} tbody tr:nth-child(even){background:#fbfdff;}
+ .foot{padding:14px 32px 24px;color:#94a3b8;font-size:11px;}
+</style></head><body><div class="page">
+ <div class="head"><h1>Twin Text Revival — Percentage Report</h1><p>Every percentage shows its supporting count and denominator.</p></div>
+ <div class="meta">Generated: <b>${now}</b> &nbsp;·&nbsp; Job: <b>${String(jobName || "—").replace(/[<>&]/g, "")}</b> &nbsp;·&nbsp; Recheck: <b>${rep.recheck.recheckedCount}/${rep.totals.totalTextsSent}</b> (${rep.recheck.recheckCompletePct.toFixed(2)}%)</div>
+ <table><thead><tr><th>Metric</th><th class="num">Total</th><th class="num">Percentage</th><th>Percentage Based On</th></tr></thead><tbody>${rows}</tbody></table>
+ <div class="foot">Twin Text Platform · Revival AI</div>
+</div></body></html>`;
+}
+
 // --- Config surface ---------------------------------------------------------
 app.get("/api/config", (req, res) => {
   res.json({
@@ -431,6 +528,19 @@ app.post("/api/reverify", (req, res) => {
   if (engine.isBusy()) return res.status(409).json({ error: "Automation is running. Stop it first, then Re-verify." });
   if (!store) return res.status(400).json({ error: "Upload leads first." });
   engine.reverify().catch((err) => broadcast("state", { message: `Re-verify error: ${err.message}` }));
+  res.json({ ok: true });
+});
+
+// Recheck Text Sent — manual, read-only. Verifies each sent message and checks
+// for seller replies. Never sends. Runs in the background; progress via SSE.
+app.post("/api/recheck", (req, res) => {
+  if (engine.isBusy()) return res.status(409).json({ error: "Automation is running. Stop it first, then Recheck." });
+  if (!store) return res.status(400).json({ error: "Upload or pull leads first." });
+  engine.recheckTextSent().catch((err) => broadcast("state", { message: `Recheck error: ${err.message}` }));
+  res.json({ ok: true });
+});
+app.post("/api/recheck/stop", (req, res) => {
+  engine.requestStopRecheck();
   res.json({ ok: true });
 });
 

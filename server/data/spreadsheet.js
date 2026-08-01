@@ -233,6 +233,18 @@ export function exportToXlsx(job) {
   return XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
 }
 
+// Generic helpers for arbitrary tabular reports (e.g. the Percentage Report).
+export function rowsToXlsxBuffer(records, sheetName = "Report", header = null) {
+  const ws = header ? XLSX.utils.json_to_sheet(records, { header }) : XLSX.utils.json_to_sheet(records);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0, 31));
+  return XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+}
+export function rowsToCsv(records, header = null) {
+  const ws = header ? XLSX.utils.json_to_sheet(records, { header }) : XLSX.utils.json_to_sheet(records);
+  return XLSX.utils.sheet_to_csv(ws);
+}
+
 export function exportToCsv(job) {
   const { cols } = exportColumns(job);
   const data = job.rows.map((r) => toRecord(job, r));

@@ -934,6 +934,130 @@ export class ReiBlackBookAdapter {
     }
   }
 
+  // ----- READ-ONLY conversation detail for "Recheck Text Sent" ---------------
+  // Opens a contact's Chat, confirms our outbound revival message is present,
+  // reads any visible delivery status, and detects a seller reply that came
+  // AFTER our message. Returns a structured result. NEVER types, NEVER clicks
+  // Send, NEVER writes anything. Degrades safely: an unreadable/unparseable
+  // status is "Unknown" or "Needs Recheck" — it never invents "Delivered".
+  //
+  // @param {string} contactUrl
+  // @param {{sentMessageBody?:string, sentTimestamp?:string}} opts
+  // @returns {{ok, outboundFound, deliveryStatus, deliveryEvidence,
+  //            replyReceived, replyText, replyAt, error}}
+  async readConversationDetail(contactUrl, opts = {}) {
+    const sentBody = String(opts.sentMessageBody || "");
+    const sentIso = opts.sentTimestamp || "";
+    const out = {
+      ok: false, outboundFound: false,
+      deliveryStatus: "Needs Recheck", deliveryEvidence: "",
+      replyReceived: false, replyText: "", replyAt: "", error: "",
+    };
+    if (!contactUrl) { out.error = "No REI contact URL saved for this lead."; return out; }
+    const conv = (this.selectors.contactRecord && this.selectors.contactRecord.conversation) || {};
+    try {
+      await this.page.goto(contactUrl, { waitUntil: "domcontentloaded" }).catch(() => {});
+      await this.page.waitForTimeout(1200);
+      // Login expired / redirected back to auth → Needs Recheck (not a failure).
+      if (/\/services\/account\//i.test(this.page.url())) {
+        out.error = "REI login appears to have expired — needs recheck.";
+        return out;
+      }
+      for (const sel of ["[role='tab']:has-text('Chat')", "button:has-text('Chat')", "text=Chat"]) {
+        if (await this.clickIfVisible(sel, 1200)) break;
+      }
+      await this.page.waitForTimeout(900);
+
+      const bodyText = ((await this.page.locator("body").innerText().catch(() => "")) || "").replace(/\s+/g, " ");
+      if (!bodyText) { out.error = "Chat did not load."; return out; }
+      const bodyLow = bodyText.toLowerCase();
+
+      // Distinctive, name-free chunk of the exact text we sent (drop the first
+      // sentence, which carries the contact's name + company).
+      const afterFirst = sentBody.split(/[.?!]\s+/).slice(1).join(" ").replace(/\s+/g, " ").trim().toLowerCase();
+      const sentChunk = afterFirst.slice(0, 45);
+
+      // Structured message list (best-effort; may be empty if selectors miss).
+      let messages = [];
+      try {
+        messages = await this.page.evaluate((cfg) => {
+          const inRe = new RegExp(cfg.inboundClassHint, "i");
+          const outRe = new RegExp(cfg.outboundClassHint, "i");
+          const items = Array.from(document.querySelectorAll(cfg.messageItem)).slice(0, 400);
+          return items.map((el) => {
+            const cls = (el.className || "") + " " + ((el.parentElement && el.parentElement.className) || "");
+            let dir = "unknown";
+            if (outRe.test(cls)) dir = "out";
+            else if (inRe.test(cls)) dir = "in";
+            const textEl = el.querySelector(cfg.messageText) || el;
+            const text = (textEl.innerText || textEl.textContent || "").replace(/\s+/g, " ").trim();
+            const tsEl = el.querySelector(cfg.messageTimestamp);
+            const ts = tsEl ? (tsEl.getAttribute("datetime") || tsEl.getAttribute("title") || tsEl.innerText || "").trim() : "";
+            const stEl = el.querySelector(cfg.deliveryStatusText);
+            const statusText = stEl ? (stEl.innerText || stEl.textContent || "").replace(/\s+/g, " ").trim() : "";
+            return { dir, text, ts, statusText };
+          }).filter((m) => m.text);
+        }, conv);
+      } catch { /* selectors not present; fall back to body scanning */ }
+
+      // 1) Locate OUR outbound message.
+      const needleHit = REVIVAL_NEEDLES.some((n) => bodyLow.includes(n));
+      let outIdx = -1;
+      if (messages.length) {
+        outIdx = messages.findIndex(
+          (m) => m.dir !== "in" &&
+            ((sentChunk && m.text.toLowerCase().includes(sentChunk)) ||
+             REVIVAL_NEEDLES.some((n) => m.text.toLowerCase().includes(n)))
+        );
+      }
+      out.outboundFound = outIdx >= 0 || needleHit || (!!sentChunk && bodyLow.includes(sentChunk));
+
+      // 2) Delivery status — prefer the matched message's own status text; never
+      //    invent "Delivered".
+      const failedRe = new RegExp(conv.failedHint || "failed|undeliverable", "i");
+      const deliveredRe = new RegExp(conv.deliveredHint || "delivered", "i");
+      const undeliveredRe = /undeliverable|invalid number|no longer in service|not in service|bounced/i;
+      const matchedStatus = outIdx >= 0 ? (messages[outIdx].statusText || messages[outIdx].text) : "";
+      const statusHay = (matchedStatus || "").toLowerCase();
+      if (statusHay && undeliveredRe.test(statusHay)) { out.deliveryStatus = "Undelivered"; out.deliveryEvidence = matchedStatus.slice(0, 120); }
+      else if (statusHay && failedRe.test(statusHay)) { out.deliveryStatus = "Failed"; out.deliveryEvidence = matchedStatus.slice(0, 120); }
+      else if (statusHay && deliveredRe.test(statusHay)) { out.deliveryStatus = "Delivered"; out.deliveryEvidence = matchedStatus.slice(0, 120); }
+      else if (out.outboundFound) {
+        // Message visibly present but no reliable per-message status → Sent
+        // (confirmed present), unless a clear failure notice sits in the thread.
+        if (/failed to send|message failed|not delivered|could not be delivered|undeliverable/i.test(bodyLow)) {
+          out.deliveryStatus = "Failed";
+          out.deliveryEvidence = "Failure notice found in conversation.";
+        } else {
+          out.deliveryStatus = "Sent";
+          out.deliveryEvidence = outIdx >= 0 ? "Outbound message located in thread." : "Revival message present in chat.";
+        }
+      } else {
+        out.deliveryStatus = "Unknown";
+        out.deliveryEvidence = "Could not locate the outbound revival message in the chat.";
+      }
+
+      // 3) Seller reply AFTER our message (inbound, not our outbound, dedup).
+      if (messages.length && outIdx >= 0) {
+        const laterInbound = messages
+          .slice(outIdx + 1)
+          .filter((m) => m.dir === "in" && m.text && !REVIVAL_NEEDLES.some((n) => m.text.toLowerCase().includes(n)));
+        if (laterInbound.length) {
+          const last = laterInbound[laterInbound.length - 1];
+          out.replyReceived = true;
+          out.replyText = last.text.slice(0, 2000);
+          out.replyAt = last.ts || "";
+        }
+      }
+      out.ok = true;
+      return out;
+    } catch (err) {
+      out.error = err.message;
+      out.deliveryStatus = "Needs Recheck";
+      return out;
+    }
+  }
+
   // ----- Apply a Revival tag (SOP "HOW TO PUT TAGS IN REI") -----------------
   // Returns true if the tag was applied and confirmed; throws on failure.
   async applyTag(tagName) {

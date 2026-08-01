@@ -309,6 +309,96 @@ export function detectFailed(latestMessageText) {
   return FAILED_MARKERS.some((m) => text.includes(m));
 }
 
+// ---------------------------------------------------------------------------
+// Reply classification (used by Recheck Text Sent). Classifies a seller's
+// inbound reply into: interested | not_interested | needs_review. Never relies
+// on a single isolated keyword when the wider message flips its meaning: if a
+// reply carries BOTH clear positive and clear negative intent, it is
+// needs_review. STOP / opt-out language ALWAYS routes to not_interested with
+// suppression so the existing opt-out protections fire.
+// ---------------------------------------------------------------------------
+const INTERESTED_PHRASES = [
+  "i am interested", "i'm interested", "im interested", "still interested",
+  "i want to sell", "want to sell", "i may sell", "i might sell", "considering selling",
+  "i am considering", "thinking of selling", "open to selling", "would sell",
+  "make me an offer", "make an offer", "send me an offer", "send an offer",
+  "what can you offer", "how much can you offer", "how much", "what's your offer",
+  "whats your offer", "cash offer", "your offer", "call me", "give me a call",
+  "you can call", "let's talk", "lets talk", "we can talk", "contact me later",
+  "reach out later", "depending on price", "depends on the price", "for the right price",
+  "know my options", "my options", "what are my options", "i would like to know",
+];
+const NOT_INTERESTED_PHRASES = [
+  "not interested", "no longer interested", "not selling", "i'm not selling",
+  "im not selling", "not for sale", "already sold", "i sold", "we sold", "sold it",
+  "sold already", "wrong number", "wrong person", "not the owner", "leave me alone",
+  "lose my number", "take me off", "stop texting", "stop contacting", "do not want",
+  "no thanks", "no thank you", "not right now never",
+];
+
+/**
+ * Classify a seller reply. Returns
+ *   { classification, reason, activeDeal, needsReview, optOut }
+ * classification ∈ 'interested' | 'not_interested' | 'needs_review'.
+ */
+export function classifyReply(replyText) {
+  const raw = String(replyText || "").trim();
+  const lower = raw.toLowerCase();
+  if (!raw) {
+    return { classification: "needs_review", reason: "Empty/unreadable reply.", activeDeal: false, needsReview: true, optOut: false };
+  }
+
+  // Hard opt-out first — STOP, unsubscribe, do-not-contact, do-not-automate.
+  if (DO_NOT_AUTOMATE_REGEX.test(lower) || OPTOUT_REGEX.test(lower) || detectStopReply(raw)) {
+    return {
+      classification: "not_interested",
+      reason: "Opt-out / STOP language — suppression applied.",
+      activeDeal: false, needsReview: false, optOut: true,
+    };
+  }
+
+  const posHits = INTERESTED_PHRASES.filter((p) => lower.includes(p));
+  const negHits = NOT_INTERESTED_PHRASES.filter((p) => lower.includes(p));
+
+  // A short, standalone yes/no counts (but only when it IS the message, so an
+  // isolated keyword inside a longer, contradictory sentence can't flip it).
+  const bareYes = /^(yes|yeah|yep|sure|ok|okay|interested)\b[\s.!]*$/i.test(raw);
+  const bareNo = /^(no|nope|nah)\b[\s.!]*$/i.test(raw);
+
+  const positive = posHits.length > 0 || bareYes;
+  const negative = negHits.length > 0 || bareNo;
+
+  // Mixed signals → a human decides.
+  if (positive && negative) {
+    return {
+      classification: "needs_review",
+      reason: `Mixed signals (interested: ${posHits.join(", ") || "yes"}; not: ${negHits.join(", ") || "no"}).`,
+      activeDeal: false, needsReview: true, optOut: false,
+    };
+  }
+  if (negative) {
+    return {
+      classification: "not_interested",
+      reason: negHits.length ? `Negative: "${negHits[0]}"` : "Replied No.",
+      activeDeal: false, needsReview: false, optOut: false,
+    };
+  }
+  if (positive) {
+    return {
+      classification: "interested",
+      reason: posHits.length ? `Interest: "${posHits[0]}"` : "Replied Yes.",
+      activeDeal: true, needsReview: false, optOut: false,
+    };
+  }
+
+  // Anything else (a bare question, unclear intent) → needs review.
+  return {
+    classification: "needs_review",
+    reason: "Reply present but intent unclear — needs a human decision.",
+    activeDeal: false, needsReview: true, optOut: false,
+  };
+}
+
 function describePropertyStatus(facts) {
   if (facts.propertySold) return facts.soldDate ? `Sold (${facts.soldDate})` : "Sold";
   if (facts.propertyListed) return "Listed (Active MLS)";

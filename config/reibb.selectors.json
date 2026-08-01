@@ -148,6 +148,18 @@
       "editorFrame": "iframe.tox-edit-area__iframe, iframe[id*='tiny' i], iframe[title*='Rich Text' i]",
       "sendButton": "[aria-label='Send Text' i], [title='Send Text' i], button:has-text('Send Text'), [data-testid*='send' i], [aria-label*='send' i], button[title*='send' i], button:has(svg[class*='send' i]), button:has(svg[class*='paper' i])",
       "sentMarker": ""
+    },
+
+    "conversation": {
+      "_status": "NEEDS-DOM (READ-ONLY, used by Recheck Text Sent). Best-guess selectors for reading individual chat messages, their direction (inbound vs outbound), per-message timestamps, and any visible delivery status. CAPTURE THESE LIVE with `npx playwright codegen` against a real REI conversation and replace the guesses. Until confirmed, recheck degrades SAFELY: it never fabricates 'Delivered' — an unread/unparseable status becomes 'Unknown' or 'Needs Recheck'. The recheck NEVER types or clicks Send.",
+      "messageItem": ".chat-message, [class*='message-item'], [class*='ChatMessage'], [class*='conversation'] [class*='message'], li[class*='message']",
+      "outboundClassHint": "outbound|outgoing|sent|from-me|is-me|right|self|agent",
+      "inboundClassHint": "inbound|incoming|received|from-them|is-them|left|contact|lead|client",
+      "messageText": ".message-text, [class*='body'], [class*='text'], p",
+      "messageTimestamp": "time, [datetime], [class*='time'], [class*='date'], [title*=':']",
+      "deliveryStatusText": "[class*='status'], [class*='delivery'], [class*='receipt']",
+      "deliveredHint": "delivered|read|seen",
+      "failedHint": "failed|not delivered|undeliverable|could not be|invalid number|no longer in service|error sending|not sent|bounced"
     }
   }
 }

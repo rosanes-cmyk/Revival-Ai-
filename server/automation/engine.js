@@ -15,9 +15,9 @@ import { ReiBlackBookAdapter } from "./reibb.js";
 import { PropertyRadarAdapter } from "./propertyradar.js";
 import { RedfinAdapter } from "./redfin.js";
 import { resolveRedfinUrl } from "./redfinLink.js";
-import { decide } from "./sop.js";
+import { decide, classifyReply } from "./sop.js";
 import { assertMessageIntegrity, normalizeCompany, COMPANY, renderMessage, pickApprovedTemplate } from "./message.js";
-import { JOB_STATUS } from "../data/store.js";
+import { JOB_STATUS, categorizeRow, TAB } from "../data/store.js";
 import { SentLedger } from "../data/sentLedger.js";
 import { DISPOSITION, ELIGIBILITY, REVIVAL_TAG } from "./constants.js";
 
@@ -53,6 +53,8 @@ export class AutomationEngine extends EventEmitter {
     this.pacingEvery = Number(process.env.SEND_PACING_EVERY ?? 40);
     this._dailySends = 0;        // sends counted this run (seeded from ledger)
     this._pacedAtSends = 0;      // guard so a pacing pause fires once per step
+    this._recheckCursor = 0;     // resume point for Recheck Text Sent
+    this._recheckStop = false;
     // Optional property Sold/Listed verification, checked FIRST for each lead.
     // PROPERTY_SOURCE = "redfin" (free, no login) | "propertyradar" (login) |
     // "none". Back-compat: CHECK_PROPERTYRADAR=true still selects propertyradar.
@@ -319,6 +321,134 @@ export class AutomationEngine extends EventEmitter {
       this.adapter = null;
       this._loopActive = false;
       this._control = "stopped";
+    }
+  }
+
+  // --- Recheck Text Sent (manual, read-only) --------------------------------
+  // Opens each Text Sent lead's REI chat, verifies the exact outbound message,
+  // reads any visible delivery status, and detects + classifies a seller reply.
+  // NEVER sends, types, clicks Send, changes the sent timestamp, or writes the
+  // ledger. Supports Stop (progress preserved) and auto-resume from where it
+  // stopped. Streams a "recheck" progress event.
+  requestStopRecheck() { this._recheckStop = true; }
+
+  async recheckTextSent() {
+    if (this._loopActive) throw new Error("Automation is running. Stop it first, then Recheck.");
+    if (!this.store) throw new Error("No leads loaded to recheck.");
+    this._loopActive = true;
+    this._control = "running";
+    this._recheckStop = false;
+    const norm = (s) => String(s || "").replace(/\s+/g, " ").trim().toLowerCase();
+    try {
+      this.adapter = this.adapterFactory();
+      this.emitState("Opening REI to recheck Text Sent leads (log in if prompted)…");
+      await this.adapter.launch();
+
+      const list = this.store.rows.filter((r) => categorizeRow(r) === TAB.TEXT_SENT);
+      const total = list.length;
+      // Auto-resume: if a prior pass was stopped partway, continue from there.
+      let startIdx = 0;
+      if (this._recheckCursor > 0 && this._recheckCursor < total) startIdx = this._recheckCursor;
+      else this._recheckCursor = 0;
+
+      let checked = startIdx, replies = 0, interested = 0, notInt = 0, failed = 0, needsRev = 0, errors = 0;
+      const emitRecheck = (extra = {}) =>
+        this.emit("recheck", {
+          total, checked, remaining: Math.max(0, total - checked),
+          replies, interested, notInterested: notInt, failed, needsReview: needsRev, errors,
+          percent: total ? Number(((checked / total) * 100).toFixed(2)) : 0,
+          ...extra,
+        });
+
+      this.emitState(`Rechecking ${total} Text Sent lead(s)…`);
+      emitRecheck({ running: true });
+
+      for (let i = startIdx; i < list.length; i++) {
+        if (this._recheckStop || this._control === "stopping") { this._recheckCursor = i; break; }
+        const row = list[i];
+        emitRecheck({ running: true, currentSeller: row.ownerName || "", currentProperty: row.propertyAddress || "" });
+
+        const detail = await this.adapter.readConversationDetail(row.reiContactUrl, {
+          sentMessageBody: row.sentMessageBody,
+          sentTimestamp: row.textSentTimestamp,
+        });
+
+        row.messageStatusLastCheckedAt = new Date().toISOString();
+        row.messageStatusCheckAttempts = (row.messageStatusCheckAttempts || 0) + 1;
+
+        if (detail.ok) {
+          row.messageDeliveryStatus = detail.deliveryStatus; // Sent|Delivered|Failed|Undelivered|Unknown
+          row.deliveryStatusEvidence = detail.deliveryEvidence || "";
+          row.recheckError = "";
+          row.recheckCompleted = true;
+          if (detail.deliveryStatus === "Failed" || detail.deliveryStatus === "Undelivered") failed++;
+
+          if (detail.replyReceived && detail.replyText) {
+            row.replyReceived = true;
+            // NEVER overwrite the original stored reply — keep the earliest.
+            if (!row.replyText) {
+              row.replyText = detail.replyText;
+              row.replyReceivedAt = detail.replyAt || row.replyReceivedAt || row.messageStatusLastCheckedAt;
+            }
+            const cls = classifyReply(row.replyText);
+            row.replyClassification = cls.classification;
+            row.replyClassificationReason = cls.reason;
+            replies++; // one reply per lead in a pass
+
+            if (cls.classification === "interested") {
+              interested++;
+              row.activeDeal = true;
+              row.activeDealReason = "Seller reply shows interest — " + cls.reason;
+              row.needsManualReview = false;
+            } else if (cls.classification === "not_interested") {
+              notInt++;
+              row.disposition = DISPOSITION.NOT_INTERESTED;
+              row.eligibilityStatus = ELIGIBILITY.NOT_ELIGIBLE;
+              if (cls.optOut) {
+                row.safetyStatus = "Opted out (seller reply) — suppressed";
+                // Persist suppression so future runs never re-text (ledger already
+                // has the send; disposition is now terminal-negative).
+                if (this.writeReiTags) { try { await this._applyTag(row, REVIVAL_TAG[DISPOSITION.OPTED_OUT]); } catch { /* best-effort */ } }
+              }
+            } else {
+              needsRev++;
+              row.needsManualReview = true;
+            }
+            row.notes = (row.notes ? row.notes + " " : "") + `Reply (${cls.classification}): "${row.replyText.slice(0, 140)}"`;
+          }
+        } else {
+          // Transient: expired login / browser / selector / missing conversation.
+          // Keep the lead in Text Sent so a later recheck retries it. Do NOT
+          // fabricate a delivery status or mark it a bad lead.
+          row.messageDeliveryStatus = "Needs Recheck";
+          row.recheckError = detail.error || "Could not verify this conversation.";
+          row.recheckCompleted = false;
+          errors++;
+        }
+
+        checked++;
+        this._recheckCursor = i + 1;
+        this.store.persist();
+        this.emit("row", { row });
+        this.emit("summary", this.store.summary());
+        emitRecheck({ running: true });
+      }
+
+      const stopped = this._recheckStop || this._control === "stopping";
+      if (!stopped) this._recheckCursor = 0; // full pass complete → next is fresh
+      emitRecheck({ running: false, done: !stopped, stopped });
+      this.emitState(
+        stopped
+          ? `Recheck stopped at ${checked}/${total}. Results saved — click Recheck Text Sent to resume.`
+          : `Recheck complete: ${checked} checked · ${replies} replies (interested ${interested}, not interested ${notInt}, needs review ${needsRev}) · ${failed} failed/undelivered · ${errors} could not check.`
+      );
+      return { checked, total, replies, interested, notInterested: notInt, failed, needsReview: needsRev, errors, stopped };
+    } finally {
+      if (this.adapter) await this.adapter.close();
+      this.adapter = null;
+      this._loopActive = false;
+      this._control = "stopped";
+      this._recheckStop = false;
     }
   }
 
