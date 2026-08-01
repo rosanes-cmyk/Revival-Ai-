@@ -33,9 +33,9 @@
         <button class="btn btn-small" id="copyShareBtn">Copy</button>
       </div>
 
-      <!-- Approved message banners (locked, one per company; picked by Company Source) -->
+      <!-- Approved message banners (locked pool; one picked at random per send) -->
       <section class="msg-banner" id="msgBanner">
-        <div class="msg-head">Approved messages (locked — picked automatically by Company Source)</div>
+        <div class="msg-head">Approved messages (locked — one of the rotating templates is picked automatically per send)</div>
         <div class="msg-body" id="approvedTHB">…</div>
         <div class="msg-body" id="approvedETI" style="margin-top:8px;">…</div>
       </section>
@@ -63,17 +63,18 @@
         <div class="upload-status" id="uploadStatus"></div>
       </section>
 
-      <!-- Summary cards (click a card to filter the table; click again to clear) -->
+      <!-- Summary cards (latest saved data; update after Recheck) -->
       <section class="cards" id="cards">
-        <div class="stat" data-k="total" data-filter="all"><span class="stat-num">0</span><span class="stat-lbl">Total Leads</span></div>
-        <div class="stat sent" data-k="textSent" data-filter="textSent"><span class="stat-num">0</span><span class="stat-lbl">Text Sent</span></div>
-        <div class="stat" data-k="soldListed" data-filter="soldListed"><span class="stat-num">0</span><span class="stat-lbl">Property Sold / Listed</span></div>
-        <div class="stat" data-k="notIntOpt" data-filter="notIntOpt"><span class="stat-num">0</span><span class="stat-lbl">Not Interested / Opt Out</span></div>
-        <div class="stat del" data-k="toDelete" data-filter="toDelete"><span class="stat-num">0</span><span class="stat-lbl">To Delete / Bad Leads</span></div>
-        <div class="stat" data-k="outOfState" data-filter="outOfState"><span class="stat-num">0</span><span class="stat-lbl">Out of State</span></div>
-        <div class="stat" data-k="recentContact" data-filter="recentContact"><span class="stat-num">0</span><span class="stat-lbl">Active Deal · Recent Contact</span></div>
+        <div class="stat" data-k="leadsProcessed"><span class="stat-num">0</span><span class="stat-lbl">Leads Processed</span></div>
+        <div class="stat sent" data-k="textsSent"><span class="stat-num">0</span><span class="stat-lbl">Texts Sent</span></div>
+        <div class="stat" data-k="delivered"><span class="stat-num">0</span><span class="stat-lbl">Delivered</span></div>
+        <div class="stat" data-k="totalReplies"><span class="stat-num">0</span><span class="stat-lbl">Total Replies</span></div>
+        <div class="stat" data-k="interested"><span class="stat-num">0</span><span class="stat-lbl">Interested Sellers</span></div>
+        <div class="stat" data-k="notInterested"><span class="stat-num">0</span><span class="stat-lbl">Not Interested</span></div>
+        <div class="stat" data-k="activeDeals"><span class="stat-num">0</span><span class="stat-lbl">Active Deals</span></div>
+        <div class="stat del" data-k="badLeads"><span class="stat-num">0</span><span class="stat-lbl">Bad Leads</span></div>
+        <div class="stat" data-k="needsReview"><span class="stat-num">0</span><span class="stat-lbl">Needs Review</span></div>
       </section>
-      <div class="filter-note" id="filterNote"></div>
 
       <!-- Controls -->
       <section class="controls">
@@ -81,22 +82,10 @@
         <button class="btn" id="pauseBtn" disabled>⏸ Pause</button>
         <button class="btn" id="resumeBtn" disabled>⏵ Resume</button>
         <button class="btn btn-stop" id="stopBtn" disabled>⏹ Stop</button>
-        <label class="batch-picker">Texts per run:
-          <select id="batchLimit">
-            <option value="25">25</option>
-            <option value="50">50</option>
-            <option value="75">75</option>
-            <option value="100">100</option>
-            <option value="0">No limit</option>
-          </select>
-        </label>
-        <label class="batch-picker" title="After each batch, automatically keep going until you press Stop"><input type="checkbox" id="autoContinue" checked /> Auto-continue</label>
         <button class="btn btn-live" id="liveSendBtn" title="Turn real text sending on or off">💤 Live Sending: OFF</button>
         <button class="btn" id="reverifyBtn" title="Re-check leads marked Text Sent against the REI chat; fix ones that didn't really send">🔁 Re-verify Sent</button>
         <span class="spacer"></span>
         <button class="btn" id="reportBtn">📊 Daily Report</button>
-        <button class="btn" id="exportXlsxBtn" disabled>⬇ Export XLSX</button>
-        <button class="btn" id="exportCsvBtn" disabled>⬇ Export CSV</button>
         <button class="btn" id="logsBtn">🗎 View Logs</button>
       </section>
 
@@ -119,36 +108,29 @@
         <div class="summary-grid" id="finalSummaryBody"></div>
       </section>
 
+      <!-- Tabs -->
+      <nav class="tabs" id="tabBar"></nav>
+
+      <!-- Per-tab toolbar (downloads + Recheck for Text Sent) -->
+      <div class="tab-toolbar" id="tabToolbar"></div>
+
+      <!-- Recheck progress (Text Sent tab) -->
+      <div class="recheck-panel" id="recheckPanel" hidden></div>
+
       <!-- Lead table -->
-      <section class="card table-card">
+      <section class="card table-card" id="tableCard">
         <div class="table-scroll">
           <table id="leadTable">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Owner Name</th>
-                <th>Property Address</th>
-                <th>City</th>
-                <th>State</th>
-                <th>ZIP</th>
-                <th>Phone</th>
-                <th>REI Match Status</th>
-                <th>Search Method</th>
-                <th>Property Status</th>
-                <th>Opt-Out / Safety</th>
-                <th>Eligibility</th>
-                <th>Disposition</th>
-                <th>Notes</th>
-                <th>Text Sent</th>
-                <th>Error Log</th>
-              </tr>
-            </thead>
+            <thead><tr id="leadTableHead"></tr></thead>
             <tbody id="leadTableBody">
-              <tr class="empty-row"><td colspan="16">Upload a spreadsheet to begin.</td></tr>
+              <tr class="empty-row"><td>Upload a spreadsheet or pull from REI to begin.</td></tr>
             </tbody>
           </table>
         </div>
       </section>
+
+      <!-- Percentage Report tab content -->
+      <section class="card percentage-card" id="percentageCard" hidden></section>
     </main>
 
     <!-- Logs drawer -->
