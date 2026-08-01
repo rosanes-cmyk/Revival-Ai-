@@ -54,6 +54,7 @@ export class AutomationEngine extends EventEmitter {
     this._dailySends = 0;        // sends counted this run (seeded from ledger)
     this._pacedAtSends = 0;      // guard so a pacing pause fires once per step
     this._recheckCursor = 0;     // resume point for Recheck Text Sent
+    this._recheckList = null;    // frozen row list for the current recheck pass
     this._recheckStop = false;
     // Optional property Sold/Listed verification, checked FIRST for each lead.
     // PROPERTY_SOURCE = "redfin" (free, no login) | "propertyradar" (login) |
@@ -346,12 +347,20 @@ export class AutomationEngine extends EventEmitter {
       this.emitState("Opening REI to recheck Text Sent leads (log in if prompted)…");
       await this.adapter.launch();
 
-      const list = this.store.rows.filter((r) => categorizeRow(r) === TAB.TEXT_SENT);
+      // Resume uses the SAME frozen list captured when the pass began — NOT a
+      // freshly filtered one. A reply can reclassify a lead out of "Text Sent"
+      // mid-pass; rebuilding the list would shift indexes and skip un-checked
+      // leads. So we keep the row references from the first pass.
+      let list;
+      if (this._recheckList && this._recheckCursor > 0 && this._recheckCursor < this._recheckList.length) {
+        list = this._recheckList; // resume a stopped pass
+      } else {
+        list = this.store.rows.filter((r) => categorizeRow(r) === TAB.TEXT_SENT);
+        this._recheckList = list;
+        this._recheckCursor = 0;
+      }
       const total = list.length;
-      // Auto-resume: if a prior pass was stopped partway, continue from there.
-      let startIdx = 0;
-      if (this._recheckCursor > 0 && this._recheckCursor < total) startIdx = this._recheckCursor;
-      else this._recheckCursor = 0;
+      const startIdx = this._recheckCursor;
 
       let checked = startIdx, replies = 0, interested = 0, notInt = 0, failed = 0, needsRev = 0, errors = 0;
       const emitRecheck = (extra = {}) =>
@@ -417,6 +426,15 @@ export class AutomationEngine extends EventEmitter {
               row.needsManualReview = true;
             }
             row.notes = (row.notes ? row.notes + " " : "") + `Reply (${cls.classification}): "${row.replyText.slice(0, 140)}"`;
+            // A seller who replied is taken over by the team — permanently
+            // suppress future automated revival texts (persists across months /
+            // re-pulls), regardless of the reply's classification.
+            this.sentLedger.suppress({
+              contactUrl: row.reiContactUrl,
+              phone: row.phone,
+              classification: cls.classification,
+              reason: cls.reason,
+            });
           }
         } else {
           // Transient: expired login / browser / selector / missing conversation.
@@ -426,6 +444,16 @@ export class AutomationEngine extends EventEmitter {
           row.recheckError = detail.error || "Could not verify this conversation.";
           row.recheckCompleted = false;
           errors++;
+          this.store.persist();
+          this.emit("row", { row });
+          // If the REI login expired, every remaining lead would also fail — stop
+          // the pass now (resumable) so the user can log back in and continue.
+          if (/login/i.test(detail.error || "")) {
+            this._recheckCursor = i; // resume here (this lead not yet completed)
+            this.emitState("Recheck paused — REI login expired. Log back into REI, then click Recheck Text Sent to resume.");
+            emitRecheck({ running: false, stopped: true });
+            return { checked, total, replies, interested, notInterested: notInt, failed, needsReview: needsRev, errors, stopped: true, loginExpired: true };
+          }
         }
 
         checked++;
@@ -437,7 +465,7 @@ export class AutomationEngine extends EventEmitter {
       }
 
       const stopped = this._recheckStop || this._control === "stopping";
-      if (!stopped) this._recheckCursor = 0; // full pass complete → next is fresh
+      if (!stopped) { this._recheckCursor = 0; this._recheckList = null; } // full pass done → next is fresh
       emitRecheck({ running: false, done: !stopped, stopped });
       this.emitState(
         stopped
@@ -703,6 +731,35 @@ export class AutomationEngine extends EventEmitter {
 
       // Rule: if this lead was already texted THIS calendar month, don't text
       // it again — mark it and skip the send (checked against the persistent
+      // Permanent suppression: a lead whose seller already REPLIED (interested,
+      // not interested, opted out, or unclear) must never get another automated
+      // revival text — even on a fresh pull in a later month. Route it to the
+      // right tab from the stored reply classification.
+      if (decision.shouldSend) {
+        const sup = this.sentLedger.isSuppressed({ contactUrl: row.reiContactUrl, phone: facts.phone || row.phone });
+        if (sup) {
+          const cls = sup.suppressClass || "";
+          if (cls === "interested") {
+            row.activeDeal = true;
+            row.activeDealReason = "Seller previously replied with interest — " + (sup.suppressReason || "handled as an active deal");
+            row.disposition = DISPOSITION.RECENT_CONTACT;
+          } else if (cls === "not_interested") {
+            row.disposition = DISPOSITION.NOT_INTERESTED;
+          } else if (cls === "needs_review") {
+            row.needsManualReview = true;
+            row.disposition = DISPOSITION.NEEDS_REVIEW;
+          } else {
+            row.disposition = DISPOSITION.ALREADY_CONTACTED;
+          }
+          row.eligibilityStatus = ELIGIBILITY.NOT_ELIGIBLE;
+          row.safetyStatus = "Seller replied earlier — not re-texted";
+          row.notes = `Seller already replied (${cls || "reply on file"}) — suppressed from further revival texts.`;
+          row.errorLog = "";
+          this.logger.log({ ...logBase, complianceResult: "Suppressed (seller replied) - skipped", disposition: row.disposition, textSent: false, notes: row.notes });
+          return;
+        }
+      }
+
       // ledger, keyed by REI contact id + phone).
       if (decision.shouldSend && this.skipTextedThisMonth) {
         const prevIso = this.sentLedger.sentThisMonth({

@@ -132,6 +132,34 @@ export class SentLedger {
   }
 
   /**
+   * Permanently suppress a lead from FUTURE automated revival texts (across
+   * months / re-pulls). Used when a seller replied (interested, not interested,
+   * opt-out, or unclear) — a human/team takes over from there. Stores the
+   * classification so a later pull can route the lead to the right tab.
+   */
+  suppress({ contactUrl, phone, classification, reason }) {
+    const keys = keysFor({ contactUrl, phone });
+    if (!keys.length) return;
+    for (const key of keys) {
+      const prev = this.map[key] || {};
+      this.map[key] = {
+        ...prev,
+        doNotText: true,
+        suppressClass: classification || prev.suppressClass || "",
+        suppressReason: reason || prev.suppressReason || "",
+        suppressedAt: new Date().toISOString(),
+      };
+    }
+    this._save();
+  }
+
+  /** If this lead is permanently suppressed, return its entry; else null. */
+  isSuppressed({ contactUrl, phone }) {
+    const e = this._lookup({ contactUrl, phone });
+    return e && e.doNotText ? e : null;
+  }
+
+  /**
    * Record a confirmed send (back-compat helper). Sets both the texted and
    * checked timestamps.
    */
