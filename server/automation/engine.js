@@ -60,7 +60,9 @@ export class AutomationEngine extends EventEmitter {
     // "none". Back-compat: CHECK_PROPERTYRADAR=true still selects propertyradar.
     let source = String(process.env.PROPERTY_SOURCE || "").trim().toLowerCase();
     if (!source && String(process.env.CHECK_PROPERTYRADAR).toLowerCase() === "true") source = "propertyradar";
-    if (!source) source = "none";
+    // Default to Redfin (free, no login) so the Sold/Listed check is ALWAYS on
+    // unless explicitly turned off with PROPERTY_SOURCE=none.
+    if (!source) source = "redfin";
     this.propertySource = source;
     this.checkPropertyStatus = source === "redfin" || source === "propertyradar";
     // REI tag-writing is OFF: the outcome is recorded in the spreadsheet, so we
