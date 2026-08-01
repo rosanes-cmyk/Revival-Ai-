@@ -349,7 +349,12 @@ export function classifyReply(replyText) {
   }
 
   // Hard opt-out first — STOP, unsubscribe, do-not-contact, do-not-automate.
-  if (DO_NOT_AUTOMATE_REGEX.test(lower) || OPTOUT_REGEX.test(lower) || detectStopReply(raw)) {
+  // Broadened so lowercase/short forms ("stop", "remove", "please remove",
+  // "lose my number", "take me off") are caught here and labeled Opted Out,
+  // not left as needs_review.
+  const REPLY_OPTOUT_RE =
+    /\b(stop|stopp|unsubscribe|remove( me| us)?|take me off|lose my number|leave me alone|do ?not ?(text|call|contact|message)|don'?t (text|call|contact|message))\b/i;
+  if (DO_NOT_AUTOMATE_REGEX.test(lower) || OPTOUT_REGEX.test(lower) || detectStopReply(raw) || REPLY_OPTOUT_RE.test(lower)) {
     return {
       classification: "not_interested",
       reason: "Opt-out / STOP language — suppression applied.",

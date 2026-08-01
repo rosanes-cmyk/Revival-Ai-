@@ -82,6 +82,12 @@ export class AutomationEngine extends EventEmitter {
         .map((s) => s.trim().toUpperCase())
         .filter(Boolean)
     );
+    // If a lead's state is UNKNOWN (blank on the sheet AND unreadable from REI),
+    // hold it for review instead of texting blind — so an out-of-state lead is
+    // never texted by mistake. Set ALLOW_UNKNOWN_STATE_TEXT=true to text
+    // unknown-state leads anyway.
+    this.allowUnknownStateText =
+      String(process.env.ALLOW_UNKNOWN_STATE_TEXT || "false").toLowerCase() === "true";
     this.adapterFactory = () => new ReiBlackBookAdapter();
     this.statusAdapterFactory = () =>
       this.propertySource === "redfin" ? new RedfinAdapter() : new PropertyRadarAdapter();
@@ -304,11 +310,17 @@ export class AutomationEngine extends EventEmitter {
           row.disposition = DISPOSITION.PENDING;
           row.eligibilityStatus = ELIGIBILITY.PENDING;
           row.textSentTimestamp = "";
-          // It wasn't actually sent — clear the send record so it isn't counted
-          // as a text in the tabs / percentage report.
+          // It wasn't actually sent — clear the send record AND any reply data
+          // (a reply we recorded against a non-sent message is invalid) so it
+          // isn't counted in the tabs / percentage report.
           row.sentMessageBody = "";
           row.messageDeliveryStatus = "";
           row.deliveryStatusEvidence = "";
+          row.replyReceived = false;
+          row.replyText = "";
+          row.replyReceivedAt = "";
+          row.replyClassification = "";
+          row.replyClassificationReason = "";
           row.notes = "Re-verify: approved message NOT found in chat — was not actually sent (likely opted out). Reset to re-check.";
         } else {
           uncheckable++;
@@ -432,9 +444,10 @@ export class AutomationEngine extends EventEmitter {
               row.eligibilityStatus = ELIGIBILITY.NOT_ELIGIBLE;
               if (cls.optOut) {
                 row.safetyStatus = "Opted out (seller reply) — suppressed";
-                // Persist suppression so future runs never re-text (ledger already
-                // has the send; disposition is now terminal-negative).
-                if (this.writeReiTags) { try { await this._applyTag(row, REVIVAL_TAG[DISPOSITION.OPTED_OUT]); } catch { /* best-effort */ } }
+                // Suppression is persisted below via the ledger; we deliberately
+                // do NOT write a REI tag here — Recheck stays strictly read-only
+                // (no typing, no Send, no tag writes). The lead is now terminal-
+                // negative and permanently suppressed regardless.
               }
             } else {
               needsRev++;
@@ -524,6 +537,11 @@ export class AutomationEngine extends EventEmitter {
   // the account label ("" if it couldn't be detected).
   _bindLedger(account) {
     const ns = String(account || "");
+    // Never DOWNGRADE from a real (non-empty) account to the shared default
+    // file. If the account can't be detected right now but we already bound a
+    // real one, keep it — otherwise suppression/monthly writes scatter into the
+    // wrong ledger and a replied/opted-out seller could be re-texted.
+    if (!ns && this._ledgerAccount) return this._ledgerAccount;
     if (this._ledgerAccount === ns && this.sentLedger) return ns;
     this._ledgerAccount = ns;
     this.sentLedger = new SentLedger(ns);
@@ -696,6 +714,21 @@ export class AutomationEngine extends EventEmitter {
       row.notes = decision.notes;
       row.errorLog = "";
 
+      // California-only safety: if the state is still UNKNOWN after REI (blank
+      // sheet + unparseable REI address), do NOT text blind — hold for review so
+      // an out-of-state lead can't slip through. (ALLOW_UNKNOWN_STATE_TEXT=true
+      // overrides.)
+      if (decision.shouldSend && !this.allowUnknownStateText && !String(row.state || "").trim()) {
+        row.disposition = DISPOSITION.NEEDS_REVIEW;
+        row.needsManualReview = true;
+        row.eligibilityStatus = ELIGIBILITY.NEEDS_REVIEW;
+        row.safetyStatus = "State unknown — can't confirm California";
+        row.notes = "Property state is unknown (not on the sheet or in REI) — held for review so an out-of-state lead isn't texted by mistake. Set ALLOW_UNKNOWN_STATE_TEXT=true to text unknown-state leads.";
+        row.errorLog = "";
+        this.logger.log({ ...logBase, complianceResult: "State unknown - held for review", disposition: row.disposition, textSent: false, notes: row.notes });
+        return;
+      }
+
       // Bug fix: the property SOLD after our last contact with the lead. Redfin
       // may not flag it "sold" (e.g. the sale is outside the recent window, or it
       // shows as Off Market), but if the recorded sale date is LATER than our
@@ -705,7 +738,7 @@ export class AutomationEngine extends EventEmitter {
       if (decision.shouldSend && row._redfinSoldDateISO && facts.lastConversationAt) {
         const soldT = Date.parse(row._redfinSoldDateISO);
         const lastT = Date.parse(facts.lastConversationAt);
-        if (soldT && lastT && soldT > lastT) {
+        if (soldT && lastT && soldT >= lastT) {
           row.disposition = DISPOSITION.PROPERTY_SOLD;
           row.eligibilityStatus = ELIGIBILITY.NOT_ELIGIBLE;
           row.propertyStatus = `Sold ${row._redfinSoldDateText} (after last contact)`;

@@ -25,6 +25,7 @@ let hasJob = false;
 let allRows = [];
 let currentTab = "all";
 let recheckRunning = false;
+let recheckHasState = false; // a recheck produced progress/results to show
 
 // --- Tabs -------------------------------------------------------------------
 const TABS = [
@@ -84,8 +85,9 @@ function setTab(key) {
   } else {
     els.percentageCard.hidden = true;
     els.tableCard.hidden = false;
-    els.recheckPanel.hidden = key !== "text-sent" ? true : els.recheckPanel.hidden;
-    if (key !== "text-sent") els.recheckPanel.hidden = true;
+    // Show the recheck panel on the Text Sent tab whenever a recheck is running
+    // or has left results to show (so switching away and back restores it).
+    els.recheckPanel.hidden = !(key === "text-sent" && (recheckRunning || recheckHasState));
     renderTable();
   }
 }
@@ -229,9 +231,10 @@ function isTextSent(r) { return !!(r.textSentTimestamp || r.sentMessageBody || r
 function computeCards() {
   const proc = allRows.filter((r) => r.disposition && r.disposition !== "Pending").length;
   const texted = allRows.filter(isTextSent);
-  const delivered = texted.filter((r) => (r.messageDeliveryStatus || "").toLowerCase() === "delivered").length;
+  const delivered = texted.filter((r) => (r.messageDeliveryStatus || "").trim().toLowerCase() === "delivered").length;
   const replies = texted.filter((r) => r.replyReceived).length;
-  const interested = allRows.filter((r) => (r.replyClassification || "") === "interested").length;
+  // Match the server's Percentage Report: an interested lead must have replied.
+  const interested = allRows.filter((r) => r.replyReceived && (r.replyClassification || "").trim().toLowerCase() === "interested").length;
   const notInt = allRows.filter((r) => rowTab(r) === "not-interested").length;
   const active = allRows.filter((r) => rowTab(r) === "active-deal").length;
   const bad = allRows.filter((r) => rowTab(r) === "bad-leads").length;
@@ -394,6 +397,7 @@ async function stopRecheck() {
 function renderRecheck(d) {
   if (!d) return;
   recheckRunning = !!d.running;
+  recheckHasState = true;
   reflectRecheckButtons();
   if (currentTab === "text-sent") els.recheckPanel.hidden = false;
   const line = (lbl, val, cls = "") => `<div class="rk-item ${cls}"><span class="rk-num">${val ?? 0}</span><span class="rk-lbl">${lbl}</span></div>`;
@@ -526,7 +530,20 @@ function connectSSE() {
       reflectRecheckButtons();
     }
   });
-  es.addEventListener("summary", () => { renderCards(); renderTabs(); if (currentTab === "percentage") schedulePctReload(); });
+  es.addEventListener("summary", (e) => {
+    let s = null;
+    try { s = JSON.parse(e.data); } catch { /* ignore */ }
+    // A summary whose total no longer matches our local rows means the job set
+    // changed without per-row events (upload / pull / reset) — reload the rows
+    // so OTHER clients on the shared LAN URL don't render stale data.
+    if (s === null || (typeof s.total === "number" && s.total !== allRows.length)) {
+      refreshState();
+      return;
+    }
+    renderCards();
+    renderTabs();
+    if (currentTab === "percentage") schedulePctReload();
+  });
   es.addEventListener("progress", (e) => renderEta(JSON.parse(e.data)));
   es.addEventListener("row", (e) => { const d = JSON.parse(e.data); if (d.row) updateRow(d.row); });
   es.addEventListener("recheck", (e) => renderRecheck(JSON.parse(e.data)));

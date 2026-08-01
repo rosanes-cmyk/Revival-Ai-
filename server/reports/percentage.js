@@ -85,9 +85,11 @@ export function computePercentageReport(rows, filters = {}) {
   // an ACTUAL reply, so "Among Replies" percentages can never exceed 100%.
   const repliedLeads = texted.filter((r) => r.replyReceived);
   const totalReplies = repliedLeads.length;
-  const interested = R.filter((r) => r.replyReceived && norm(r.replyClassification) === "interested").length;
-  const notInterestedReplies = R.filter((r) => r.replyReceived && norm(r.replyClassification) === "not_interested").length;
-  const needsReviewReplies = R.filter((r) => r.replyReceived && norm(r.replyClassification) === "needs_review").length;
+  // Count reply categories over the SAME set as the denominator (repliedLeads),
+  // so "Among Replies" percentages can never exceed 100%.
+  const interested = repliedLeads.filter((r) => norm(r.replyClassification) === "interested").length;
+  const notInterestedReplies = repliedLeads.filter((r) => norm(r.replyClassification) === "not_interested").length;
+  const needsReviewReplies = repliedLeads.filter((r) => norm(r.replyClassification) === "needs_review").length;
   const noReply = Math.max(0, totalTextsSent - totalReplies);
 
   // Lead-result buckets (by tab categorization).

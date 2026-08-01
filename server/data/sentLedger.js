@@ -139,7 +139,10 @@ export class SentLedger {
    */
   suppress({ contactUrl, phone, classification, reason }) {
     const keys = keysFor({ contactUrl, phone });
-    if (!keys.length) return;
+    if (!keys.length) {
+      console.warn("[sentLedger] suppress skipped — no contact URL or phone to key on (reply not persisted).");
+      return;
+    }
     for (const key of keys) {
       const prev = this.map[key] || {};
       this.map[key] = {
