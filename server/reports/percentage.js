@@ -81,12 +81,13 @@ export function computePercentageReport(rows, filters = {}) {
   }
   const confirmedSent = sentOnly + delivered; // message visibly present in REI
 
-  // Replies (each lead counted once).
+  // Replies (each lead counted once). Reply-classification counts are gated on
+  // an ACTUAL reply, so "Among Replies" percentages can never exceed 100%.
   const repliedLeads = texted.filter((r) => r.replyReceived);
   const totalReplies = repliedLeads.length;
-  const interested = R.filter((r) => norm(r.replyClassification) === "interested").length;
-  const notInterestedReplies = R.filter((r) => norm(r.replyClassification) === "not_interested").length;
-  const needsReviewReplies = R.filter((r) => norm(r.replyClassification) === "needs_review" || r.needsManualReview).length;
+  const interested = R.filter((r) => r.replyReceived && norm(r.replyClassification) === "interested").length;
+  const notInterestedReplies = R.filter((r) => r.replyReceived && norm(r.replyClassification) === "not_interested").length;
+  const needsReviewReplies = R.filter((r) => r.replyReceived && norm(r.replyClassification) === "needs_review").length;
   const noReply = Math.max(0, totalTextsSent - totalReplies);
 
   // Lead-result buckets (by tab categorization).

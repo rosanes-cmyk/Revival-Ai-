@@ -519,6 +519,12 @@ function connectSSE() {
     if (typeof d.total === "number") setProgress(d.cursor, d.total);
     if (d.message) toast(d.message);
     if (d.message && /Pulled \d+ REI contacts/i.test(d.message)) refreshState();
+    // Recheck ended (complete / stopped / paused / error) — re-enable its button
+    // even if no terminal "recheck" event arrived (e.g. REI failed to open).
+    if (d.message && /recheck (complete|stopped|paused|error)/i.test(d.message)) {
+      recheckRunning = false;
+      reflectRecheckButtons();
+    }
   });
   es.addEventListener("summary", () => { renderCards(); renderTabs(); if (currentTab === "percentage") schedulePctReload(); });
   es.addEventListener("progress", (e) => renderEta(JSON.parse(e.data)));

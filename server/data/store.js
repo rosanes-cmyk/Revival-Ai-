@@ -55,7 +55,12 @@ export class JobStore {
   static load(jobId) {
     const file = JobStore.file(jobId);
     if (!fs.existsSync(file)) return null;
-    return new JobStore(JSON.parse(fs.readFileSync(file, "utf8")));
+    const job = JSON.parse(fs.readFileSync(file, "utf8"));
+    // Normalize rows on load too, so an OLD job file (saved before the new
+    // verification/reply fields existed) gets those fields defaulted in — every
+    // downstream read can rely on them being present.
+    if (Array.isArray(job.rows)) job.rows = job.rows.map(normalizeRow);
+    return new JobStore(job);
   }
 
   static loadCurrent() {

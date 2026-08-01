@@ -97,6 +97,10 @@ export class AutomationEngine extends EventEmitter {
   attach(store, logger) {
     this.store = store;
     this.logger = logger;
+    // A new job invalidates any in-progress recheck resume state, so a Recheck
+    // after an upload/pull can't iterate the previous job's orphaned rows.
+    this._recheckList = null;
+    this._recheckCursor = 0;
   }
 
   get status() {
@@ -300,6 +304,11 @@ export class AutomationEngine extends EventEmitter {
           row.disposition = DISPOSITION.PENDING;
           row.eligibilityStatus = ELIGIBILITY.PENDING;
           row.textSentTimestamp = "";
+          // It wasn't actually sent — clear the send record so it isn't counted
+          // as a text in the tabs / percentage report.
+          row.sentMessageBody = "";
+          row.messageDeliveryStatus = "";
+          row.deliveryStatusEvidence = "";
           row.notes = "Re-verify: approved message NOT found in chat — was not actually sent (likely opted out). Reset to re-check.";
         } else {
           uncheckable++;
@@ -346,6 +355,12 @@ export class AutomationEngine extends EventEmitter {
       this.adapter = this.adapterFactory();
       this.emitState("Opening REI to recheck Text Sent leads (log in if prompted)…");
       await this.adapter.launch();
+      // Bind the monthly/suppression ledger to the logged-in REI account FIRST,
+      // so suppression writes (replied sellers) go to the correct account file —
+      // the same file the live run reads for isSuppressed. (Without this a
+      // Recheck run before any Start could suppress into the default file and be
+      // invisible later — a replied/opted-out seller could then be re-texted.)
+      await this._bindLedgerToAccount();
 
       // Resume uses the SAME frozen list captured when the pass began — NOT a
       // freshly filtered one. A reply can reclassify a lead out of "Text Sent"
