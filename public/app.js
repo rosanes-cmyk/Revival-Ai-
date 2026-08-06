@@ -678,11 +678,11 @@ if (els.reverifyBtn) {
 if (els.pullReiBtn) {
   els.pullReiBtn.onclick = async () => {
     if (!window.confirm(
-      "Pull ALL contacts from REI?\n\nOpens REI and lists every contact (can take a while). Each still goes through all safety checks, and nothing sends unless Live Sending is ON. Stop the automation first."
+      "Pull ALL contacts from REI and check them?\n\nOpens REI, lists every contact, then automatically checks each one against all texting rules and sorts them into tabs (Available to Text, Property Sold, etc.). NO texts are sent. This can take a while for thousands of leads — you can Stop anytime. Stop the automation first."
     )) return;
     try {
       await api("/api/pull-rei", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
-      toast("Pulling contacts from REI — log in if the window prompts.", "ok");
+      toast("Pulling from REI, then checking every lead — log in if the window prompts.", "ok");
     } catch (err) { toast(err.message, "error"); }
   };
 }

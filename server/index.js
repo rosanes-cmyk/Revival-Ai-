@@ -642,9 +642,18 @@ app.post("/api/pull-rei", (req, res) => {
       const acct = account ? ` · REI account: ${account}` : "";
       broadcast("state", {
         message: filled
-          ? `Pulled ${urls.length} REI contacts — ${filled} already worked this month (shown, will be skipped), ${fresh} new to work${acct}. Set Live Sending, then click Start.`
-          : `Pulled ${urls.length} REI contacts${acct}. Review, set Live Sending, then click Start.`,
+          ? `Pulled ${urls.length} REI contacts — ${filled} already worked this month, ${fresh} new${acct}. Now checking every lead's eligibility (no texts sent)…`
+          : `Pulled ${urls.length} REI contacts${acct}. Now checking every lead's eligibility (no texts sent)…`,
       });
+      // Automatically recheck EVERY pulled lead against all texting rules (no
+      // sending) so the tabs — especially Available to Text — fill in on their
+      // own. The user can Pause/Stop anytime; turn Live Sending on + Start to
+      // actually text the Available list.
+      if (String(process.env.AUTO_CHECK_ON_PULL ?? "true").toLowerCase() !== "false") {
+        engine.startAvailabilityScan().catch((err) =>
+          broadcast("state", { message: `Eligibility check could not start: ${err.message}` })
+        );
+      }
     } catch (err) {
       broadcast("state", { message: `Pull from REI failed: ${err.message}` });
     }
