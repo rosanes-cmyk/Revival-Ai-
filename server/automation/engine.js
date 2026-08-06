@@ -265,6 +265,18 @@ export class AutomationEngine extends EventEmitter {
         this._runStats.count += 1;
         this._runStats.totalMs += Date.now() - t0;
 
+        // Guarantee: a lead that was NOT texted always carries a written reason.
+        // We never guess — every skip above sets one; this is only a backstop so
+        // a reason can never be blank.
+        if (
+          !String(row.notes || "").trim() &&
+          row.disposition !== DISPOSITION.PENDING &&
+          row.disposition !== DISPOSITION.READY_TO_TEXT &&
+          row.disposition !== DISPOSITION.TEXT_SENT
+        ) {
+          row.notes = `Not texted — status: ${row.disposition}. See the Opt-Out/Safety and Property Status for the specific reason.`;
+        }
+
         this.store.persist();
         this.emit("row", { row });
         this.emit("summary", this.store.summary());
