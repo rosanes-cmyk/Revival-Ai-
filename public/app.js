@@ -159,6 +159,16 @@ function replyCell(r) {
   const cls = r.replyClassification ? `<span class="rcls ${esc(r.replyClassification)}">${esc(r.replyClassification.replace(/_/g, " "))}</span>` : "";
   return `${cls}`;
 }
+// The single clearest "why this lead is where it is" cell — built from the
+// actual evidence the backend recorded (safety hit, property status, or the
+// full note). Never a guess.
+function reasonCell(r) {
+  const bits = [];
+  if (r.safetyStatus && r.safetyStatus !== "None") bits.push(r.safetyStatus);
+  if (r.propertyStatus && /sold|listed|off market/i.test(r.propertyStatus)) bits.push(r.propertyStatus);
+  const why = bits.join(" · ") || r.notes || "";
+  return `<span class="notes">${esc(why)}</span>`;
+}
 
 const COLS_STANDARD = [
   { h: "#", c: (r) => r.rowNumber },
@@ -172,6 +182,7 @@ const COLS_STANDARD = [
   { h: "Property Status", c: (r) => esc(r.propertyStatus) },
   { h: "Opt-Out / Safety", c: (r) => esc(r.safetyStatus) },
   { h: "Disposition", c: (r) => `<span class="${badgeClass(r.disposition)}">${esc(r.disposition)}</span>` },
+  { h: "Why / Reason", c: reasonCell },
   { h: "Reply", c: replyCell },
   { h: "Reply Text", c: (r) => `<span class="notes">${esc(r.replyText)}</span>` },
   { h: "Notes", c: (r) => `<span class="notes">${esc(r.notes)}</span>` },
