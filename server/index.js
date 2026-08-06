@@ -680,6 +680,16 @@ app.post("/api/start", async (req, res) => {
     res.status(400).json({ error: err.message });
   }
 });
+// Build the "Available to Text" list: recheck every loaded lead's eligibility
+// WITHOUT sending. Runs the normal pipeline in scan-only mode.
+app.post("/api/scan-available", async (req, res) => {
+  try {
+    if (!store) return res.status(400).json({ error: "Pull from REI (or upload) leads first." });
+    res.json(await engine.startAvailabilityScan());
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
 app.post("/api/pause", (req, res) => res.json(engine.pause()));
 app.post("/api/resume", async (req, res) => {
   try {

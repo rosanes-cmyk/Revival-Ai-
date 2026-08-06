@@ -56,6 +56,12 @@ export class AutomationEngine extends EventEmitter {
     this._recheckCursor = 0;     // resume point for Recheck Text Sent
     this._recheckList = null;    // frozen row list for the current recheck pass
     this._recheckStop = false;
+    // Eligibility-scan mode: run the full pipeline but NEVER send — eligible
+    // leads are marked Ready To Text (Available to Text tab) instead. Used to
+    // build the Available-to-Text list without texting anyone.
+    this._scanOnly = false;
+    // "Recently texted" window (days) that keeps a lead OUT of Available to Text.
+    this.recentTextDays = Number(process.env.AVAILABLE_TEXT_MIN_DAYS ?? 30);
     // Optional property Sold/Listed verification, checked FIRST for each lead.
     // PROPERTY_SOURCE = "redfin" (free, no login) | "propertyradar" (login) |
     // "none". Back-compat: CHECK_PROPERTYRADAR=true still selects propertyradar.
@@ -116,6 +122,16 @@ export class AutomationEngine extends EventEmitter {
     return this._loopActive;
   }
 
+  // Build the "Available to Text" list: run the full eligibility pipeline over
+  // every loaded lead WITHOUT sending. Eligible + not-texted-in-30-days leads
+  // end up marked Ready To Text (Available to Text tab). Nothing is texted, even
+  // if Live Sending is on.
+  async startAvailabilityScan() {
+    if (!this.store) throw new Error("No leads loaded. Pull from REI (or upload) first.");
+    this._scanOnly = true;
+    return this.start();
+  }
+
   // --- Control surface ------------------------------------------------------
   async start() {
     if (!this.store) throw new Error("No job loaded. Upload a spreadsheet first.");
@@ -127,7 +143,9 @@ export class AutomationEngine extends EventEmitter {
     this.store.job.cursor = firstUnfinished >= 0 ? firstUnfinished : this.store.rows.length;
     this._control = "running";
     this.store.setStatus(JOB_STATUS.RUNNING);
-    this.emitState("Live automation started.");
+    this.emitState(this._scanOnly
+      ? "Building Available-to-Text list — rechecking every lead's eligibility (no texts sent)…"
+      : "Live automation started.");
     this._run().catch((err) => {
       if (this.store) this.store.setStatus(JOB_STATUS.STOPPED);
       this.emit("error", err);
@@ -273,6 +291,7 @@ export class AutomationEngine extends EventEmitter {
       this.statusAdapter = null;
       this._loopActive = false;
       this._control = "stopped"; // the loop has ended; ready to Start/Resume again
+      this._scanOnly = false;    // clear eligibility-scan mode
       this.emit("summary", this.store ? this.store.summary() : null);
     }
   }
@@ -810,15 +829,15 @@ export class AutomationEngine extends EventEmitter {
 
       // ledger, keyed by REI contact id + phone).
       if (decision.shouldSend && this.skipTextedThisMonth) {
-        const prevIso = this.sentLedger.sentThisMonth({
-          contactUrl: row.reiContactUrl,
-          phone: facts.phone || row.phone,
-        });
+        const key = { contactUrl: row.reiContactUrl, phone: facts.phone || row.phone };
+        // Skip if texted THIS calendar month OR within the last 30 days
+        // (rolling) — the latter keeps recently-texted leads out of Available.
+        const prevIso = this.sentLedger.sentThisMonth(key) || this.sentLedger.textedWithinDays(key, this.recentTextDays);
         if (prevIso) {
           const when = new Date(prevIso).toLocaleDateString();
           row.disposition = DISPOSITION.TEXTED_THIS_MONTH;
           row.eligibilityStatus = ELIGIBILITY.NOT_ELIGIBLE;
-          row.notes = `Already texted this month (${when}) — skipped to avoid a repeat text.`;
+          row.notes = `Already texted recently (${when}) — skipped to avoid a repeat within ${this.recentTextDays} days.`;
           row.errorLog = "";
           this.logger.log({
             ...logBase,
@@ -837,10 +856,12 @@ export class AutomationEngine extends EventEmitter {
       }
 
       if (decision.shouldSend) {
-        if (!this.allowLiveSend) {
+        if (!this.allowLiveSend || this._scanOnly) {
           row.disposition = DISPOSITION.READY_TO_TEXT;
           row.eligibilityStatus = ELIGIBILITY.ELIGIBLE_SEND_BLOCKED;
-          row.notes = "Clean & ready, but ALLOW_LIVE_SEND is off. No text sent.";
+          row.notes = this._scanOnly
+            ? "Available to text — passed every eligibility rule and not texted in the last " + this.recentTextDays + " days. (Eligibility scan; no text sent.)"
+            : "Clean & ready, but ALLOW_LIVE_SEND is off. No text sent.";
         } else {
           // Pick a random approved template for this company (rotation avoids
           // carrier spam-blocking from identical copy), then fill {{first_name}}

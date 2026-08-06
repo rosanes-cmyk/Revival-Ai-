@@ -30,6 +30,7 @@ let recheckHasState = false; // a recheck produced progress/results to show
 // --- Tabs -------------------------------------------------------------------
 const TABS = [
   { key: "all", label: "All Leads" },
+  { key: "available-to-text", label: "Available to Text" },
   { key: "text-sent", label: "Text Sent" },
   { key: "property-sold", label: "Property Sold" },
   { key: "not-interested", label: "Not Interested / To Delete" },
@@ -47,6 +48,7 @@ function rowTab(r) {
   if (r.needsManualReview || d === "Needs Review" || d === "Error") return "needs-review";
   if (r.activeDeal || d === "Recent Contact") return "active-deal";
   if (d === "Text Sent") return "text-sent";
+  if (d === "Ready To Text") return "available-to-text";
   if (d === "Not Interested" || d === "Opted Out" || d === "Wrong Number") return "not-interested";
   if (d === "Property Sold" || d === "Listed") return "property-sold";
   if (d === "Out of State") return "out-of-state";
@@ -108,13 +110,14 @@ function renderTabToolbar() {
     renderPctFilters();
     return;
   }
-  const recheck =
-    currentTab === "text-sent"
-      ? `<button class="btn btn-small" id="recheckBtn">🔎 Recheck Text Sent</button>
-         <button class="btn btn-small btn-stop" id="recheckStopBtn" hidden>⏹ Stop Recheck</button>`
-      : "";
+  let left = "";
+  if (currentTab === "text-sent")
+    left = `<button class="btn btn-small" id="recheckBtn">🔎 Recheck Text Sent</button>
+            <button class="btn btn-small btn-stop" id="recheckStopBtn" hidden>⏹ Stop Recheck</button>`;
+  else if (currentTab === "available-to-text")
+    left = `<button class="btn btn-small" id="scanBtn">🔄 Build / Refresh (recheck all — no texts sent)</button>`;
   els.tabToolbar.innerHTML = `
-    <div class="toolbar-left">${recheck}</div>
+    <div class="toolbar-left">${left}</div>
     <div class="toolbar-right">
       <span class="dl-lbl">Download this tab:</span>
       <button class="btn btn-small" id="dlXlsx">⬇ XLSX</button>
@@ -127,6 +130,7 @@ function renderTabToolbar() {
     $("recheckStopBtn").onclick = stopRecheck;
     reflectRecheckButtons();
   }
+  if (currentTab === "available-to-text") $("scanBtn").onclick = startScan;
 }
 
 // --- Columns (tab-aware) ----------------------------------------------------
@@ -376,6 +380,18 @@ function reflectRecheckButtons() {
   b.textContent = recheckRunning ? "🔎 Rechecking Text Sent…" : "🔎 Recheck Text Sent";
   b.disabled = recheckRunning;
   s.hidden = !recheckRunning;
+}
+async function startScan() {
+  if (!hasJob) { toast("Pull from REI (or upload) leads first.", "error"); return; }
+  const ok = window.confirm(
+    "Build the Available-to-Text list?\n\nThis rechecks EVERY loaded lead against all texting rules and lists the ones that pass and haven't been texted in the last 30 days. It does NOT send any texts."
+  );
+  if (!ok) return;
+  try {
+    const r = await api("/api/scan-available", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+    if (r.status) setStatus(r.status);
+    toast("Building Available-to-Text list — rechecking every lead (no texts sent).", "ok");
+  } catch (err) { toast(err.message, "error"); }
 }
 async function startRecheck() {
   const ok = window.confirm(

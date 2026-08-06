@@ -111,6 +111,20 @@ export class SentLedger {
   }
 
   /**
+   * If this lead was actually TEXTED within the last `days` days (rolling, not
+   * calendar month), return that ISO timestamp; otherwise null. Used for the
+   * "Available to Text" 30-day rule.
+   */
+  textedWithinDays({ contactUrl, phone }, days = 30, now = new Date()) {
+    const e = this._lookup({ contactUrl, phone });
+    if (!e || !e.textedIso) return null;
+    const t = Date.parse(e.textedIso);
+    if (!t) return null;
+    const ageMs = now.getTime() - t;
+    return ageMs >= 0 && ageMs <= days * 86400000 ? e.textedIso : null;
+  }
+
+  /**
    * How many DISTINCT leads were actually texted on the same calendar DAY as
    * `when`. Persists across runs/restarts, so the backend daily send cap holds
    * even if the app is restarted mid-day. Deduped by contact-url + timestamp

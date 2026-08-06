@@ -197,6 +197,7 @@ function normalizeRow(r) {
 // / review flags. Nothing here mutates the row.
 export const TAB = Object.freeze({
   ALL: "all",
+  AVAILABLE: "available-to-text",
   TEXT_SENT: "text-sent",
   PROPERTY_SOLD: "property-sold",
   NOT_INTERESTED: "not-interested",
@@ -209,6 +210,7 @@ export const TAB = Object.freeze({
 // Clean, download-friendly filename stem per tab.
 export const TAB_FILE = Object.freeze({
   [TAB.ALL]: "all-leads",
+  [TAB.AVAILABLE]: "available-to-text",
   [TAB.TEXT_SENT]: "text-sent",
   [TAB.PROPERTY_SOLD]: "property-sold",
   [TAB.NOT_INTERESTED]: "not-interested-to-delete",
@@ -230,6 +232,9 @@ export function categorizeRow(row) {
   if (row.activeDeal || d === DISPOSITION.RECENT_CONTACT) return TAB.ACTIVE_DEAL;
   // 3) Text Sent — the app completed a send.
   if (d === DISPOSITION.TEXT_SENT) return TAB.TEXT_SENT;
+  // 4) Available to Text — passed EVERY eligibility rule and not texted in the
+  //    last 30 days, but not yet sent (eligibility scan, or live-send was off).
+  if (d === DISPOSITION.READY_TO_TEXT) return TAB.AVAILABLE;
   // 4) Not Interested / To Delete — negative replies, opt-outs, wrong number.
   if (d === DISPOSITION.NOT_INTERESTED || d === DISPOSITION.OPTED_OUT || d === DISPOSITION.WRONG_NUMBER) {
     return TAB.NOT_INTERESTED;
