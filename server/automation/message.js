@@ -122,11 +122,36 @@ export function getApprovedMessage(rawCompany) {
 }
 
 /**
+ * Strip REI's avatar "monogram" (initials) that its contact list renders in
+ * front of the name when scraped, e.g. "DGDuane Garrido" -> "Duane Garrido",
+ * "MWMICHELLE WINSLOW" -> "MICHELLE WINSLOW", "JJohn" -> "John",
+ * "CcCold calling" -> "Cold calling". The monogram = first-word + last-word
+ * initials (or a single initial for one-word names), prepended. Only strips when
+ * the leading letters actually match those initials, so real names are safe.
+ */
+export function cleanPersonName(raw) {
+  const s = String(raw || "").trim().replace(/\s+/g, " ");
+  if (!s) return "";
+  for (let n = Math.min(3, s.length - 1); n >= 1; n--) {
+    const prefix = s.slice(0, n);
+    if (!/^[A-Za-z]+$/.test(prefix)) continue;
+    const rest = s.slice(n).trim();
+    if (!rest || !/^[A-Za-z]/.test(rest)) continue;
+    const words = rest.split(/\s+/).filter(Boolean);
+    const first = (words[0] || "").charAt(0);
+    const last = (words.length > 1 ? words[words.length - 1] : words[0] || "").charAt(0);
+    const expected = (words.length > 1 ? first + last : first).toLowerCase();
+    if (prefix.toLowerCase() === expected) return rest;
+  }
+  return s;
+}
+
+/**
  * Pull a usable first name out of an owner/contact name. Handles "John Smith",
  * "SMITH, JOHN", and drops obvious non-names. Returns "" if nothing usable.
  */
 export function firstNameFrom(ownerName) {
-  let s = String(ownerName || "").trim();
+  let s = cleanPersonName(ownerName);
   if (!s) return "";
   // "Last, First" -> take the part after the comma.
   if (s.includes(",")) {

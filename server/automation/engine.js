@@ -16,7 +16,7 @@ import { PropertyRadarAdapter } from "./propertyradar.js";
 import { RedfinAdapter } from "./redfin.js";
 import { resolveRedfinUrl } from "./redfinLink.js";
 import { decide, classifyReply } from "./sop.js";
-import { assertMessageIntegrity, normalizeCompany, COMPANY, renderMessage, pickApprovedTemplate } from "./message.js";
+import { assertMessageIntegrity, normalizeCompany, COMPANY, renderMessage, pickApprovedTemplate, cleanPersonName } from "./message.js";
 import { JOB_STATUS, categorizeRow, TAB } from "../data/store.js";
 import { SentLedger } from "../data/sentLedger.js";
 import { DISPOSITION, ELIGIBILITY, REVIVAL_TAG } from "./constants.js";
@@ -710,7 +710,7 @@ export class AutomationEngine extends EventEmitter {
       if (facts.contactUrl) row.reiContactUrl = facts.contactUrl;
       // Fill details from REI when the row didn't have them (pulled leads start
       // blank): owner name, phone, email, and property address/city/state/zip.
-      if (!row.ownerName && facts.ownerName) row.ownerName = facts.ownerName;
+      if (!row.ownerName && facts.ownerName) row.ownerName = cleanPersonName(facts.ownerName);
       if (!row.phone && facts.phone) row.phone = facts.phone;
       if (!row.email && facts.email) row.email = facts.email;
       if (!row.propertyAddress && facts.propertyAddress) row.propertyAddress = facts.propertyAddress;

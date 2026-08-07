@@ -8,6 +8,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { DISPOSITION, ELIGIBILITY, MATCH_STATUS, TERMINAL_DISPOSITIONS } from "../automation/constants.js";
+import { cleanPersonName } from "../automation/message.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // State lives in the writable data dir (install dir is read-only in Program Files).
@@ -146,7 +147,9 @@ function normalizeRow(r) {
   return {
     rowNumber: r.rowNumber,
     original: r.original || {},
-    ownerName: r.ownerName,
+    // Strip REI's initials-avatar monogram from scraped names (e.g.
+    // "DGDuane Garrido" -> "Duane Garrido"). Safe for normal names.
+    ownerName: cleanPersonName(r.ownerName),
     propertyAddress: r.propertyAddress,
     street: r.street || "",
     city: r.city,

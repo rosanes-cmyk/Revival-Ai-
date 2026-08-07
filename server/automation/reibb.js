@@ -16,7 +16,7 @@ import { fileURLToPath } from "url";
 import { chromium } from "playwright";
 import { MATCH_STATUS, SEARCH_METHOD, ACTIVE_DEAL_TAG_REGEX, RECENT_CONVERSATION_DAYS } from "./constants.js";
 import { detectFailed } from "./sop.js";
-import { getApprovedMessage, REVIVAL_NEEDLES } from "./message.js";
+import { getApprovedMessage, REVIVAL_NEEDLES, cleanPersonName } from "./message.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SELECTORS_PATH = path.join(__dirname, "..", "..", "config", "reibb.selectors.json");
@@ -763,7 +763,7 @@ export class ReiBlackBookAdapter {
         const u = `${origin}/contacts/${r.id}`;
         const prev = info.get(u) || {};
         info.set(u, {
-          name: prev.name || r.name || "",
+          name: prev.name || cleanPersonName(r.name) || "",
           phone: prev.phone || r.phone || "",
           address: prev.address || r.address || "",
         });
