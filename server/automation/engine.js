@@ -780,7 +780,7 @@ export class AutomationEngine extends EventEmitter {
       // Pulled-from-REI rows open the contact directly by URL (no search);
       // spreadsheet rows search REI by address/owner/phone/email.
       const { facts, searchMethod, matchStatus } =
-        row.fromRei && row.reiContactUrl
+        row.reiContactUrl && /\/contacts\/\d+/i.test(row.reiContactUrl)
           ? await this.adapter.gatherFactsByUrl(row.reiContactUrl)
           : await this.adapter.gatherFacts({
               ownerName: row.ownerName,

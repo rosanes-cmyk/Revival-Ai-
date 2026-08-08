@@ -22,6 +22,10 @@ const ALIASES = {
   email: ["email", "email address", "e-mail"],
   disposition: ["disposition", "remarks", "status", "result", "outcome", "lead status", "remark"],
   notes: ["notes", "note", "comments", "comment"],
+  // If the uploaded sheet is one of THIS app's exports, it carries the direct
+  // REI contact link — use it to open each contact straight (fast + accurate),
+  // exactly like a Pull, instead of searching REI for every lead.
+  reiContactUrl: ["rei contact link", "rei contact url", "rei link", "contact link", "reicontacturl"],
 };
 
 // Automation columns appended to the export (in addition to your originals).
@@ -104,7 +108,11 @@ export function parseSpreadsheet(buffer) {
     disposition: normalizeDisposition(val(row, "disposition")),
     notes: val(row, "notes"),
     reiMatchStatus: "",
-    reiContactUrl: "",
+    // Use the uploaded REI link only if it's a real /contacts/<id> URL.
+    reiContactUrl: (function () {
+      const u = val(row, "reiContactUrl");
+      return /\/contacts\/\d+/i.test(u) ? u : "";
+    })(),
     searchMethod: "",
     propertyStatus: "",
     propertyStatusUrl: "",
