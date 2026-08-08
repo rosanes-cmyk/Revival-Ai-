@@ -259,6 +259,34 @@ export class ReiBlackBookAdapter {
     return opened;
   }
 
+  // ----- READ-ONLY connection self-test helpers -----------------------------
+  // Open the Contacts list and return the first contact URL found (for the
+  // "Test Connection" check). Never sends anything.
+  async firstAnyContactUrl() {
+    const url = this.contactsUrl || "https://my.reiblackbook.com/contacts";
+    await this.page.goto(url, { waitUntil: "domcontentloaded" }).catch(() => {});
+    await this.page.waitForTimeout(1500);
+    return await this.firstContactLink();
+  }
+
+  // Open one contact and probe everything the safety checks + send rely on —
+  // WITHOUT sending: does the record open, can we read tags, can we read the
+  // chat, and are the reply box + Send button present (never clicked)?
+  async probeContact(url) {
+    const out = { opened: false, tagsReadable: false, chatReadable: false, sendBoxPresent: false, sendButtonPresent: false, name: "", error: "" };
+    try {
+      await this.page.goto(url, { waitUntil: "domcontentloaded" }).catch(() => {});
+      await this.page.waitForTimeout(1200);
+      out.opened = /\/contacts\/\d+/i.test(this.page.url());
+      try { const tg = await this.readTags(); out.tagsReadable = !!tg.readable; } catch { /* leave false */ }
+      try { const h = await this.readHistory(); out.chatReadable = !!h.readable; } catch { /* leave false */ }
+      const c = (this.selectors.contactRecord && this.selectors.contactRecord.chat) || {};
+      try { out.sendBoxPresent = !!(await this.findVisibleAcrossFrames(c.messageInput, 3000)); } catch { /* false */ }
+      try { out.sendButtonPresent = !!(await this.findVisibleAcrossFrames(c.sendButton, 2000)); } catch { /* false */ }
+    } catch (e) { out.error = e.message; }
+    return out;
+  }
+
   // The first matching contact's URL from the search-results page. Tries anchor
   // hrefs, then any /contacts/<id> anywhere in the page HTML (data attrs, JS).
   async firstContactLink() {
@@ -638,10 +666,15 @@ export class ReiBlackBookAdapter {
     // and textable — that's a brand-new lead with no messages.)
     let chatConfirmed = chatOpened;
     if (!chatConfirmed) {
+      // Fall back only to the SPECIFIC chat controls — the Chat tab itself or
+      // REI's "Write Your Reply" box — NOT a generic contenteditable, so an
+      // unrelated textbox on the page can't falsely count as "chat loaded".
       const c = (this.selectors.contactRecord && this.selectors.contactRecord.chat) || {};
+      const specificReply =
+        "[data-mce-placeholder*='Write Your Reply' i], [aria-placeholder*='Write Your Reply' i], textarea[placeholder*='Write Your Reply' i], body#tinymce[contenteditable='true'], .mce-content-body[contenteditable='true']";
       chatConfirmed =
-        (c.messageInput && (await this.isVisible(c.messageInput, 800))) ||
-        (c.openButton && (await this.isVisible(c.openButton, 500))) ||
+        (c.openButton && (await this.isVisible(c.openButton, 800))) ||
+        (await this.isVisible(specificReply, 800)) ||
         false;
     }
     return { readable: !!chatConfirmed, fullText: trimmed, latestText: trimmed };

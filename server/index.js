@@ -94,6 +94,7 @@ engine.on("summary", (d) => broadcast("summary", d));
 engine.on("progress", (d) => broadcast("progress", d));
 engine.on("final", (d) => broadcast("final", d));
 engine.on("recheck", (d) => broadcast("recheck", d));
+engine.on("selftest", (d) => broadcast("selftest", d));
 engine.on("error", (err) => broadcast("state", { message: `Error: ${err.message}` }));
 
 app.get("/api/events", (req, res) => {
@@ -571,6 +572,15 @@ app.post("/api/recheck", (req, res) => {
 });
 app.post("/api/recheck/stop", (req, res) => {
   engine.requestStopRecheck();
+  res.json({ ok: true });
+});
+
+// Connection self-test — read-only. Opens REI and verifies login + that it can
+// open a contact and read tags/chat + see the reply box & Send button. Never
+// sends. Runs in the background; results stream over the "selftest" SSE event.
+app.post("/api/self-test", (req, res) => {
+  if (engine.isBusy()) return res.status(409).json({ error: "Automation is running. Stop it first." });
+  engine.selfTest().catch((err) => broadcast("state", { message: `Connection test error: ${err.message}` }));
   res.json({ ok: true });
 });
 

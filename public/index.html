@@ -83,6 +83,7 @@
         <button class="btn" id="resumeBtn" disabled>⏵ Resume</button>
         <button class="btn btn-stop" id="stopBtn" disabled>⏹ Stop</button>
         <button class="btn btn-live" id="liveSendBtn" title="Turn real text sending on or off">💤 Live Sending: OFF</button>
+        <button class="btn" id="selfTestBtn" title="Open REI and verify it can log in and read a contact. Sends nothing.">🧪 Test Connection</button>
         <button class="btn" id="reverifyBtn" title="Re-check leads marked Text Sent against the REI chat; fix ones that didn't really send">🔁 Re-verify Sent</button>
         <span class="spacer"></span>
         <button class="btn" id="reportBtn">📊 Daily Report</button>
@@ -113,6 +114,9 @@
 
       <!-- Per-tab toolbar (downloads + Recheck for Text Sent) -->
       <div class="tab-toolbar" id="tabToolbar"></div>
+
+      <!-- Connection self-test results -->
+      <div class="recheck-panel" id="selfTestPanel" hidden></div>
 
       <!-- Recheck progress (Text Sent tab) -->
       <div class="recheck-panel" id="recheckPanel" hidden></div>

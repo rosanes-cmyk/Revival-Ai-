@@ -11,6 +11,7 @@ const els = {
   statusLabel: $("statusLabel"), liveFlag: $("liveFlag"),
   approvedTHB: $("approvedTHB"), approvedETI: $("approvedETI"),
   liveSendBtn: $("liveSendBtn"), reverifyBtn: $("reverifyBtn"), pullReiBtn: $("pullReiBtn"),
+  selfTestBtn: $("selfTestBtn"), selfTestPanel: $("selfTestPanel"),
   reportBtn: $("reportBtn"),
   shareBar: $("shareBar"), shareUrl: $("shareUrl"), copyShareBtn: $("copyShareBtn"),
   buildTag: $("buildTag"), resetBtn: $("resetBtn"),
@@ -581,6 +582,7 @@ function connectSSE() {
   es.addEventListener("progress", (e) => renderEta(JSON.parse(e.data)));
   es.addEventListener("row", (e) => { const d = JSON.parse(e.data); if (d.row) updateRow(d.row); });
   es.addEventListener("recheck", (e) => renderRecheck(JSON.parse(e.data)));
+  es.addEventListener("selftest", (e) => renderSelfTest(JSON.parse(e.data)));
   es.addEventListener("final", (e) => renderFinal(JSON.parse(e.data)));
   es.onerror = () => {};
 }
@@ -667,6 +669,33 @@ if (els.liveSendBtn) {
       if (els.liveFlag) els.liveFlag.className = "live-flag " + (r.allowLiveSend ? "on" : "off");
       toast(r.allowLiveSend ? "Live sending is now ON — real texts will be sent." : "Live sending is OFF — safe mode.", "ok");
     } catch (err) { toast(err.message, "error"); }
+  };
+}
+
+// --- Connection self-test ---------------------------------------------------
+function renderSelfTest(d) {
+  if (!d || !els.selfTestPanel) return;
+  els.selfTestPanel.hidden = false;
+  const rows = (d.steps || []).map((s) =>
+    `<div class="rk-item ${s.ok ? "good" : "bad"}"><span class="rk-num">${s.ok ? "✅" : "❌"}</span><span class="rk-lbl">${esc(s.name)}${s.detail ? " — " + esc(s.detail) : ""}</span></div>`
+  ).join("");
+  const banner = d.done
+    ? (d.pass
+        ? '<div class="rk-done">✅ Connection test PASSED — REI login and reading work. Safe to run.</div>'
+        : '<div class="rk-done" style="color:#e0533d">❌ Some checks failed — fix these before texting (screenshot and send to support).</div>')
+    : '<div class="rk-head"><b>Testing connection…</b> opening REI (log in if the window prompts).</div>';
+  els.selfTestPanel.innerHTML = `<div class="rk-head"><b>🧪 Connection Test</b></div><div class="rk-grid">${rows}</div>${banner}`;
+  if (els.selfTestBtn) els.selfTestBtn.disabled = !!d.running;
+}
+if (els.selfTestBtn) {
+  els.selfTestBtn.onclick = async () => {
+    if (!window.confirm("Test the REI connection?\n\nThis opens REI, logs in (if needed), opens one contact, and checks it can read the tags and chat. It does NOT send any text.")) return;
+    try {
+      els.selfTestBtn.disabled = true;
+      await api("/api/self-test", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      if (els.selfTestPanel) { els.selfTestPanel.hidden = false; els.selfTestPanel.innerHTML = '<div class="rk-head"><b>🧪 Connection Test</b> — starting… log in if the REI window prompts.</div>'; }
+      toast("Connection test started — watch the checklist.", "ok");
+    } catch (err) { els.selfTestBtn.disabled = false; toast(err.message, "error"); }
   };
 }
 

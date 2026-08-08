@@ -167,9 +167,10 @@ export function decide(facts) {
         complianceResult: "Texted recently (per REI) - skipped",
       });
     }
-    if (!facts.revivalSentAt) {
-      // Message is present but we could NOT read a date next to it, so we can't
-      // prove enough time has passed. Don't risk a duplicate — skip.
+    if (ageDays === null) {
+      // Message is present but we could NOT read a usable date next to it (empty
+      // OR unparseable), so we can't prove enough time has passed. Don't risk a
+      // duplicate — skip.
       return out(DISPOSITION.ALREADY_CONTACTED, {
         eligibility: ELIGIBILITY.NOT_ELIGIBLE,
         notes: "REI chat shows the revival text was already sent (date unreadable) — skipped to be safe against a repeat.",

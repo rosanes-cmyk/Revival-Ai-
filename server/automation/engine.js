@@ -601,6 +601,53 @@ export class AutomationEngine extends EventEmitter {
   // Point this.sentLedger at the file for the given account fingerprint. Safe to
   // call repeatedly; only rebuilds when the account actually changes. Returns
   // the account label ("" if it couldn't be detected).
+  // --- Connection self-test (read-only) -------------------------------------
+  // Opens REI and verifies the whole read path the safety checks depend on —
+  // login, open a contact, read tags, read the chat, and confirm the reply box
+  // + Send button are present. NEVER sends. Streams a "selftest" event with a
+  // ✅/❌ checklist and an overall pass/fail.
+  async selfTest() {
+    if (this._loopActive) throw new Error("Automation is running. Stop it first, then Test Connection.");
+    this._loopActive = true;
+    this._control = "running";
+    const steps = [];
+    const add = (name, okv, detail = "") => { steps.push({ name, ok: !!okv, detail }); this.emit("selftest", { running: true, steps }); };
+    try {
+      this.adapter = this.adapterFactory();
+      this.emitState("Connection test — opening REI (log in the window if prompted)…");
+      await this.adapter.launch(); // resolves only once logged in
+      add("Logged into REI BlackBook", true, "Session is active.");
+
+      const url = await this.adapter.firstAnyContactUrl();
+      add("Opened the Contacts list", !!url, url ? "Found a contact to test with." : "Could not find any contact link on the Contacts page.");
+
+      if (url) {
+        const p = await this.adapter.probeContact(url);
+        add("Opened a contact record", p.opened, p.error || "");
+        add("Read the contact's tags", p.tagsReadable, p.tagsReadable ? "" : "Could not confirm the Tag(s) section — safety tags might not be read on this layout.");
+        add("Read the chat / conversation", p.chatReadable, p.chatReadable ? "" : "Could not confirm the chat loaded — the duplicate-text check depends on this.");
+        add("Reply box + Send button present", p.sendBoxPresent && p.sendButtonPresent, "(found only — never typed or clicked)");
+      }
+
+      const pass = steps.length > 0 && steps.every((s) => s.ok);
+      this.emit("selftest", { running: false, done: true, pass, steps });
+      this.emitState(pass
+        ? "Connection test PASSED ✅ — REI login and reading work on this account. Safe to run."
+        : "Connection test found issues ❌ — see the checklist; texting shouldn't run until these read steps pass.");
+      return { pass, steps };
+    } catch (e) {
+      add("Connection", false, e.message);
+      this.emit("selftest", { running: false, done: true, pass: false, steps });
+      this.emitState(`Connection test error: ${e.message}`);
+      return { pass: false, steps };
+    } finally {
+      if (this.adapter) await this.adapter.close();
+      this.adapter = null;
+      this._loopActive = false;
+      this._control = "stopped";
+    }
+  }
+
   // Keys for the in-run duplicate guard: REI contact id + normalized phone.
   _runDedupKeys(contactUrl, phone) {
     const keys = [];
