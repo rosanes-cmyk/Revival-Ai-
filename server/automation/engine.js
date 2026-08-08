@@ -53,6 +53,7 @@ export class AutomationEngine extends EventEmitter {
     this.pacingEvery = Number(process.env.SEND_PACING_EVERY ?? 40);
     this._dailySends = 0;        // sends counted this run (seeded from ledger)
     this._pacedAtSends = 0;      // guard so a pacing pause fires once per step
+    this._sentThisRun = new Set(); // in-run dedup keys (no persistence) — never text the same contact twice in one run
     this._recheckCursor = 0;     // resume point for Recheck Text Sent
     this._recheckList = null;    // frozen row list for the current recheck pass
     this._recheckStop = false;
@@ -217,6 +218,7 @@ export class AutomationEngine extends EventEmitter {
       // per-run counter starting at 0.
       this._dailySends = this.useLedgerMemory ? this.sentLedger.textedCountOn(new Date()) : 0;
       this._pacedAtSends = 0;
+      this._sentThisRun = new Set(); // fresh per run
       let batchLimitReached = false; // = daily hard cap reached
       for (let i = this.store.job.cursor; i < rows.length; i++) {
         while (this._control === "paused") await sleep(400);
@@ -591,6 +593,16 @@ export class AutomationEngine extends EventEmitter {
   // Point this.sentLedger at the file for the given account fingerprint. Safe to
   // call repeatedly; only rebuilds when the account actually changes. Returns
   // the account label ("" if it couldn't be detected).
+  // Keys for the in-run duplicate guard: REI contact id + normalized phone.
+  _runDedupKeys(contactUrl, phone) {
+    const keys = [];
+    const m = String(contactUrl || "").match(/\/contacts\/(\d+)/i);
+    if (m) keys.push(`c:${m[1]}`);
+    const p = String(phone || "").replace(/\D+/g, "").replace(/^1(\d{10})$/, "$1");
+    if (p.length >= 10) keys.push(`p:${p}`);
+    return keys;
+  }
+
   _bindLedger(account) {
     const ns = String(account || "");
     // Never DOWNGRADE from a real (non-empty) account to the shared default
@@ -866,6 +878,22 @@ export class AutomationEngine extends EventEmitter {
         }
       }
 
+      // IN-RUN duplicate guard (always on, no persistence): never text the same
+      // contact/phone twice in ONE run — catches duplicate contacts in the list
+      // even with local memory off and even if the REI chat read misses.
+      if (decision.shouldSend) {
+        const dupKeys = this._runDedupKeys(row.reiContactUrl, facts.phone || row.phone);
+        if (dupKeys.some((k) => this._sentThisRun.has(k))) {
+          row.disposition = DISPOSITION.TEXTED_THIS_MONTH;
+          row.eligibilityStatus = ELIGIBILITY.NOT_ELIGIBLE;
+          row.safetyStatus = "Duplicate contact — already texted in this run";
+          row.notes = "This same contact/phone was already texted earlier in this run (duplicate) — skipped to avoid a second text.";
+          row.errorLog = "";
+          this.logger.log({ ...logBase, complianceResult: "Duplicate in run - skipped", disposition: row.disposition, textSent: false, notes: row.notes });
+          return;
+        }
+      }
+
       // ledger, keyed by REI contact id + phone). Only when local memory is on;
       // otherwise decide() already blocks same-month re-texts by reading the
       // LIVE REI chat (facts.revivalSentThisMonth).
@@ -923,6 +951,7 @@ export class AutomationEngine extends EventEmitter {
             textSent = true;
             this._runStats.sends += 1;
             this._dailySends += 1; // backend daily hard-cap counter
+            this._runDedupKeys(row.reiContactUrl, facts.phone || row.phone).forEach((k) => this._sentThisRun.add(k));
             row.disposition = DISPOSITION.TEXT_SENT;
             row.eligibilityStatus = ELIGIBILITY.ELIGIBLE_TEXT_SENT;
             row.textSentTimestamp = result.timestamp;
