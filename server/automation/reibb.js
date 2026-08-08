@@ -662,9 +662,13 @@ export class ReiBlackBookAdapter {
       const t = await this.textOf(h.contentArea);
       if (t) text += "\n" + t;
     }
-    if (!text.trim()) {
-      text = await this.page.locator("body").innerText().catch(() => "");
-    }
+    // ALWAYS also capture the full visible page text (which includes the open
+    // Chat conversation) — NOT only when the tab containers returned nothing.
+    // Otherwise Notes/Activities text can be non-empty while the chat messages
+    // are missed, giving a false "not texted" → a duplicate send. This is the
+    // primary source the duplicate guard relies on.
+    const bodyText = await this.page.locator("body").innerText().catch(() => "");
+    if (bodyText) text += "\n" + bodyText;
     const trimmed = text.trim();
     // FAIL-SAFE: only trust "no revival message found → not texted" if we can
     // confirm the chat actually rendered. If we couldn't open the Chat tab AND
