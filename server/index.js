@@ -121,11 +121,41 @@ async function launchPdfBrowser() {
   try {
     return await chromium.launch({ headless: true });
   } catch (e1) {
+    // Fallback 1: the exact executable Playwright expects.
     let exe;
     try { exe = chromium.executablePath(); } catch { exe = undefined; }
-    if (exe) return await chromium.launch({ headless: true, executablePath: exe });
+    if (exe && fs.existsSync(exe)) {
+      return await chromium.launch({ headless: true, executablePath: exe });
+    }
+    // Fallback 2: scan the browsers dir for ANY installed chromium/chrome (in
+    // case the pinned version drifted). Keeps PDF export working after updates.
+    const found = findAnyChromium();
+    if (found) return await chromium.launch({ headless: true, executablePath: found });
     throw e1;
   }
+}
+
+// Best-effort search for an installed Chromium/Chrome binary under the common
+// Playwright browsers locations. Returns a path or "".
+function findAnyChromium() {
+  const roots = [];
+  if (process.env.PLAYWRIGHT_BROWSERS_PATH && process.env.PLAYWRIGHT_BROWSERS_PATH !== "0") roots.push(process.env.PLAYWRIGHT_BROWSERS_PATH);
+  roots.push(path.join(__dirname, "..", "node_modules", "playwright-core", ".local-browsers"));
+  roots.push("/opt/pw-browsers");
+  const names = ["chrome", "chrome.exe", "headless_shell", "chrome-headless-shell", "chrome-headless-shell.exe"];
+  const walk = (dir, depth) => {
+    if (depth < 0) return "";
+    let entries = [];
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return ""; }
+    for (const e of entries) {
+      const p = path.join(dir, e.name);
+      if (e.isFile() && names.includes(e.name)) return p;
+      if (e.isDirectory()) { const r = walk(p, depth - 1); if (r) return r; }
+    }
+    return "";
+  };
+  for (const root of roots) { const r = walk(root, 3); if (r) return r; }
+  return "";
 }
 
 // Download the report as a real PDF (rendered by the bundled Chromium) so the
