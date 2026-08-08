@@ -646,10 +646,18 @@ export class ReiBlackBookAdapter {
       if (await this.isVisible(tab, 800)) {
         await this.click(tab).catch(() => {});
         await this.page.waitForTimeout(500);
-        // On the chat/text tab, scroll the conversation to the top so OLDER
-        // messages (e.g. a revival text sent earlier this month) load into the
-        // DOM and are included below — the duplicate guard depends on this.
-        if (tab === h.chatTab) { chatOpened = true; await this._scrollChatToTop(); }
+        if (tab === h.chatTab) {
+          chatOpened = true;
+          // HARDENING: wait for the conversation to actually FINISH loading
+          // before reading, so a recent text (e.g. sent yesterday) can never be
+          // missed by reading a half-loaded/skeleton chat. We wait until the
+          // reply box is present AND the thread shows real content (a time like
+          // "AM/PM" or a message bubble), up to ~8s.
+          await this._waitForChatLoaded();
+          // Then scroll the whole history in so OLDER messages load into the DOM.
+          await this._scrollChatToTop();
+          await this.page.waitForTimeout(400);
+        }
       }
       const t = await this.textOf(h.contentArea);
       if (t) text += "\n" + t;
@@ -678,6 +686,26 @@ export class ReiBlackBookAdapter {
         false;
     }
     return { readable: !!chatConfirmed, fullText: trimmed, latestText: trimmed };
+  }
+
+  // Wait until the Chat conversation has actually rendered (not skeleton/empty),
+  // so the duplicate guard never reads a half-loaded chat and miss a recent
+  // text. Ready = the reply box is present AND the thread shows real content
+  // (a message time like "9:27 AM", a date row, or our sender name "Juan").
+  // Best-effort: resolves after ~8s even if the heuristic never trips, so it
+  // never hangs the run.
+  async _waitForChatLoaded() {
+    try {
+      await this.page.waitForFunction(() => {
+        const txt = (document.body && document.body.innerText) || "";
+        const hasReply = !!document.querySelector(
+          "[data-mce-placeholder*='Write Your Reply' i],[aria-placeholder*='Write Your Reply' i],textarea[placeholder*='Write Your Reply' i],body#tinymce,.mce-content-body,[contenteditable='true'],div[role='textbox']"
+        );
+        const hasContent = /\b\d{1,2}:\d{2}\s*(AM|PM)\b/i.test(txt) || /\b(Yesterday|Today)\b/.test(txt) || /juan/i.test(txt);
+        return hasReply && hasContent;
+      }, { timeout: 8000 });
+    } catch { /* proceed with whatever loaded — readable/needle logic still applies */ }
+    await this.page.waitForTimeout(300);
   }
 
   // Scroll the chat/message list to the very top so lazy-loaded older messages
