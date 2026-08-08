@@ -62,6 +62,10 @@ export class AutomationEngine extends EventEmitter {
     this._scanOnly = false;
     // "Recently texted" window (days) that keeps a lead OUT of Available to Text.
     this.recentTextDays = Number(process.env.AVAILABLE_TEXT_MIN_DAYS ?? 30);
+    // After a LIVE texting run finishes, automatically Recheck the sent texts
+    // (delivery status + replies) so the Percentage Report is accurate without a
+    // manual click. Set AUTO_RECHECK_AFTER_RUN=false to turn off.
+    this.autoRecheckAfterRun = String(process.env.AUTO_RECHECK_AFTER_RUN ?? "true").toLowerCase() !== "false";
     // Optional property Sold/Listed verification, checked FIRST for each lead.
     // PROPERTY_SOURCE = "redfin" (free, no login) | "propertyradar" (login) |
     // "none". Back-compat: CHECK_PROPERTYRADAR=true still selects propertyradar.
@@ -184,6 +188,7 @@ export class AutomationEngine extends EventEmitter {
   // --- Main loop ------------------------------------------------------------
   async _run() {
     this._loopActive = true;
+    let doAutoRecheck = false;
     try {
       this.adapter = this.adapterFactory();
       this.emitState("Opening REI BlackBook. If a login page appears in the browser window, log in there once — it will be remembered for next time.");
@@ -294,6 +299,10 @@ export class AutomationEngine extends EventEmitter {
       } else {
         this.store.job.cursor = rows.length;
         this.store.setStatus(JOB_STATUS.COMPLETED);
+        // A finished LIVE run that actually sent texts → auto-recheck them so
+        // delivery status + replies + percentages are accurate. Not after an
+        // eligibility scan (nothing was sent).
+        doAutoRecheck = this.autoRecheckAfterRun && !this._scanOnly && (this._runStats.sends || 0) > 0;
         this.emitFinalSummary();
       }
     } finally {
@@ -305,6 +314,12 @@ export class AutomationEngine extends EventEmitter {
       this._control = "stopped"; // the loop has ended; ready to Start/Resume again
       this._scanOnly = false;    // clear eligibility-scan mode
       this.emit("summary", this.store ? this.store.summary() : null);
+    }
+    // Auto-recheck runs AFTER the send loop fully closed its browser, so it gets
+    // a clean read-only pass. Guarded so it can't recurse.
+    if (doAutoRecheck) {
+      this.emitState("Run complete — automatically rechecking sent texts (delivery + replies) so the numbers are accurate…");
+      await this.recheckTextSent().catch((err) => this.emitState(`Auto-recheck could not finish: ${err.message}`));
     }
   }
 
