@@ -141,11 +141,13 @@ export function computePercentageReport(rows, filters = {}) {
       activeDealPct: pct(activeDeals, totalProcessed),
       notInterestedToDeletePct: pct(notInterestedTab, totalProcessed),
     },
-    // Active-deal conversion.
+    // Active-deal conversion. Clamped to 100% — activeDeals (a tab count that
+    // can include REI-tag active deals with no reply) can otherwise exceed the
+    // reply-based denominators.
     activeDeal: {
-      fromTextsSent: pct(activeDeals, totalTextsSent),
-      fromReplies: pct(activeDeals, totalReplies),
-      interestedToActiveDeal: pct(activeDeals, interested),
+      fromTextsSent: Math.min(100, pct(activeDeals, totalTextsSent)),
+      fromReplies: Math.min(100, pct(activeDeals, totalReplies)),
+      interestedToActiveDeal: Math.min(100, pct(activeDeals, interested)),
     },
     recheck: {
       recheckedCount,

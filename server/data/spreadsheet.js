@@ -132,7 +132,10 @@ export function normalizeDisposition(rawValue) {
   if (v.includes("wrong number")) return DISPOSITION.WRONG_NUMBER;
   if (v.includes("failed") || v.includes("undelivered")) return DISPOSITION.FAILED_NUMBER;
   if (v.includes("already")) return DISPOSITION.ALREADY_CONTACTED;
-  if (v.includes("ready")) return DISPOSITION.READY_TO_TEXT;
+  // NOTE: an uploaded "Ready" is treated as not-yet-worked (Pending), NOT
+  // Ready-To-Text — "Available to Text" must be EARNED by a fresh eligibility
+  // scan, never asserted by a spreadsheet cell.
+  if (v.includes("ready")) return DISPOSITION.PENDING;
   if (v.includes("review")) return DISPOSITION.NEEDS_REVIEW;
   if (v.includes("error")) return DISPOSITION.ERROR;
   if (v.includes("pending") || v.includes("new")) return DISPOSITION.PENDING;

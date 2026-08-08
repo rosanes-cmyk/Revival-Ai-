@@ -139,8 +139,14 @@ export class AutomationEngine extends EventEmitter {
   // if Live Sending is on.
   async startAvailabilityScan() {
     if (!this.store) throw new Error("No leads loaded. Pull from REI (or upload) first.");
+    if (this._loopActive) return { ok: false, message: "Already running." };
     this._scanOnly = true;
-    return this.start();
+    try {
+      return await this.start();
+    } catch (e) {
+      this._scanOnly = false; // never leave scan-mode stuck if start() fails
+      throw e;
+    }
   }
 
   // --- Control surface ------------------------------------------------------
@@ -152,6 +158,10 @@ export class AutomationEngine extends EventEmitter {
     // pending leads get re-checked (finished ones are still skipped instantly).
     const firstUnfinished = this.store.rows.findIndex((r) => !this.store.isProcessed(r));
     this.store.job.cursor = firstUnfinished >= 0 ? firstUnfinished : this.store.rows.length;
+    // A fresh run invalidates any partial manual-recheck resume, so the
+    // auto-recheck after this run builds a fresh list covering newly-sent texts.
+    this._recheckCursor = 0;
+    this._recheckList = null;
     this._control = "running";
     this.store.setStatus(JOB_STATUS.RUNNING);
     this.emitState(this._scanOnly
@@ -509,18 +519,16 @@ export class AutomationEngine extends EventEmitter {
               row.needsManualReview = true;
             }
             row.notes = (row.notes ? row.notes + " " : "") + `Reply (${cls.classification}): "${row.replyText.slice(0, 140)}"`;
-            // A seller who replied is taken over by the team. When local memory
-            // is enabled, persist a permanent suppression; with no memory, the
-            // reply stays visible in the REI chat and the lead sits in Active
-            // Deal / Not Interested for this job.
-            if (this.useLedgerMemory) {
-              this.sentLedger.suppress({
-                contactUrl: row.reiContactUrl,
-                phone: row.phone,
-                classification: cls.classification,
-                reason: cls.reason,
-              });
-            }
+            // A seller who replied is taken over by the team — ALWAYS persist a
+            // permanent do-not-text suppression (this is a compliance safety
+            // list, kept even when the dashboard "memory" is off), so a later
+            // pull never re-texts someone who already replied or opted out.
+            this.sentLedger.suppress({
+              contactUrl: row.reiContactUrl,
+              phone: row.phone,
+              classification: cls.classification,
+              reason: cls.reason,
+            });
           }
         } else {
           // Transient: expired login / browser / selector / missing conversation.
@@ -853,7 +861,7 @@ export class AutomationEngine extends EventEmitter {
       // not interested, opted out, or unclear) must never get another automated
       // revival text — even on a fresh pull in a later month. Route it to the
       // right tab from the stored reply classification.
-      if (decision.shouldSend && this.useLedgerMemory) {
+      if (decision.shouldSend) {
         const sup = this.sentLedger.isSuppressed({ contactUrl: row.reiContactUrl, phone: facts.phone || row.phone });
         if (sup) {
           const cls = sup.suppressClass || "";
@@ -940,6 +948,13 @@ export class AutomationEngine extends EventEmitter {
             pickApprovedTemplate(facts.companySource || decision.company) || decision.message;
           const outbound = renderMessage(template, facts.ownerName || row.ownerName);
           const result = await this.adapter.sendText(outbound);
+          // Record the in-run dedup key on ANY outcome that isn't a definite
+          // no-send ("blocked" = Send button never enabled). This covers an
+          // actual-but-unconfirmed send so a retry within the run can't double-
+          // text. Blocking a legitimate resend is the safe direction.
+          if (result && !result.blocked) {
+            this._runDedupKeys(row.reiContactUrl, facts.phone || row.phone).forEach((k) => this._sentThisRun.add(k));
+          }
           if (result && result.blocked) {
             // REI wouldn't let us send (e.g. the contact is opted out — the Send
             // button stays disabled). Record it as Opted Out, not an error.
@@ -951,7 +966,6 @@ export class AutomationEngine extends EventEmitter {
             textSent = true;
             this._runStats.sends += 1;
             this._dailySends += 1; // backend daily hard-cap counter
-            this._runDedupKeys(row.reiContactUrl, facts.phone || row.phone).forEach((k) => this._sentThisRun.add(k));
             row.disposition = DISPOSITION.TEXT_SENT;
             row.eligibilityStatus = ELIGIBILITY.ELIGIBLE_TEXT_SENT;
             row.textSentTimestamp = result.timestamp;

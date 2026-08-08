@@ -640,18 +640,21 @@ app.post("/api/pull-rei", (req, res) => {
       broadcast("summary", store.summary());
       const fresh = urls.length - filled;
       const acct = account ? ` · REI account: ${account}` : "";
+      const willText = engine.allowLiveSend;
       broadcast("state", {
-        message: filled
-          ? `Pulled ${urls.length} REI contacts — ${filled} already worked this month, ${fresh} new${acct}. Now checking every lead's eligibility (no texts sent)…`
-          : `Pulled ${urls.length} REI contacts${acct}. Now checking every lead's eligibility (no texts sent)…`,
+        message:
+          `Pulled ${urls.length} REI contacts${filled ? ` — ${filled} already worked, ${fresh} new` : ""}${acct}. ` +
+          (willText
+            ? "Live Sending is ON — now checking every lead and TEXTING the eligible ones…"
+            : "Now checking every lead's eligibility (no texts sent — Live Sending is OFF)…"),
       });
-      // Automatically recheck EVERY pulled lead against all texting rules (no
-      // sending) so the tabs — especially Available to Text — fill in on their
-      // own. The user can Pause/Stop anytime; turn Live Sending on + Start to
-      // actually text the Available list.
+      // Option B: after a pull, automatically start a run. If Live Sending is ON
+      // it texts eligible leads; if OFF it just checks (fills Available to Text).
+      // Either way it runs the full safety pipeline per lead. Pause/Stop anytime.
       if (String(process.env.AUTO_CHECK_ON_PULL ?? "true").toLowerCase() !== "false") {
-        engine.startAvailabilityScan().catch((err) =>
-          broadcast("state", { message: `Eligibility check could not start: ${err.message}` })
+        const kick = willText ? engine.start() : engine.startAvailabilityScan();
+        Promise.resolve(kick).catch((err) =>
+          broadcast("state", { message: `Auto-run could not start: ${err.message}` })
         );
       }
     } catch (err) {
@@ -693,6 +696,7 @@ app.post("/api/start", async (req, res) => {
 // WITHOUT sending. Runs the normal pipeline in scan-only mode.
 app.post("/api/scan-available", async (req, res) => {
   try {
+    if (engine.isBusy()) return res.status(409).json({ error: "Automation is running. Stop it first." });
     if (!store) return res.status(400).json({ error: "Pull from REI (or upload) leads first." });
     res.json(await engine.startAvailabilityScan());
   } catch (err) {

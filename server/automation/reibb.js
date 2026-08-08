@@ -612,6 +612,7 @@ export class ReiBlackBookAdapter {
   async readHistory() {
     const h = this.selectors.contactRecord.history;
     let text = "";
+    let chatOpened = false;
     // End on the Chat tab so the message box is showing for the send step.
     for (const tab of [h.notesTab, h.activitiesTab, h.chatTab]) {
       if (await this.isVisible(tab, 800)) {
@@ -620,7 +621,7 @@ export class ReiBlackBookAdapter {
         // On the chat/text tab, scroll the conversation to the top so OLDER
         // messages (e.g. a revival text sent earlier this month) load into the
         // DOM and are included below — the duplicate guard depends on this.
-        if (tab === h.chatTab) await this._scrollChatToTop();
+        if (tab === h.chatTab) { chatOpened = true; await this._scrollChatToTop(); }
       }
       const t = await this.textOf(h.contentArea);
       if (t) text += "\n" + t;
@@ -629,7 +630,21 @@ export class ReiBlackBookAdapter {
       text = await this.page.locator("body").innerText().catch(() => "");
     }
     const trimmed = text.trim();
-    return { readable: true, fullText: trimmed, latestText: trimmed };
+    // FAIL-SAFE: only trust "no revival message found → not texted" if we can
+    // confirm the chat actually rendered. If we couldn't open the Chat tab AND
+    // the reply box / chat control isn't present, the conversation may have only
+    // partially loaded — mark it UNREADABLE so decide() HOLDS the lead for review
+    // instead of risking a duplicate text. (An opened-but-empty chat is readable
+    // and textable — that's a brand-new lead with no messages.)
+    let chatConfirmed = chatOpened;
+    if (!chatConfirmed) {
+      const c = (this.selectors.contactRecord && this.selectors.contactRecord.chat) || {};
+      chatConfirmed =
+        (c.messageInput && (await this.isVisible(c.messageInput, 800))) ||
+        (c.openButton && (await this.isVisible(c.openButton, 500))) ||
+        false;
+    }
+    return { readable: !!chatConfirmed, fullText: trimmed, latestText: trimmed };
   }
 
   // Scroll the chat/message list to the very top so lazy-loaded older messages

@@ -16,7 +16,7 @@ import {
   OPTOUT_REGEX,
   DO_NOT_AUTOMATE_REGEX,
 } from "./constants.js";
-import { RECENT_CONVERSATION_DAYS } from "./constants.js";
+import { RECENT_CONVERSATION_DAYS, MIN_DAYS_BETWEEN_TEXTS } from "./constants.js";
 import { getApprovedMessage, normalizeCompany } from "./message.js";
 
 /**
@@ -149,27 +149,35 @@ export function decide(facts) {
   // SAME calendar month. A send from a prior month is allowed to re-engage this
   // month (monthly re-engagement).
   if (facts.alreadySentApproved) {
-    if (facts.revivalSentThisMonth) {
-      // Sent THIS month → skip (no repeat in the same month).
+    // How many days ago was our revival text (from the REI chat date)?
+    let ageDays = null;
+    if (facts.revivalSentAt) {
+      const t = new Date(facts.revivalSentAt).getTime();
+      if (t) ageDays = (Date.now() - t) / 86400000;
+    }
+    const withinMinDays = ageDays !== null && ageDays >= 0 && ageDays <= MIN_DAYS_BETWEEN_TEXTS;
+    if (facts.revivalSentThisMonth || withinMinDays) {
+      // Sent this calendar month OR within the last MIN_DAYS_BETWEEN_TEXTS days
+      // (rolling) → skip. The 30-day rule holds even across a month boundary.
       return out(DISPOSITION.TEXTED_THIS_MONTH, {
         eligibility: ELIGIBILITY.NOT_ELIGIBLE,
         notes: facts.revivalSentAt
-          ? `REI chat shows the revival text was sent this month (${new Date(facts.revivalSentAt).toLocaleDateString()}) — skipped to avoid a repeat.`
-          : "REI chat shows the revival text was already sent this month — skipped to avoid a repeat.",
-        complianceResult: "Texted this month (per REI) - skipped",
+          ? `REI chat shows the revival text was sent ${new Date(facts.revivalSentAt).toLocaleDateString()} (within ${MIN_DAYS_BETWEEN_TEXTS} days) — skipped to avoid a repeat.`
+          : "REI chat shows the revival text was already sent recently — skipped to avoid a repeat.",
+        complianceResult: "Texted recently (per REI) - skipped",
       });
     }
     if (!facts.revivalSentAt) {
       // Message is present but we could NOT read a date next to it, so we can't
-      // prove it was a prior month. Don't risk a same-month duplicate — skip.
+      // prove enough time has passed. Don't risk a duplicate — skip.
       return out(DISPOSITION.ALREADY_CONTACTED, {
         eligibility: ELIGIBILITY.NOT_ELIGIBLE,
         notes: "REI chat shows the revival text was already sent (date unreadable) — skipped to be safe against a repeat.",
         complianceResult: "Already contacted (undated)",
       });
     }
-    // Otherwise the revival text was sent in a PRIOR month → allowed to
-    // re-engage this month. Fall through and continue the remaining checks.
+    // Otherwise it was sent more than MIN_DAYS_BETWEEN_TEXTS days ago → allowed
+    // to re-engage. Fall through and continue the remaining checks.
   }
 
   // Step 17 clean conditions: a usable phone must exist and the company source

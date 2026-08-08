@@ -184,6 +184,11 @@ export const BLOCKING_PHRASES = Object.freeze({
     "do not follow up",
     "stop following up",
     "leave me alone",
+    "lose my number",
+    "take me off",
+    "do not message",
+    "dont message",
+    "stop messaging",
     "complaint",
     "legal",
     "spam",
@@ -197,7 +202,7 @@ export const BLOCKING_PHRASES = Object.freeze({
 // miss. NOTE: physical-mail-only "do not mail" is intentionally excluded — per
 // the SOP it does not block texting. (Toggle in one place here if that changes.)
 export const OPTOUT_REGEX =
-  /\b(?:unsubscribe|do ?not ?(?:call|text|e-?mail|contact|automate|market|solicit)|opt(?:ed)? ?out|remove me|remove from (?:the )?list|dnc|no (?:more )?(?:texts?|calls?|e-?mails?|contact)|stop (?:texting|calling|contacting|messaging))\b/i;
+  /\b(?:unsubscribe|do ?not ?(?:call|text|e-?mail|message|contact|automate|market|solicit)|opt(?:ed)? ?out|remove me|remove from (?:the )?list|take me off|lose my number|dnc|no (?:more )?(?:texts?|calls?|e-?mails?|messages?|contact)|stop (?:texting|calling|contacting|messaging))\b/i;
 
 // "Do Not Automate" — skip the lead entirely (highest precedence).
 export const DO_NOT_AUTOMATE_REGEX = /\bdo ?not ?automate\b/i;
@@ -211,6 +216,11 @@ export const ACTIVE_DEAL_TAG_REGEX =
 
 // A conversation is "recent" if the last message was within this many days.
 export const RECENT_CONVERSATION_DAYS = Number(process.env.RECENT_CONVERSATION_DAYS || 31);
+
+// Minimum days between revival texts to the same lead (rolling window). A lead
+// texted within this many days is NOT re-texted / NOT "Available to Text",
+// enforced from the live REI chat date even with local memory off.
+export const MIN_DAYS_BETWEEN_TEXTS = Number(process.env.AVAILABLE_TEXT_MIN_DAYS || 30);
 
 // Markers that indicate the latest outbound message failed / was undelivered.
 export const FAILED_MARKERS = Object.freeze([

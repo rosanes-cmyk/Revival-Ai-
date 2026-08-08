@@ -538,7 +538,14 @@ async function refreshState() {
       setStatus(st.engineStatus || st.job.status);
       setProgress(st.job.cursor, st.job.summary.total);
       els.fileName.textContent = st.job.sourceFileName || "(restored job)";
-    } else setStatus("idle");
+    } else {
+      // No job (e.g. another client hit Reset) — clear this client's view too.
+      hasJob = false;
+      setRows([]);
+      setProgress(0, 0);
+      els.fileName.textContent = "No file selected";
+      setStatus("idle");
+    }
   } catch (e) { setStatus("idle"); }
 }
 
