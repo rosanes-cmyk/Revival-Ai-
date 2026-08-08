@@ -107,6 +107,12 @@ export class AutomationEngine extends EventEmitter {
     // id and phone). Set SKIP_TEXTED_THIS_MONTH=false to disable.
     this.skipTextedThisMonth =
       String(process.env.SKIP_TEXTED_THIS_MONTH ?? "true").toLowerCase() !== "false";
+    // NO LOCAL MEMORY (default): the app does NOT remember past results in a
+    // local file. Every lead is re-checked FRESH from REI/Redfin each run, and
+    // double-texting is prevented by reading the lead's LIVE REI chat (the SOP
+    // "already texted this month" check in decide()), not a saved file. Set
+    // USE_LEDGER_MEMORY=true to restore the persistent local memory/prefill.
+    this.useLedgerMemory = String(process.env.USE_LEDGER_MEMORY ?? "false").toLowerCase() === "true";
     this.sentLedger = new SentLedger();
   }
 
@@ -207,8 +213,9 @@ export class AutomationEngine extends EventEmitter {
       const rows = this.store.rows;
       this._runStats = { count: 0, totalMs: 0, sends: 0 };
       // Seed today's send count from the ledger so the daily cap holds across
-      // restarts within the same day.
-      this._dailySends = this.sentLedger.textedCountOn(new Date());
+      // restarts within the same day. With no local memory, the cap is a
+      // per-run counter starting at 0.
+      this._dailySends = this.useLedgerMemory ? this.sentLedger.textedCountOn(new Date()) : 0;
       this._pacedAtSends = 0;
       let batchLimitReached = false; // = daily hard cap reached
       for (let i = this.store.job.cursor; i < rows.length; i++) {
@@ -500,15 +507,18 @@ export class AutomationEngine extends EventEmitter {
               row.needsManualReview = true;
             }
             row.notes = (row.notes ? row.notes + " " : "") + `Reply (${cls.classification}): "${row.replyText.slice(0, 140)}"`;
-            // A seller who replied is taken over by the team — permanently
-            // suppress future automated revival texts (persists across months /
-            // re-pulls), regardless of the reply's classification.
-            this.sentLedger.suppress({
-              contactUrl: row.reiContactUrl,
-              phone: row.phone,
-              classification: cls.classification,
-              reason: cls.reason,
-            });
+            // A seller who replied is taken over by the team. When local memory
+            // is enabled, persist a permanent suppression; with no memory, the
+            // reply stays visible in the REI chat and the lead sits in Active
+            // Deal / Not Interested for this job.
+            if (this.useLedgerMemory) {
+              this.sentLedger.suppress({
+                contactUrl: row.reiContactUrl,
+                phone: row.phone,
+                classification: cls.classification,
+                reason: cls.reason,
+              });
+            }
           }
         } else {
           // Transient: expired login / browser / selector / missing conversation.
@@ -805,18 +815,20 @@ export class AutomationEngine extends EventEmitter {
             disposition: row.disposition,
             notes: row.notes,
           });
-          // Record so a re-pull shows it and skips re-checking this month.
-          this.sentLedger.recordResult({
-            contactUrl: row.reiContactUrl,
-            phone: facts.phone || row.phone,
-            disposition: row.disposition,
-            notes: row.notes,
-            propertyStatus: row.propertyStatus,
-            eligibilityStatus: row.eligibilityStatus,
-            reiMatchStatus: row.reiMatchStatus,
-            searchMethod: row.searchMethod,
-            companySource: facts.companySource || "",
-          });
+          // Record so a re-pull shows it (only when local memory is enabled).
+          if (this.useLedgerMemory) {
+            this.sentLedger.recordResult({
+              contactUrl: row.reiContactUrl,
+              phone: facts.phone || row.phone,
+              disposition: row.disposition,
+              notes: row.notes,
+              propertyStatus: row.propertyStatus,
+              eligibilityStatus: row.eligibilityStatus,
+              reiMatchStatus: row.reiMatchStatus,
+              searchMethod: row.searchMethod,
+              companySource: facts.companySource || "",
+            });
+          }
           return;
         }
       }
@@ -829,7 +841,7 @@ export class AutomationEngine extends EventEmitter {
       // not interested, opted out, or unclear) must never get another automated
       // revival text — even on a fresh pull in a later month. Route it to the
       // right tab from the stored reply classification.
-      if (decision.shouldSend) {
+      if (decision.shouldSend && this.useLedgerMemory) {
         const sup = this.sentLedger.isSuppressed({ contactUrl: row.reiContactUrl, phone: facts.phone || row.phone });
         if (sup) {
           const cls = sup.suppressClass || "";
@@ -854,8 +866,10 @@ export class AutomationEngine extends EventEmitter {
         }
       }
 
-      // ledger, keyed by REI contact id + phone).
-      if (decision.shouldSend && this.skipTextedThisMonth) {
+      // ledger, keyed by REI contact id + phone). Only when local memory is on;
+      // otherwise decide() already blocks same-month re-texts by reading the
+      // LIVE REI chat (facts.revivalSentThisMonth).
+      if (decision.shouldSend && this.skipTextedThisMonth && this.useLedgerMemory) {
         const key = { contactUrl: row.reiContactUrl, phone: facts.phone || row.phone };
         // Skip if texted THIS calendar month OR within the last 30 days
         // (rolling) — the latter keeps recently-texted leads out of Available.
@@ -917,14 +931,16 @@ export class AutomationEngine extends EventEmitter {
             row.sentMessageBody = outbound;
             row.messageDeliveryStatus = "Sent"; // confirmed present in REI chat
             row.notes = "Live text sent successfully";
-            // Record in the monthly ledger so this lead isn't texted again
-            // this month (persists across runs / uploads / REI pulls).
-            this.sentLedger.record({
-              contactUrl: row.reiContactUrl,
-              phone: facts.phone || row.phone,
-              company: facts.companySource || decision.company || "",
-              iso: result.timestamp,
-            });
+            // Record in the monthly ledger (only when local memory is enabled).
+            // With no memory, the REI chat itself is the record of the send.
+            if (this.useLedgerMemory) {
+              this.sentLedger.record({
+                contactUrl: row.reiContactUrl,
+                phone: facts.phone || row.phone,
+                company: facts.companySource || decision.company || "",
+                iso: result.timestamp,
+              });
+            }
             if (this.writeReiTags) await this._applyTag(row, REVIVAL_TAG[DISPOSITION.TEXT_SENT]);
           } else {
             // Text was NOT sent (couldn't confirm / couldn't open chat / etc.).
@@ -985,6 +1001,7 @@ export class AutomationEngine extends EventEmitter {
   // Save a finished lead's result to the monthly memory (keyed by REI contact
   // id + phone) so it persists across runs, uploads, and REI pulls.
   _rememberResult(row) {
+    if (!this.useLedgerMemory) return; // no local memory — nothing is remembered
     this.sentLedger.recordResult({
       contactUrl: row.reiContactUrl,
       phone: row.phone,
@@ -1010,6 +1027,7 @@ export class AutomationEngine extends EventEmitter {
   // and is marked done (so it's skipped, not re-checked). Only rows still
   // Pending are touched. Returns how many were pre-filled.
   applyMonthlyMemory(rows) {
+    if (!this.useLedgerMemory) return 0; // no local memory — never pre-fill
     let filled = 0;
     for (const row of rows) {
       if (row.disposition && row.disposition !== DISPOSITION.PENDING) continue;
