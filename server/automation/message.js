@@ -161,9 +161,18 @@ export function firstNameFrom(ownerName) {
   // First whitespace-separated token that looks like a name (letters, 2+ chars).
   const tok = s.split(/\s+/).find((w) => /^[A-Za-z][A-Za-z'’.-]{1,}$/.test(w)) || "";
   if (!tok) return "";
-  // Title-case it (REI often stores names in ALL CAPS).
   const clean = tok.replace(/[.'’-]+$/g, "");
-  return clean ? clean.charAt(0).toUpperCase() + clean.slice(1).toLowerCase() : "";
+  if (!clean) return "";
+  // Placeholder / non-name values that must NOT be used as a greeting — the
+  // message falls back to "Hi there," instead of "Hi Unknown," / "Hi Seller,".
+  const NON_NAME = new Set([
+    "unknown", "unkown", "none", "null", "na", "test", "spam", "seller", "owner",
+    "buyer", "occupant", "resident", "tenant", "lead", "contact", "customer",
+    "info", "admin", "cold", "spanish", "caller", "prospect", "unassigned",
+  ]);
+  if (NON_NAME.has(clean.toLowerCase())) return "";
+  // Title-case it (REI often stores names in ALL CAPS).
+  return clean.charAt(0).toUpperCase() + clean.slice(1).toLowerCase();
 }
 
 /**
