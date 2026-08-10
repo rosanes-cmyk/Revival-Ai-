@@ -827,6 +827,24 @@ export class AutomationEngine extends EventEmitter {
       }
 
       const decision = decide(facts);
+
+      // BACKFILL the reliable local record from what REI's chat shows. If the
+      // live chat proves we already sent the revival text (with a real date),
+      // write that into the ledger now — even if THIS app never recorded it
+      // (e.g. it was sent by an older build, another computer, or before the
+      // always-on record existed). This way the fast, reliable 30-day skip
+      // covers those prior sends too, instead of depending on the chat read
+      // loading perfectly on every future run (a half-loaded chat is exactly
+      // how a lead like Amy Lin got texted a second time).
+      if (facts.alreadySentApproved && facts.revivalSentAt) {
+        this.sentLedger.record({
+          contactUrl: row.reiContactUrl,
+          phone: facts.phone || row.phone,
+          company: facts.companySource || decision.company || "",
+          iso: facts.revivalSentAt,
+        });
+      }
+
       row.propertyStatus = decision.propertyStatus;
       // If Redfin gave a real status (e.g. Off Market) and REI didn't flag the
       // property sold/listed itself, show Redfin's status instead of the
