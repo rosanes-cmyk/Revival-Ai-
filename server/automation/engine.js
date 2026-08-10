@@ -108,11 +108,13 @@ export class AutomationEngine extends EventEmitter {
     // id and phone). Set SKIP_TEXTED_THIS_MONTH=false to disable.
     this.skipTextedThisMonth =
       String(process.env.SKIP_TEXTED_THIS_MONTH ?? "true").toLowerCase() !== "false";
-    // NO LOCAL MEMORY (default): the app does NOT remember past results in a
-    // local file. Every lead is re-checked FRESH from REI/Redfin each run, and
-    // double-texting is prevented by reading the lead's LIVE REI chat (the SOP
-    // "already texted this month" check in decide()), not a saved file. Set
-    // USE_LEDGER_MEMORY=true to restore the persistent local memory/prefill.
+    // DUPLICATE PROTECTION is ALWAYS ON and reliable: every send is recorded
+    // (phone + timestamp) and the 30-day skip reads that record — so we never
+    // depend solely on reading REI's chat to avoid a repeat text. The live-chat
+    // read is a SECONDARY guard on top.
+    // `useLedgerMemory` now ONLY controls dashboard PREFILL of PAST RESULTS
+    // (sold / not-interested / etc. shown on a fresh pull). Default false = a
+    // clean dashboard each run; the dedup record is kept regardless.
     this.useLedgerMemory = String(process.env.USE_LEDGER_MEMORY ?? "false").toLowerCase() === "true";
     this.sentLedger = new SentLedger();
   }
@@ -226,7 +228,7 @@ export class AutomationEngine extends EventEmitter {
       // Seed today's send count from the ledger so the daily cap holds across
       // restarts within the same day. With no local memory, the cap is a
       // per-run counter starting at 0.
-      this._dailySends = this.useLedgerMemory ? this.sentLedger.textedCountOn(new Date()) : 0;
+      this._dailySends = this.sentLedger.textedCountOn(new Date());
       this._pacedAtSends = 0;
       this._sentThisRun = new Set(); // fresh per run
       let batchLimitReached = false; // = daily hard cap reached
@@ -952,7 +954,7 @@ export class AutomationEngine extends EventEmitter {
       // ledger, keyed by REI contact id + phone). Only when local memory is on;
       // otherwise decide() already blocks same-month re-texts by reading the
       // LIVE REI chat (facts.revivalSentThisMonth).
-      if (decision.shouldSend && this.skipTextedThisMonth && this.useLedgerMemory) {
+      if (decision.shouldSend && this.skipTextedThisMonth) {
         const key = { contactUrl: row.reiContactUrl, phone: facts.phone || row.phone };
         // Skip if texted THIS calendar month OR within the last 30 days
         // (rolling) — the latter keeps recently-texted leads out of Available.
@@ -1021,16 +1023,16 @@ export class AutomationEngine extends EventEmitter {
             row.sentMessageBody = outbound;
             row.messageDeliveryStatus = "Sent"; // confirmed present in REI chat
             row.notes = "Live text sent successfully";
-            // Record in the monthly ledger (only when local memory is enabled).
-            // With no memory, the REI chat itself is the record of the send.
-            if (this.useLedgerMemory) {
-              this.sentLedger.record({
-                contactUrl: row.reiContactUrl,
-                phone: facts.phone || row.phone,
-                company: facts.companySource || decision.company || "",
-                iso: result.timestamp,
-              });
-            }
+            // ALWAYS record the send (phone + timestamp) — this is the reliable
+            // do-not-re-text record. It does NOT prefill the dashboard; it only
+            // powers the 30-day duplicate skip, so we never depend solely on
+            // reading REI's chat to avoid a repeat text.
+            this.sentLedger.record({
+              contactUrl: row.reiContactUrl,
+              phone: facts.phone || row.phone,
+              company: facts.companySource || decision.company || "",
+              iso: result.timestamp,
+            });
             if (this.writeReiTags) await this._applyTag(row, REVIVAL_TAG[DISPOSITION.TEXT_SENT]);
           } else {
             // Text was NOT sent (couldn't confirm / couldn't open chat / etc.).
