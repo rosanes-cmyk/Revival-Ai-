@@ -978,10 +978,9 @@ export class AutomationEngine extends EventEmitter {
         // (rolling) — the latter keeps recently-texted leads out of Available.
         const prevIso = this.sentLedger.sentThisMonth(key) || this.sentLedger.textedWithinDays(key, this.recentTextDays);
         if (prevIso) {
-          const when = new Date(prevIso).toLocaleDateString();
           row.disposition = DISPOSITION.TEXTED_THIS_MONTH;
           row.eligibilityStatus = ELIGIBILITY.NOT_ELIGIBLE;
-          row.notes = `Already texted recently (${when}) — skipped to avoid a repeat within ${this.recentTextDays} days.`;
+          row.notes = `Texted ${fmtSentAgo(prevIso)} — skipped (within ${this.recentTextDays} days).`;
           row.errorLog = "";
           this.logger.log({
             ...logBase,
@@ -1278,6 +1277,21 @@ export class AutomationEngine extends EventEmitter {
       .map((r) => `row ${r.rowNumber}: ${r.errorLog}`);
     this.emit("final", { summary: s, texted, tagsAdded, failures });
     this.emitState("Completed. All rows processed.");
+  }
+}
+
+// Format a sent-timestamp as "Aug 8, 2026 (2 days ago)" for the skip note, so
+// you can eyeball at a glance exactly when the lead was last texted.
+function fmtSentAgo(iso) {
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return String(iso || "");
+    const date = d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+    const days = Math.floor((Date.now() - d.getTime()) / 86400000);
+    const ago = days <= 0 ? "today" : days === 1 ? "yesterday" : `${days} days ago`;
+    return `${date} (${ago})`;
+  } catch {
+    return String(iso || "");
   }
 }
 

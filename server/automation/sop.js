@@ -162,7 +162,7 @@ export function decide(facts) {
       return out(DISPOSITION.TEXTED_THIS_MONTH, {
         eligibility: ELIGIBILITY.NOT_ELIGIBLE,
         notes: facts.revivalSentAt
-          ? `REI chat shows the revival text was sent ${new Date(facts.revivalSentAt).toLocaleDateString()} (within ${MIN_DAYS_BETWEEN_TEXTS} days) — skipped to avoid a repeat.`
+          ? `Texted ${fmtSentAgo(facts.revivalSentAt)} per REI chat — skipped (within ${MIN_DAYS_BETWEEN_TEXTS} days).`
           : "REI chat shows the revival text was already sent recently — skipped to avoid a repeat.",
         complianceResult: "Texted recently (per REI) - skipped",
       });
@@ -304,6 +304,20 @@ function detectStopReply(text) {
     return true;
   }
   return false;
+}
+
+// Format a sent-timestamp as "Aug 8, 2026 (2 days ago)" for skip notes.
+function fmtSentAgo(iso) {
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return String(iso || "");
+    const date = d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+    const days = Math.floor((Date.now() - d.getTime()) / 86400000);
+    const ago = days <= 0 ? "today" : days === 1 ? "yesterday" : `${days} days ago`;
+    return `${date} (${ago})`;
+  } catch {
+    return String(iso || "");
+  }
 }
 
 /** Whole-word / phrase match to avoid false hits like "stop" in "stopwatch". */
