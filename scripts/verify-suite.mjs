@@ -33,6 +33,14 @@ eq("wrong number → Wrong Number", decide({ ...clean(), historyText: "wrong num
 eq("active deal recent → Recent Contact", decide({ ...clean(), activeDealTag: true, lastConversationWithinMonth: true }).disposition, "Recent Contact");
 eq("active deal COLD → re-engages (Ready)", decide({ ...clean(), activeDealTag: true, lastConversationWithinMonth: false }).disposition, "Ready To Text");
 eq("last msg failed → Failed Number", decide({ ...clean(), lastMessageFailed: true }).disposition, "Failed Number");
+// Regression (Sarah James): a call-activity note containing "failed"/"ring but
+// no answer" must NOT brand a working number as Failed Number.
+eq("call note 'failed' → NOT failed marker", detectFailed("Tried calling, ring but no answer. Auto dialer failed. Dropped while ringing."), false);
+eq("'call failed' note → NOT failed marker", detectFailed("Outgoing call 34 seconds. Call failed to connect."), false);
+// Real SMS delivery failures still detected by the tightened markers.
+eq("'message failed' → failed marker", detectFailed("Your message failed to send"), true);
+eq("'delivery failed' → failed marker", detectFailed("SMS delivery failed"), true);
+eq("'undeliverable' → failed marker", detectFailed("Message undeliverable"), true);
 eq("texted this month → Texted This Month", decide({ ...clean(), alreadySentApproved: true, revivalSentThisMonth: true, revivalSentAt: daysAgo(3) }).disposition, "Texted This Month");
 eq("texted 10d ago (prior-month flag off) → Texted This Month (30-day)", decide({ ...clean(), alreadySentApproved: true, revivalSentThisMonth: false, revivalSentAt: daysAgo(10) }).disposition, "Texted This Month");
 eq("texted 40d ago → Ready To Text (re-engage)", decide({ ...clean(), alreadySentApproved: true, revivalSentThisMonth: false, revivalSentAt: daysAgo(40) }).disposition, "Ready To Text");

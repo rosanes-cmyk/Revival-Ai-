@@ -223,14 +223,28 @@ export const RECENT_CONVERSATION_DAYS = Number(process.env.RECENT_CONVERSATION_D
 // enforced from the live REI chat date even with local memory off.
 export const MIN_DAYS_BETWEEN_TEXTS = Number(process.env.AVAILABLE_TEXT_MIN_DAYS || 30);
 
-// Markers that indicate the latest outbound message failed / was undelivered.
+// Markers that indicate a TEXT MESSAGE failed / was undelivered.
+//
+// These must be SMS-delivery-specific phrases. A bare word like "failed" or
+// "undelivered" is NOT allowed here, because a contact page is full of unrelated
+// text — call-activity notes ("tried calling, ring but no answer"), auto-dialer
+// logs, etc. A stray "failed" in a call note would otherwise permanently brand a
+// perfectly good phone number as a dead "Failed Number" and the lead would never
+// get texted (real case: Sarah James — number worked fine when texted by hand).
 export const FAILED_MARKERS = Object.freeze([
-  "failed",
-  "undelivered",
+  "message failed",
+  "failed to send",
+  "failed to deliver",
   "delivery failed",
+  "message not delivered",
   "not delivered",
-  "send failed",
+  "message undeliverable",
+  "undeliverable",
+  "message could not be sent",
   "could not be delivered",
+  "message was not sent",
+  "sms failed",
+  "text failed",
 ]);
 
 // --- Spreadsheet columns ----------------------------------------------------

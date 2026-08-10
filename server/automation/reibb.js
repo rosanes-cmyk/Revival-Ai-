@@ -451,7 +451,19 @@ export class ReiBlackBookAdapter {
     const detectedCompany = await this.readSenderCompany();
     const companySource = detectedCompany || lead.companySource || "";
 
-    const lastMessageFailed = detectFailed(history.latestText);
+    // "Failed Number" must be based on the LATEST OUTBOUND TEXT's delivery
+    // status, scoped to the chat thread — NOT a stray "failed" anywhere on the
+    // page (call notes/activity logs would brand a working number as dead).
+    // Prefer the structured chat read (latest outbound bubble's own status);
+    // only if that couldn't parse do we fall back to the tightened,
+    // SMS-delivery-specific markers — which no longer match a bare "failed" in a
+    // call note, so even a whole-text scan stays safe.
+    const lastMessageFailed =
+      history.latestOutboundFailed === true
+        ? true
+        : history.latestOutboundFailed === false
+          ? false
+          : detectFailed(history.fullText); // null → conservative marker scan
     // Cross-machine duplicate guard: if OUR revival text is already anywhere in
     // this contact's REI conversation, don't send again — no matter which
     // computer sent it or which company (EQT/THB) wording was used. Match on the
@@ -670,6 +682,15 @@ export class ReiBlackBookAdapter {
     const bodyText = await this.page.locator("body").innerText().catch(() => "");
     if (bodyText) text += "\n" + bodyText;
     const trimmed = text.trim();
+
+    // Whether the LATEST OUTBOUND text message failed to deliver — computed from
+    // the CHAT bubbles ONLY (their own status text), never from the whole page.
+    // Scanning the whole page for "failed" wrongly flags working numbers when a
+    // call note or activity log happens to contain that word. Returns:
+    //   true  = latest outbound SMS shows a delivery-failure status
+    //   false = latest outbound SMS present and not failed (or no outbound found)
+    //   null  = couldn't parse the chat structurally (caller stays conservative)
+    const latestOutboundFailed = await this._latestOutboundFailed();
     // FAIL-SAFE: only trust "no revival message found → not texted" if we can
     // confirm the chat actually rendered. If we couldn't open the Chat tab AND
     // the reply box / chat control isn't present, the conversation may have only
@@ -689,7 +710,48 @@ export class ReiBlackBookAdapter {
         (await this.isVisible(specificReply, 800)) ||
         false;
     }
-    return { readable: !!chatConfirmed, fullText: trimmed, latestText: trimmed };
+    return { readable: !!chatConfirmed, fullText: trimmed, latestText: trimmed, latestOutboundFailed };
+  }
+
+  // Parse the chat bubbles and return whether the MOST RECENT OUTBOUND message
+  // shows a delivery-failure status. Scoped to the SMS thread only — call notes
+  // and activity logs are never consulted. Best-effort: returns null if the
+  // chat can't be parsed into messages, so the caller can stay conservative
+  // (better to text a possibly-dead number once — the recheck catches a real
+  // undelivered later — than to permanently skip a good lead on a false match).
+  async _latestOutboundFailed() {
+    const conv = (this.selectors.contactRecord && this.selectors.contactRecord.conversation) || {};
+    if (!conv.messageItem) return null;
+    let messages = [];
+    try {
+      messages = await this.page.evaluate((cfg) => {
+        const inRe = new RegExp(cfg.inboundClassHint, "i");
+        const outRe = new RegExp(cfg.outboundClassHint, "i");
+        const items = Array.from(document.querySelectorAll(cfg.messageItem)).slice(0, 400);
+        return items.map((el) => {
+          const cls = (el.className || "") + " " + ((el.parentElement && el.parentElement.className) || "");
+          let dir = "unknown";
+          if (outRe.test(cls)) dir = "out";
+          else if (inRe.test(cls)) dir = "in";
+          const textEl = el.querySelector(cfg.messageText) || el;
+          const msgText = (textEl.innerText || textEl.textContent || "").replace(/\s+/g, " ").trim();
+          const stEl = el.querySelector(cfg.deliveryStatusText);
+          const statusText = stEl ? (stEl.innerText || stEl.textContent || "").replace(/\s+/g, " ").trim() : "";
+          return { dir, text: msgText, statusText };
+        }).filter((m) => m.text);
+      }, conv);
+    } catch {
+      return null;
+    }
+    if (!messages.length) return null;
+    // The last outbound bubble is the one whose delivery status matters.
+    let lastOut = null;
+    for (const m of messages) if (m.dir === "out") lastOut = m;
+    if (!lastOut) return false; // no outbound message → nothing failed
+    const failedRe = new RegExp(conv.failedHint || "failed to send|delivery failed|undeliverable|not delivered", "i");
+    // Only the message's OWN status text counts as a failure signal — not its
+    // body (a normal message could quote the word "failed").
+    return failedRe.test(lastOut.statusText || "");
   }
 
   // Wait until the Chat conversation has actually rendered (not skeleton/empty),
