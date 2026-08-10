@@ -20,7 +20,16 @@ const els = {
   finalSummary: $("finalSummary"), finalSummaryBody: $("finalSummaryBody"), toast: $("toast"),
   tabBar: $("tabBar"), tabToolbar: $("tabToolbar"), recheckPanel: $("recheckPanel"),
   percentageCard: $("percentageCard"),
+  searchBar: $("searchBar"), leadSearch: $("leadSearch"), searchCount: $("searchCount"),
 };
+
+let searchQuery = "";
+function matchesSearch(r) {
+  if (!searchQuery) return true;
+  const hay = [r.ownerName, r.propertyAddress, r.city, r.state, r.zip, r.phone, r.email, r.notes]
+    .map((v) => String(v || "").toLowerCase()).join(" ");
+  return searchQuery.split(/\s+/).every((term) => hay.includes(term));
+}
 
 let hasJob = false;
 let allRows = [];
@@ -80,6 +89,8 @@ function setTab(key) {
   currentTab = key;
   renderTabs();
   renderTabToolbar();
+  // The search bar applies to the table tabs only — hide it on Percentage.
+  if (els.searchBar) els.searchBar.hidden = key === "percentage";
   if (key === "percentage") {
     els.tableCard.hidden = true;
     els.recheckPanel.hidden = true;
@@ -232,9 +243,19 @@ function columnsFor(tab) {
 function renderTable() {
   const cols = columnsFor(currentTab);
   els.tableHead.innerHTML = cols.map((c) => `<th>${c.h}</th>`).join("");
-  const list = rowsForTab(currentTab);
+  const tabRows = rowsForTab(currentTab);
+  const list = tabRows.filter(matchesSearch);
+  // Search result count.
+  if (els.searchCount) {
+    els.searchCount.textContent = searchQuery
+      ? `${list.length} of ${tabRows.length} match "${searchQuery}"`
+      : "";
+  }
   if (!list.length) {
-    els.tableBody.innerHTML = `<tr class="empty-row"><td colspan="${cols.length}">${allRows.length ? "No leads in this tab yet." : "Upload a spreadsheet or pull from REI to begin."}</td></tr>`;
+    const msg = searchQuery
+      ? `No leads in this tab match "${esc(searchQuery)}".`
+      : (allRows.length ? "No leads in this tab yet." : "Upload a spreadsheet or pull from REI to begin.");
+    els.tableBody.innerHTML = `<tr class="empty-row"><td colspan="${cols.length}">${msg}</td></tr>`;
     return;
   }
   els.tableBody.innerHTML = list
@@ -588,6 +609,13 @@ function connectSSE() {
 }
 
 // --- events ----------------------------------------------------------------
+if (els.leadSearch) {
+  els.leadSearch.oninput = () => {
+    searchQuery = els.leadSearch.value.trim().toLowerCase();
+    if (currentTab !== "percentage") renderTable();
+  };
+}
+
 els.chooseBtn.onclick = () => els.fileInput.click();
 els.fileInput.onchange = async () => {
   const file = els.fileInput.files[0];

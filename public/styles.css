@@ -336,3 +336,10 @@ td.error { color: var(--err); }
 .pct-table td.num, .pct-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .pct-table .based { color: var(--muted); font-size: 12px; }
 .percentage-card h3 { font-size: 14px; margin: 14px 0 4px; }
+
+/* ===== Search bar (find within a tab) ===================================== */
+.search-bar { display: flex; align-items: center; gap: 10px; margin: 10px 0 2px; }
+.search-bar input { flex: 1; max-width: 460px; background: #0f1720; color: #e2e8f0;
+  border: 1px solid rgba(148,163,184,.3); border-radius: 8px; padding: 8px 12px; font-size: 13px; }
+.search-bar input:focus { outline: none; border-color: #24b47e; }
+.search-count { color: var(--muted); font-size: 12px; }
