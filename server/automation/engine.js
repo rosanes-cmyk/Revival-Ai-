@@ -812,6 +812,16 @@ export class AutomationEngine extends EventEmitter {
       if (!row.state && facts.state) row.state = facts.state;
       if (!row.zip && facts.zip) row.zip = facts.zip;
 
+      // If the State field is still blank, read it out of the full address
+      // string (REI/sheets often put "..., CA, 94590" without a clean State
+      // column, or split state and ZIP into separate fields). This prevents a
+      // clearly-in-CA lead like "1607 Santa Clara St, Vallejo, CA 94590" from
+      // being wrongly held as "state unknown".
+      if (!String(row.state || "").trim()) {
+        const derived = deriveState(row);
+        if (derived) row.state = derived;
+      }
+
       // California-only, second chance: pulled leads have no state up front, so
       // the early check was skipped. Now that REI gave us the state, enforce it.
       const stNow = String(row.state || "").trim().toUpperCase();
@@ -1278,6 +1288,31 @@ export class AutomationEngine extends EventEmitter {
     this.emit("final", { summary: s, texted, tagsAdded, failures });
     this.emitState("Completed. All rows processed.");
   }
+}
+
+// All US state abbreviations, for reading a state out of a full address string.
+const US_STATE_ABBRS = new Set([
+  "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA",
+  "KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ",
+  "NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT",
+  "VA","WA","WV","WI","WY","DC",
+]);
+
+// Read the 2-letter state out of a lead when its own State field is blank.
+// Handles messy address shapes REI/sheets produce, e.g.
+//   "1607 Santa Clara St, , Vallejo, CA, 94590"  (empty field + state,zip split)
+//   "123 Main St, Vallejo CA 94590"
+// Strategy: find the state abbreviation that sits right before the 5-digit ZIP —
+// that position is unambiguous. Returns "" if none found (caller still holds it
+// for review rather than guessing).
+export function deriveState(row) {
+  const direct = String((row && row.state) || "").trim().toUpperCase();
+  if (direct) return direct;
+  const hay = `${(row && row.propertyAddress) || ""} , ${(row && row.city) || ""} , ${(row && row.zip) || ""}`.toUpperCase();
+  // A 2-letter token immediately before a 5-digit ZIP (comma/space between).
+  const m = hay.match(/\b([A-Z]{2})\b[\s,]+\d{5}(?:-\d{4})?\b/);
+  if (m && US_STATE_ABBRS.has(m[1])) return m[1];
+  return "";
 }
 
 // Format a sent-timestamp as "Aug 8, 2026 (2 days ago)" for the skip note, so

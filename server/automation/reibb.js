@@ -1497,16 +1497,27 @@ export class ReiBlackBookAdapter {
   async readAddressParts() {
     try {
       const text = ((await this.page.locator("body").innerText().catch(() => "")) || "").replace(/ /g, " ");
-      const m = text.match(/\d{1,6}\s+[^\n,]{2,45},\s*[A-Za-z .'-]{2,30},\s*[A-Z]{2}\s*\d{5}(?:-\d{4})?/);
+      // Match a US address ending in "... ST 12345" whether state and ZIP are
+      // together ("CA 94590") or split by a comma ("CA, 94590"), and tolerate
+      // extra/empty comma fields in between (e.g. a blank address line 2).
+      const m = text.match(/\d{1,6}\s+[^\n]{2,80}?\b[A-Z]{2}\b[\s,]+\d{5}(?:-\d{4})?/);
       if (!m) return {};
       const full = m[0].replace(/\s+/g, " ").trim();
-      const parts = full.split(",").map((s) => s.trim());
-      const stZip = (parts[2] || "").match(/([A-Z]{2})\s*(\d{5})/);
+      // State = the 2-letter token right before the ZIP; ZIP = the 5 digits.
+      const stZip = full.match(/\b([A-Z]{2})\b[\s,]+(\d{5})(?:-\d{4})?\s*$/);
+      const stateTok = stZip ? stZip[1] : "";
+      // City = the last non-empty comma field before the state (skip blanks).
+      const parts = full.split(",").map((s) => s.trim()).filter(Boolean);
+      let city = "";
+      for (let i = parts.length - 1; i >= 1; i--) {
+        const p = parts[i].replace(/\b[A-Z]{2}\b[\s,]+\d{5}(?:-\d{4})?\s*$/, "").trim();
+        if (p && !/^\d/.test(p) && p.toUpperCase() !== stateTok) { city = p; break; }
+      }
       return {
         propertyAddress: full,
         street: parts[0] || "",
-        city: parts[1] || "",
-        state: stZip ? stZip[1] : "",
+        city,
+        state: stateTok,
         zip: stZip ? stZip[2] : "",
       };
     } catch { return {}; }

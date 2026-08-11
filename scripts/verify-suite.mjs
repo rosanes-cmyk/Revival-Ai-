@@ -6,7 +6,7 @@ import { categorizeRow, TAB, rowsForTab, tabCounts } from "../server/data/store.
 import { computePercentageReport } from "../server/reports/percentage.js";
 import { cleanPersonName, firstNameFrom, renderMessage, getApprovedMessage, pickApprovedTemplate, assertMessageIntegrity, APPROVED_TEMPLATES } from "../server/automation/message.js";
 import { SentLedger } from "../server/data/sentLedger.js";
-import { AutomationEngine } from "../server/automation/engine.js";
+import { AutomationEngine, deriveState } from "../server/automation/engine.js";
 import { parseSpreadsheet, exportToXlsx, exportToCsv } from "../server/data/spreadsheet.js";
 import fs from "node:fs";
 
@@ -126,6 +126,13 @@ eq("allowUnknownStateText false", e.allowUnknownStateText, false);
 ok("CA allowed", e.allowedStates.has("CA"));
 const k = e._runDedupKeys("https://my.reiblackbook.com/contacts/9", "(510) 916-3995");
 ok("dedup keys c+p", k.includes("c:9") && k.includes("p:5109163995"));
+// deriveState — read the state out of a messy address so a clearly-CA lead is
+// not wrongly held as "state unknown" (real case: 1607 Santa Clara St, Vallejo).
+eq("split state,zip + empty field → CA", deriveState({ propertyAddress: "1607 Santa Clara St, , Vallejo, CA, 94590" }), "CA");
+eq("state+zip together → CA", deriveState({ propertyAddress: "123 Main St, Vallejo CA 94590" }), "CA");
+eq("state in its own field → TX", deriveState({ propertyAddress: "9 Oak Ave", city: "Austin", state: "TX", zip: "78701" }), "TX");
+eq("no state anywhere → ''", deriveState({ propertyAddress: "9 Oak Ave", city: "Austin" }), "");
+eq("zip with no state → ''", deriveState({ propertyAddress: "9 Oak Ave, Austin, 78701" }), "");
 
 console.log("H. Message integrity + rotation");
 assertMessageIntegrity(); pass++;
