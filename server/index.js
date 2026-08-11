@@ -743,6 +743,15 @@ app.post("/api/scan-available", async (req, res) => {
     res.status(400).json({ error: err.message });
   }
 });
+app.post("/api/recheck-needs-review", async (req, res) => {
+  try {
+    if (engine.isBusy()) return res.status(409).json({ error: "Automation is running. Stop it first." });
+    if (!store) return res.status(400).json({ error: "Pull from REI (or upload) leads first." });
+    res.json(await engine.recheckNeedsReview());
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
 app.post("/api/pause", (req, res) => res.json(engine.pause()));
 app.post("/api/resume", async (req, res) => {
   try {

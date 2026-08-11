@@ -151,6 +151,34 @@ export class AutomationEngine extends EventEmitter {
     }
   }
 
+  // Re-run ONLY the leads currently held in "Needs Review" through the full
+  // pipeline (re-reads REI, re-derives state, re-decides). Leads that now pass
+  // move out of Needs Review — texted if Live Sending is ON, otherwise placed in
+  // Available to Text; ones still ambiguous stay held. Everything else in the
+  // list is untouched, so this is fast (only the held leads are reopened).
+  async recheckNeedsReview() {
+    if (!this.store) throw new Error("No leads loaded. Pull from REI (or upload) first.");
+    if (this._loopActive) return { ok: false, message: "Already running." };
+    const targets = this.store.rows.filter((r) => categorizeRow(r) === TAB.NEEDS_REVIEW);
+    if (!targets.length) return { ok: true, message: "No leads in Needs Review to recheck." };
+    // Reset each held lead to unprocessed so the run loop works it again.
+    for (const r of targets) {
+      r.disposition = DISPOSITION.PENDING;
+      r.eligibilityStatus = ELIGIBILITY.PENDING;
+      r.needsManualReview = false;
+      r.notes = "";
+      r.errorLog = "";
+    }
+    this._reprocessSet = new Set(targets);
+    this.emitState(`Rechecking ${targets.length} lead(s) held for review…`);
+    try {
+      return await this.start();
+    } catch (e) {
+      this._reprocessSet = null;
+      throw e;
+    }
+  }
+
   // --- Control surface ------------------------------------------------------
   async start() {
     if (!this.store) throw new Error("No job loaded. Upload a spreadsheet first.");
@@ -261,6 +289,13 @@ export class AutomationEngine extends EventEmitter {
 
         const row = rows[i];
 
+        // Targeted recheck (e.g. "Recheck Needs Review"): only reprocess the
+        // rows in this set; treat everything else as already done for this pass.
+        if (this._reprocessSet && !this._reprocessSet.has(row)) {
+          this.emit("row", { row, skipped: true });
+          continue;
+        }
+
         if (this.store.isProcessed(row)) {
           // Backfill a missing REI link on already-finished out-of-state leads
           // (older runs didn't capture it). Everything else is skipped as done.
@@ -334,6 +369,7 @@ export class AutomationEngine extends EventEmitter {
       this._loopActive = false;
       this._control = "stopped"; // the loop has ended; ready to Start/Resume again
       this._scanOnly = false;    // clear eligibility-scan mode
+      this._reprocessSet = null; // clear any targeted-recheck filter
       this.emit("summary", this.store ? this.store.summary() : null);
     }
     // Auto-recheck runs AFTER the send loop fully closed its browser, so it gets

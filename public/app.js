@@ -128,6 +128,8 @@ function renderTabToolbar() {
             <button class="btn btn-small btn-stop" id="recheckStopBtn" hidden>⏹ Stop Recheck</button>`;
   else if (currentTab === "available-to-text")
     left = `<button class="btn btn-small" id="scanBtn">🔄 Build / Refresh (recheck all — no texts sent)</button>`;
+  else if (currentTab === "needs-review")
+    left = `<button class="btn btn-small" id="recheckNRBtn">🔁 Recheck Needs Review (re-run just these)</button>`;
   els.tabToolbar.innerHTML = `
     <div class="toolbar-left">${left}</div>
     <div class="toolbar-right">
@@ -143,6 +145,7 @@ function renderTabToolbar() {
     reflectRecheckButtons();
   }
   if (currentTab === "available-to-text") $("scanBtn").onclick = startScan;
+  if (currentTab === "needs-review") $("recheckNRBtn").onclick = startRecheckNeedsReview;
 }
 
 // --- Columns (tab-aware) ----------------------------------------------------
@@ -424,6 +427,23 @@ async function startScan() {
     const r = await api("/api/scan-available", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
     if (r.status) setStatus(r.status);
     toast("Building Available-to-Text list — rechecking every lead (no texts sent).", "ok");
+  } catch (err) { toast(err.message, "error"); }
+}
+async function startRecheckNeedsReview() {
+  if (!hasJob) { toast("Pull from REI (or upload) leads first.", "error"); return; }
+  const sending = liveSendOn;
+  const ok = window.confirm(
+    "Recheck the Needs Review leads?\n\nThis re-opens ONLY the leads held for review and runs them through every rule again (re-reads REI, re-checks the state, etc.). Leads that now pass move out of Needs Review.\n\n" +
+    (sending
+      ? "⚠ Live Sending is ON — leads that now qualify WILL be texted."
+      : "Live Sending is OFF — qualifying leads go to Available to Text; nothing is sent.")
+  );
+  if (!ok) return;
+  try {
+    const r = await api("/api/recheck-needs-review", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+    if (r.message && r.ok === true && /No leads/i.test(r.message)) { toast(r.message, "ok"); return; }
+    if (r.status) setStatus(r.status);
+    toast("Rechecking Needs Review leads — watch the progress.", "ok");
   } catch (err) { toast(err.message, "error"); }
 }
 async function startRecheck() {
