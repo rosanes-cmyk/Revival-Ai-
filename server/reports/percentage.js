@@ -160,6 +160,28 @@ export function computePercentageReport(rows, filters = {}) {
   };
 }
 
+/**
+ * SIMPLE at-a-glance rows for the download — the same short list shown on
+ * screen, so what Juan opens matches the dashboard. Use reportTableRows() for
+ * the full detailed breakdown.
+ */
+export function reportTableRowsSimple(rep) {
+  const t = rep.totals, r = rep.rates, lr = rep.leadRates;
+  const p = (v) => v.toFixed(2) + "%";
+  return [
+    { Metric: "Total Leads", Total: t.totalLeads, Percentage: "", "Percentage Based On": "" },
+    { Metric: "Total Leads Processed", Total: t.totalProcessed, Percentage: "", "Percentage Based On": "" },
+    { Metric: "Texts Sent", Total: t.totalTextsSent, Percentage: p(lr.textSentPct), "Percentage Based On": "Leads Processed" },
+    { Metric: "Confirmed Sent (in REI)", Total: t.confirmedSent, Percentage: p(r.confirmedSentRate), "Percentage Based On": "Texts Sent" },
+    { Metric: "Replied", Total: t.totalReplies, Percentage: p(r.overallReplyRate), "Percentage Based On": "Texts Sent" },
+    { Metric: "Interested", Total: t.interested, Percentage: p(r.interestedSellerRate), "Percentage Based On": "Texts Sent" },
+    { Metric: "Not Interested", Total: t.notInterested, Percentage: p(r.notInterestedRate), "Percentage Based On": "Texts Sent" },
+    { Metric: "No Reply Yet", Total: t.noReply, Percentage: p(r.noReplyRate), "Percentage Based On": "Texts Sent" },
+    { Metric: "Property Sold / Listed", Total: t.propertySold, Percentage: p(lr.propertySoldPct), "Percentage Based On": "Leads Processed" },
+    { Metric: "Active Deals", Total: t.activeDeals, Percentage: p(lr.activeDealPct), "Percentage Based On": "Leads Processed" },
+  ];
+}
+
 /** Flat [{Metric, Total, Percentage, "Percentage Based On"}] rows for XLSX/CSV. */
 export function reportTableRows(rep) {
   const t = rep.totals, r = rep.rates, rr = rep.replyRates, lr = rep.leadRates, ad = rep.activeDeal;

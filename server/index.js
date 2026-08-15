@@ -19,7 +19,7 @@ import os from "os";
 import path from "path";
 import { fileURLToPath } from "url";
 import { parseSpreadsheet, exportToXlsx, exportToCsv, rowsToXlsxBuffer, rowsToCsv } from "./data/spreadsheet.js";
-import { computePercentageReport, reportTableRows } from "./reports/percentage.js";
+import { computePercentageReport, reportTableRowsSimple } from "./reports/percentage.js";
 import { JobStore, summarizeRows, rowsForTab, tabCounts, TAB, TAB_FILE } from "./data/store.js";
 import { DISPOSITION } from "./automation/constants.js";
 import { JobLogger } from "./logger.js";
@@ -387,7 +387,7 @@ function percentageMetaRows(rep, jobName) {
 app.get("/api/percentage.xlsx", (req, res) => {
   const rep = currentPercentageReport(req.query);
   const jobName = store ? store.job.sourceFileName : "";
-  const records = [...percentageMetaRows(rep, jobName), ...reportTableRows(rep)];
+  const records = [...percentageMetaRows(rep, jobName), ...reportTableRowsSimple(rep)];
   const buf = rowsToXlsxBuffer(records, "Percentage Report", ["Metric", "Total", "Percentage", "Percentage Based On"]);
   const day = new Date().toISOString().slice(0, 10);
   res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
@@ -397,7 +397,7 @@ app.get("/api/percentage.xlsx", (req, res) => {
 app.get("/api/percentage.csv", (req, res) => {
   const rep = currentPercentageReport(req.query);
   const jobName = store ? store.job.sourceFileName : "";
-  const records = [...percentageMetaRows(rep, jobName), ...reportTableRows(rep)];
+  const records = [...percentageMetaRows(rep, jobName), ...reportTableRowsSimple(rep)];
   const csv = rowsToCsv(records, ["Metric", "Total", "Percentage", "Percentage Based On"]);
   const day = new Date().toISOString().slice(0, 10);
   res.setHeader("Content-Type", "text/csv");
@@ -426,7 +426,7 @@ app.get("/api/percentage.pdf", async (req, res) => {
 });
 
 function buildPercentageHtml(rep, jobName) {
-  const rows = reportTableRows(rep)
+  const rows = reportTableRowsSimple(rep)
     .map((r) => `<tr><td>${String(r.Metric).replace(/[<>&]/g, "")}</td><td class="num">${Number(r.Total || 0).toLocaleString()}</td><td class="num">${r.Percentage || ""}</td><td>${r["Percentage Based On"] || ""}</td></tr>`)
     .join("");
   const now = new Date().toLocaleString();
