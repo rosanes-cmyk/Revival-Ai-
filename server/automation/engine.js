@@ -451,6 +451,23 @@ export class AutomationEngine extends EventEmitter {
     }
   }
 
+  // DIAGNOSTIC: dump the raw REI chat text for one contact so we can see exactly
+  // what the recheck reads and fix reply parsing against the real page.
+  async debugReadChat(contactUrl) {
+    if (this._loopActive) throw new Error("Automation is running. Stop it first.");
+    this._loopActive = true;
+    try {
+      this.adapter = this.adapterFactory();
+      await this.adapter.launch();
+      await this._bindLedgerToAccount().catch(() => {});
+      return await this.adapter.dumpChatText(contactUrl);
+    } finally {
+      if (this.adapter) await this.adapter.close().catch(() => {});
+      this.adapter = null;
+      this._loopActive = false;
+    }
+  }
+
   // --- Recheck Text Sent (manual, read-only) --------------------------------
   // Opens each Text Sent lead's REI chat, verifies the exact outbound message,
   // reads any visible delivery status, and detects + classifies a seller reply.

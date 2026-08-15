@@ -1087,6 +1087,31 @@ export class ReiBlackBookAdapter {
   // @param {{sentMessageBody?:string, sentTimestamp?:string}} opts
   // @returns {{ok, outboundFound, deliveryStatus, deliveryEvidence,
   //            replyReceived, replyText, replyAt, error}}
+  // DIAGNOSTIC: open a contact's Chat and return the RAW text the recheck sees,
+  // plus what the label-parser makes of it. Used to fix reply detection against
+  // the real REI page instead of guessing. Read-only; sends nothing.
+  async dumpChatText(contactUrl) {
+    const out = { url: contactUrl, rawText: "", parsed: [], error: "" };
+    if (!contactUrl) { out.error = "No contact URL."; return out; }
+    try {
+      await this.page.goto(contactUrl, { waitUntil: "domcontentloaded" }).catch(() => {});
+      await this.page.waitForTimeout(1200);
+      for (const sel of ["[role='tab']:has-text('Chat')", "button:has-text('Chat')", "text=Chat"]) {
+        if (await this.clickIfVisible(sel, 1200)) break;
+      }
+      await this.page.waitForTimeout(900);
+      await this._waitForChatLoaded();
+      await this._scrollChatToTop();
+      await this.page.waitForTimeout(300);
+      const raw = ((await this.page.locator("body").innerText().catch(() => "")) || "").replace(/\s+/g, " ");
+      out.rawText = raw;
+      out.parsed = parseConversationByLabels(raw);
+    } catch (err) {
+      out.error = err.message;
+    }
+    return out;
+  }
+
   async readConversationDetail(contactUrl, opts = {}) {
     const sentBody = String(opts.sentMessageBody || "");
     const sentIso = opts.sentTimestamp || "";

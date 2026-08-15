@@ -743,6 +743,34 @@ app.post("/api/scan-available", async (req, res) => {
     res.status(400).json({ error: err.message });
   }
 });
+// DIAGNOSTIC: show the raw REI chat text + parsed messages for one Text Sent
+// lead, so reply detection can be fixed against the real page. Open in a
+// browser: /api/debug-chat  (first sent lead)  or  /api/debug-chat?owner=keri
+app.get("/api/debug-chat", async (req, res) => {
+  try {
+    if (!store) return res.status(400).json({ error: "Pull from REI (or upload) leads first." });
+    if (engine.isBusy()) return res.status(409).json({ error: "Automation is running. Stop it first." });
+    const owner = String(req.query.owner || "").toLowerCase();
+    const sent = store.job.rows.filter(
+      (r) => (r.textSentTimestamp || r.sentMessageBody || r.disposition === DISPOSITION.TEXT_SENT) && r.reiContactUrl
+    );
+    const target = owner ? sent.find((r) => String(r.ownerName || "").toLowerCase().includes(owner)) : sent[0];
+    if (!target) return res.status(404).json({ error: owner ? `No Text Sent lead matching "${owner}" with a REI link.` : "No Text Sent lead with a REI link found." });
+    const dump = await engine.debugReadChat(target.reiContactUrl);
+    res.json({
+      owner: target.ownerName,
+      url: target.reiContactUrl,
+      replyDetected: dump.parsed.some((m) => m.dir === "in"),
+      parsedMessages: dump.parsed,
+      hasSentToLabel: /sent to:/i.test(dump.rawText),
+      hasReceivedFromLabel: /received from:/i.test(dump.rawText),
+      rawTextSample: (dump.rawText || "").slice(0, 4000),
+      error: dump.error || "",
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 app.post("/api/recheck-needs-review", async (req, res) => {
   try {
     if (engine.isBusy()) return res.status(409).json({ error: "Automation is running. Stop it first." });
