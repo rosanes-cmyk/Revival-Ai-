@@ -2,7 +2,7 @@
 // Exercises every critical decision rule, safety gate, and calculation.
 import assert from "node:assert";
 import { decide, evaluateSafety, classifyReply, detectFailed } from "../server/automation/sop.js";
-import { categorizeRow, TAB, rowsForTab, tabCounts } from "../server/data/store.js";
+import { categorizeRow, TAB, rowsForTab, tabCounts, normalizeRow } from "../server/data/store.js";
 import { computePercentageReport } from "../server/reports/percentage.js";
 import { cleanPersonName, firstNameFrom, renderMessage, getApprovedMessage, pickApprovedTemplate, assertMessageIntegrity, APPROVED_TEMPLATES } from "../server/automation/message.js";
 import { SentLedger } from "../server/data/sentLedger.js";
@@ -133,6 +133,12 @@ eq("state+zip together → CA", deriveState({ propertyAddress: "123 Main St, Val
 eq("state in its own field → TX", deriveState({ propertyAddress: "9 Oak Ave", city: "Austin", state: "TX", zip: "78701" }), "TX");
 eq("no state anywhere → ''", deriveState({ propertyAddress: "9 Oak Ave", city: "Austin" }), "");
 eq("zip with no state → ''", deriveState({ propertyAddress: "9 Oak Ave, Austin, 78701" }), "");
+
+// Auto-correct stale "Unknown" delivery when the text was confirmed sent.
+eq("confirmed-sent + Unknown → Sent", normalizeRow({ sentMessageBody: "Hi", textSentTimestamp: "2026-08-11T00:00:00Z", messageDeliveryStatus: "Unknown" }).messageDeliveryStatus, "Sent");
+eq("confirmed-sent + blank → Sent", normalizeRow({ sentMessageBody: "Hi", textSentTimestamp: "2026-08-11T00:00:00Z", messageDeliveryStatus: "" }).messageDeliveryStatus, "Sent");
+eq("real Failed stays Failed", normalizeRow({ sentMessageBody: "Hi", textSentTimestamp: "2026-08-11T00:00:00Z", messageDeliveryStatus: "Failed" }).messageDeliveryStatus, "Failed");
+eq("not-sent + Unknown stays Unknown", normalizeRow({ sentMessageBody: "", textSentTimestamp: "", messageDeliveryStatus: "Unknown" }).messageDeliveryStatus, "Unknown");
 
 console.log("H. Message integrity + rotation");
 assertMessageIntegrity(); pass++;

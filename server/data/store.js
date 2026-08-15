@@ -143,7 +143,17 @@ export function summarizeRows(rows) {
   };
 }
 
-function normalizeRow(r) {
+export function normalizeRow(r) {
+  // AUTO-CORRECT a stale "Unknown" delivery status. If we have the exact text
+  // we sent AND the timestamp of the send (both are only recorded on a CONFIRMED
+  // send), then the text WAS sent — a later "Unknown / could not locate" is just
+  // a slow re-read, not a real problem. Promote it to "Sent" so nobody has to
+  // keep clicking Re-verify to clear it. A real Failed/Undelivered is left as-is.
+  let deliveryStatus = r.messageDeliveryStatus || "";
+  const wasConfirmedSent = !!(r.sentMessageBody && r.textSentTimestamp);
+  if (wasConfirmedSent && (deliveryStatus === "" || deliveryStatus === "Unknown" || deliveryStatus === "Needs Recheck")) {
+    deliveryStatus = "Sent";
+  }
   return {
     rowNumber: r.rowNumber,
     original: r.original || {},
@@ -177,7 +187,7 @@ function normalizeRow(r) {
     // --- Verification / reply fields (added for Recheck Text Sent). Old job
     // files without these load fine — every field defaults here. ---------------
     sentMessageBody: r.sentMessageBody || "",             // exact text sent
-    messageDeliveryStatus: r.messageDeliveryStatus || "", // Sent|Delivered|Failed|Undelivered|Unknown|Needs Recheck
+    messageDeliveryStatus: deliveryStatus, // Sent|Delivered|Failed|Undelivered|Unknown|Needs Recheck (auto-promoted above)
     deliveryStatusEvidence: r.deliveryStatusEvidence || "",
     messageStatusLastCheckedAt: r.messageStatusLastCheckedAt || "",
     messageStatusCheckAttempts: Number(r.messageStatusCheckAttempts || 0),

@@ -336,6 +336,13 @@ td.error { color: var(--err); }
 .pct-table td.num, .pct-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .pct-table .based { color: var(--muted); font-size: 12px; }
 .percentage-card h3 { font-size: 14px; margin: 14px 0 4px; }
+/* At-a-glance KPI tiles for the Percentage Report */
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 14px 0 18px; }
+.kpi { background: var(--panel-2, rgba(148,163,184,.08)); border: 1px solid rgba(148,163,184,.18); border-radius: 12px; padding: 16px 18px; }
+.kpi-num { font-size: 30px; font-weight: 800; line-height: 1; color: var(--accent); }
+.kpi-lbl { margin-top: 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .4px; color: var(--muted); }
+.kpi-sub { margin-top: 4px; font-size: 12px; color: var(--muted); }
+#pctDetailToggle { margin: 4px 0 10px; }
 
 /* ===== Search bar (find within a tab) ===================================== */
 .search-bar { display: flex; align-items: center; gap: 10px; margin: 10px 0 2px; }

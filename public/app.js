@@ -354,59 +354,72 @@ async function loadPercentage() {
     els.percentageCard.innerHTML = `<p class="muted">Could not load report: ${esc(e.message)}</p>`;
   }
 }
+let _pctDetailOpen = false;
 function renderPercentage(rep) {
   const t = rep.totals, r = rep.rates, rr = rep.replyRates, lr = rep.leadRates, ad = rep.activeDeal;
-  const pc = (v) => Number(v || 0).toFixed(2) + "%";
+  const pc = (v) => Number(v || 0).toFixed(1) + "%";
   const n = (v) => Number(v || 0).toLocaleString();
-  const row = (m, tot, p, base) => `<tr><td>${m}</td><td class="num">${n(tot)}</td><td class="num">${p === "" ? "" : pc(p)}</td><td class="based">${base}</td></tr>`;
-  const table = `
+
+  // At-a-glance headline tiles — the only numbers Juan needs to read in 5 sec.
+  const tile = (label, big, sub) =>
+    `<div class="kpi"><div class="kpi-num">${big}</div><div class="kpi-lbl">${label}</div>${sub ? `<div class="kpi-sub">${sub}</div>` : ""}</div>`;
+  const kpis = `
+    <div class="kpi-grid">
+      ${tile("Texts Sent", n(t.totalTextsSent), `${pc(lr.textSentPct)} of ${n(t.totalProcessed)} processed`)}
+      ${tile("Confirmed Sent", pc(r.confirmedSentRate), `${n(t.confirmedSent)} of ${n(t.totalTextsSent)} in REI`)}
+      ${tile("Reply Rate", pc(r.overallReplyRate), `${n(t.totalReplies)} replied`)}
+      ${tile("Interested", n(t.interested), `${pc(rr.interestedAmongReplies)} of replies`)}
+    </div>`;
+
+  // One short, plain table — result breakdown, no jargon columns.
+  const row = (m, tot, p) => `<tr><td>${m}</td><td class="num">${n(tot)}</td><td class="num">${p === "" ? "" : pc(p)}</td></tr>`;
+  const simpleTable = `
     <table class="pct-table">
-      <thead><tr><th>Metric</th><th class="num">Total</th><th class="num">Percentage</th><th>Percentage Based On</th></tr></thead>
+      <thead><tr><th>Result</th><th class="num">Count</th><th class="num">%</th></tr></thead>
       <tbody>
-        ${row("Total Leads", t.totalLeads, "", "")}
-        ${row("Total Leads Processed", t.totalProcessed, "", "")}
-        ${row("Texts Sent", t.totalTextsSent, lr.textSentPct, "Leads Processed")}
-        ${row("Confirmed Sent", t.confirmedSent, r.confirmedSentRate, "Texts Sent")}
-        ${row("Delivered", t.delivered, r.deliveryRate, "Texts Sent")}
-        ${row("Failed", t.failed, r.failedRate, "Texts Sent")}
-        ${row("Undelivered", t.undelivered, r.undeliveredRate, "Texts Sent")}
-        ${row("Unknown Status", t.unknownStatus, r.unknownStatusRate, "Texts Sent")}
-        ${row("Total Replies", t.totalReplies, r.overallReplyRate, "Texts Sent")}
-        ${row("No Reply", t.noReply, r.noReplyRate, "Texts Sent")}
-        ${row("Interested in Selling", t.interested, r.interestedSellerRate, "Texts Sent")}
-        ${row("Not Interested", t.notInterested, r.notInterestedRate, "Texts Sent")}
-        ${row("Needs Review", t.needsReview, r.needsReviewRate, "Texts Sent")}
-        ${row("Property Sold", t.propertySold, lr.propertySoldPct, "Leads Processed")}
-        ${row("Bad Leads", t.badLeads, lr.badLeadPct, "Leads Processed")}
-        ${row("Out of State", t.outOfState, lr.outOfStatePct, "Leads Processed")}
-        ${row("Active Deals", t.activeDeals, lr.activeDealPct, "Leads Processed")}
+        ${row("Texts sent", t.totalTextsSent, lr.textSentPct)}
+        ${row("Confirmed sent (in REI)", t.confirmedSent, r.confirmedSentRate)}
+        ${row("Replied", t.totalReplies, r.overallReplyRate)}
+        ${row("Interested", t.interested, r.interestedSellerRate)}
+        ${row("Not interested", t.notInterested, r.notInterestedRate)}
+        ${row("No reply yet", t.noReply, r.noReplyRate)}
+        ${row("Property sold / listed", t.propertySold, lr.propertySoldPct)}
+        ${row("Active deals", t.activeDeals, lr.activeDealPct)}
       </tbody>
     </table>`;
-  const replyTable = `
-    <h3>Percentage Based on Total Replies</h3>
+
+  // Everything else stays available, tucked behind a toggle so the top stays clean.
+  const detail = `
     <table class="pct-table">
-      <thead><tr><th>Metric</th><th class="num">Total</th><th class="num">Percentage</th><th>Percentage Based On</th></tr></thead>
+      <thead><tr><th>Metric</th><th class="num">Total</th><th class="num">%</th><th>Based on</th></tr></thead>
       <tbody>
-        ${row("Interested Among Replies", t.interested, rr.interestedAmongReplies, "Total Replies")}
-        ${row("Not Interested Among Replies", t.notInterested, rr.notInterestedAmongReplies, "Total Replies")}
-        ${row("Needs Review Among Replies", t.needsReview, rr.needsReviewAmongReplies, "Total Replies")}
-      </tbody>
-    </table>
-    <h3>Active Deal Conversion</h3>
-    <table class="pct-table">
-      <thead><tr><th>Metric</th><th class="num">Total</th><th class="num">Percentage</th><th>Percentage Based On</th></tr></thead>
-      <tbody>
-        ${row("Active Deals (of Texts Sent)", t.activeDeals, ad.fromTextsSent, "Texts Sent")}
-        ${row("Active Deals (of Replies)", t.activeDeals, ad.fromReplies, "Total Replies")}
-        ${row("Interested → Active Deal", t.activeDeals, ad.interestedToActiveDeal, "Interested in Selling")}
+        <tr><td>Total leads</td><td class="num">${n(t.totalLeads)}</td><td></td><td class="based"></td></tr>
+        <tr><td>Total leads processed</td><td class="num">${n(t.totalProcessed)}</td><td></td><td class="based"></td></tr>
+        <tr><td>Failed</td><td class="num">${n(t.failed)}</td><td class="num">${pc(r.failedRate)}</td><td class="based">Texts Sent</td></tr>
+        <tr><td>Undelivered</td><td class="num">${n(t.undelivered)}</td><td class="num">${pc(r.undeliveredRate)}</td><td class="based">Texts Sent</td></tr>
+        <tr><td>Unknown status</td><td class="num">${n(t.unknownStatus)}</td><td class="num">${pc(r.unknownStatusRate)}</td><td class="based">Texts Sent</td></tr>
+        <tr><td>Needs review (replies)</td><td class="num">${n(t.needsReview)}</td><td class="num">${pc(r.needsReviewRate)}</td><td class="based">Texts Sent</td></tr>
+        <tr><td>Bad leads</td><td class="num">${n(t.badLeads)}</td><td class="num">${pc(lr.badLeadPct)}</td><td class="based">Leads Processed</td></tr>
+        <tr><td>Out of state</td><td class="num">${n(t.outOfState)}</td><td class="num">${pc(lr.outOfStatePct)}</td><td class="based">Leads Processed</td></tr>
+        <tr><td>Interested → active deal</td><td class="num">${n(t.activeDeals)}</td><td class="num">${pc(ad.interestedToActiveDeal)}</td><td class="based">Interested</td></tr>
       </tbody>
     </table>`;
+
   els.percentageCard.innerHTML = `
     <div class="pct-head">
       <h2>Percentage Report</h2>
-      <span class="muted">Recheck completion: <b>${n(rep.recheck.recheckedCount)}/${n(t.totalTextsSent)}</b> (${pc(rep.recheck.recheckCompletePct)})</span>
+      <span class="muted">Re-checked ${n(rep.recheck.recheckedCount)} of ${n(t.totalTextsSent)} sent (${pc(rep.recheck.recheckCompletePct)})</span>
     </div>
-    ${table}${replyTable}`;
+    ${kpis}
+    ${simpleTable}
+    <button class="btn btn-small" id="pctDetailToggle">${_pctDetailOpen ? "▲ Hide full breakdown" : "▼ Show full breakdown"}</button>
+    <div id="pctDetail" ${_pctDetailOpen ? "" : "hidden"}>${detail}</div>`;
+  const tgl = $("pctDetailToggle");
+  if (tgl) tgl.onclick = () => {
+    _pctDetailOpen = !_pctDetailOpen;
+    const d = $("pctDetail"); if (d) d.hidden = !_pctDetailOpen;
+    tgl.textContent = _pctDetailOpen ? "▲ Hide full breakdown" : "▼ Show full breakdown";
+  };
 }
 
 // --- Recheck Text Sent ------------------------------------------------------
