@@ -752,10 +752,14 @@ app.get("/api/debug-chat", async (req, res) => {
     if (!store) return res.status(400).json({ error: "Pull from REI (or upload) leads first." });
     if (engine.isBusy()) return res.status(409).json({ error: "Automation is running. Stop it first." });
     const owner = String(req.query.owner || "").toLowerCase();
+    const wantReplied = String(req.query.replied || "") === "1";
     const sent = store.job.rows.filter(
       (r) => (r.textSentTimestamp || r.sentMessageBody || r.disposition === DISPOSITION.TEXT_SENT) && r.reiContactUrl
     );
-    const target = owner ? sent.find((r) => String(r.ownerName || "").toLowerCase().includes(owner)) : sent[0];
+    let target;
+    if (owner) target = sent.find((r) => String(r.ownerName || "").toLowerCase().includes(owner));
+    else if (wantReplied) target = sent.find((r) => r.replyReceived) || sent[0]; // prefer a lead that replied
+    else target = sent[0];
     if (!target) return res.status(404).json({ error: owner ? `No Text Sent lead matching "${owner}" with a REI link.` : "No Text Sent lead with a REI link found." });
     const dump = await engine.debugReadChat(target.reiContactUrl);
     res.json({

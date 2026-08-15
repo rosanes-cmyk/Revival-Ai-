@@ -11,7 +11,7 @@ const els = {
   statusLabel: $("statusLabel"), liveFlag: $("liveFlag"),
   approvedTHB: $("approvedTHB"), approvedETI: $("approvedETI"),
   liveSendBtn: $("liveSendBtn"), reverifyBtn: $("reverifyBtn"), pullReiBtn: $("pullReiBtn"),
-  selfTestBtn: $("selfTestBtn"), selfTestPanel: $("selfTestPanel"),
+  selfTestBtn: $("selfTestBtn"), selfTestPanel: $("selfTestPanel"), debugChatBtn: $("debugChatBtn"),
   reportBtn: $("reportBtn"),
   shareBar: $("shareBar"), shareUrl: $("shareUrl"), copyShareBtn: $("copyShareBtn"),
   buildTag: $("buildTag"), resetBtn: $("resetBtn"),
@@ -784,6 +784,36 @@ if (els.selfTestBtn) {
       if (els.selfTestPanel) { els.selfTestPanel.hidden = false; els.selfTestPanel.innerHTML = '<div class="rk-head"><b>🧪 Connection Test</b> — starting… log in if the REI window prompts.</div>'; }
       toast("Connection test started — watch the checklist.", "ok");
     } catch (err) { els.selfTestBtn.disabled = false; toast(err.message, "error"); }
+  };
+}
+
+if (els.debugChatBtn) {
+  els.debugChatBtn.onclick = async () => {
+    if (!window.confirm("Show the raw REI chat text for one replied lead?\n\nThis opens REI briefly and reads one conversation so we can fix reply detection. It does NOT send anything. Stop the automation first if it's running.")) return;
+    const panel = els.selfTestPanel;
+    try {
+      els.debugChatBtn.disabled = true;
+      if (panel) { panel.hidden = false; panel.innerHTML = '<div class="rk-head"><b>🔬 Reading one chat from REI…</b> (log in if the REI window prompts)</div>'; }
+      const d = await api("/api/debug-chat?replied=1");
+      const esc2 = (s) => String(s ?? "").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+      const parsed = (d.parsedMessages || []).map((m, i) => `${i + 1}. [${m.dir}] ${esc2(m.text).slice(0, 120)}`).join("<br/>") || "(none parsed)";
+      if (panel) {
+        panel.hidden = false;
+        panel.innerHTML =
+          `<div class="rk-head"><b>🔬 Debug: ${esc2(d.owner || "lead")}</b> — screenshot this and send it</div>` +
+          `<div class="rk-grid" style="font-family:monospace;font-size:12px;white-space:pre-wrap;line-height:1.5;">` +
+          `reply detected: ${d.replyDetected}\n` +
+          `has "Sent to:" label: ${d.hasSentToLabel}\n` +
+          `has "Received from:" label: ${d.hasReceivedFromLabel}\n\n` +
+          `PARSED MESSAGES:\n${parsed}\n\n` +
+          `RAW TEXT (first 4000 chars):\n${esc2(d.rawTextSample || d.error || "(empty)")}` +
+          `</div>`;
+      }
+      toast("Chat read — screenshot the panel and send it to me.", "ok");
+    } catch (err) {
+      if (panel) { panel.hidden = false; panel.innerHTML = `<div class="rk-head"><b>🔬 Debug failed:</b> ${err.message}</div>`; }
+      toast(err.message, "error");
+    } finally { els.debugChatBtn.disabled = false; }
   };
 }
 
