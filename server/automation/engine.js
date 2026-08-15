@@ -518,11 +518,27 @@ export class AutomationEngine extends EventEmitter {
         row.messageStatusCheckAttempts = (row.messageStatusCheckAttempts || 0) + 1;
 
         if (detail.ok) {
-          row.messageDeliveryStatus = detail.deliveryStatus; // Sent|Delivered|Failed|Undelivered|Unknown
-          row.deliveryStatusEvidence = detail.deliveryEvidence || "";
+          // NO-DOWNGRADE: if the re-check can't re-locate the message this pass
+          // ("Unknown") but we ALREADY confirmed it was sent (the send step saw
+          // it in the chat, or a prior re-check did), keep the stronger status
+          // instead of scaring the user with "could not locate". A slow/half-
+          // loaded chat is the usual reason it isn't found on a later pass — not
+          // that the text vanished. A real Failed/Undelivered still overwrites.
+          const prior = String(row.messageDeliveryStatus || "");
+          const priorConfirmed = prior === "Sent" || prior === "Delivered" ||
+            !!(row.sentMessageBody && row.textSentTimestamp);
+          const weak = detail.deliveryStatus === "Unknown" || detail.deliveryStatus === "Needs Recheck";
+          if (weak && priorConfirmed) {
+            row.messageDeliveryStatus = prior === "Delivered" ? "Delivered" : "Sent";
+            row.deliveryStatusEvidence =
+              "Confirmed sent earlier; not re-located on the latest check (REI chat slow to load) — kept as sent.";
+          } else {
+            row.messageDeliveryStatus = detail.deliveryStatus; // Sent|Delivered|Failed|Undelivered|Unknown
+            row.deliveryStatusEvidence = detail.deliveryEvidence || "";
+          }
           row.recheckError = "";
           row.recheckCompleted = true;
-          if (detail.deliveryStatus === "Failed" || detail.deliveryStatus === "Undelivered") failed++;
+          if (row.messageDeliveryStatus === "Failed" || row.messageDeliveryStatus === "Undelivered") failed++;
 
           if (detail.replyReceived && detail.replyText) {
             row.replyReceived = true;
