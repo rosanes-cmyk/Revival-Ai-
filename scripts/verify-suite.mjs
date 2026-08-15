@@ -133,6 +133,17 @@ ok("persists new instance", !!new SentLedger(NS).isSuppressed({ contactUrl: "/co
 L.record({ contactUrl: "/contacts/2", phone: "5559998888", iso: daysAgo(10) });
 ok("textedWithinDays 30 hit", !!L.textedWithinDays({ contactUrl: "/contacts/2" }, 30));
 ok("textedWithinDays 5 miss", !L.textedWithinDays({ contactUrl: "/contacts/2" }, 5));
+// Shared memory across PCs: two instances on the SAME file must merge, not
+// clobber — each sees the other's sends and neither loses its own.
+{
+  const NS2 = "sharedtest" + process.pid;
+  const a = new SentLedger(NS2), b = new SentLedger(NS2);
+  a.record({ contactUrl: "/contacts/900", phone: "5107770001", iso: daysAgo(1) });
+  b.record({ contactUrl: "/contacts/901", phone: "5107770002", iso: daysAgo(1) });
+  a.reload(); b.reload();
+  ok("PC-A sees PC-B send (merge)", !!a.textedWithinDays({ contactUrl: "/contacts/901" }, 30));
+  ok("PC-B sees PC-A send (no clobber)", !!b.textedWithinDays({ contactUrl: "/contacts/900" }, 30));
+}
 
 console.log("G. Engine defaults + dedup keys");
 const e = new AutomationEngine();

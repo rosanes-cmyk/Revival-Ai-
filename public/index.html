@@ -97,6 +97,14 @@
         <span class="sched-note" id="schedNote"></span>
       </div>
 
+      <!-- Shared memory across computers -->
+      <div class="schedule-bar shared-bar2">
+        <label class="sched-toggle" title="Point every computer at the SAME synced folder so no lead is ever texted twice across PCs">🔗 Shared "already texted" folder (for 2+ computers):</label>
+        <input type="text" id="sharedDir" placeholder="e.g. C:\Users\you\OneDrive\TwinTextShared" style="min-width:340px;" />
+        <button class="btn btn-small" id="sharedDirSave">Save</button>
+        <span class="sched-note" id="sharedDirNote"></span>
+      </div>
+
       <!-- Progress -->
       <div class="progress-wrap" id="progressWrap" hidden>
         <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>

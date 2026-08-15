@@ -20,6 +20,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { parseSpreadsheet, exportToXlsx, exportToCsv, rowsToXlsxBuffer, rowsToCsv } from "./data/spreadsheet.js";
 import { computePercentageReport, reportTableRowsSimple } from "./reports/percentage.js";
+import { getConfiguredSharedDir, setConfiguredSharedDir } from "./data/sentLedger.js";
 import { JobStore, summarizeRows, rowsForTab, tabCounts, TAB, TAB_FILE } from "./data/store.js";
 import { DISPOSITION } from "./automation/constants.js";
 import { JobLogger } from "./logger.js";
@@ -769,6 +770,24 @@ app.get("/api/debug-chat", async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+// Shared "already texted" memory across computers. Point every PC at the SAME
+// synced folder (a OneDrive/Dropbox shared folder, or a network drive) and they
+// all read/write one sent-record — so no lead is ever texted twice, even when
+// two PCs run the same list.
+app.get("/api/shared-memory", (req, res) => {
+  res.json({ sharedDir: getConfiguredSharedDir() });
+});
+app.post("/api/shared-memory", (req, res) => {
+  try {
+    const dir = String((req.body && req.body.sharedDir) || "").trim();
+    const result = setConfiguredSharedDir(dir);
+    // Rebind the engine's ledger so the change takes effect immediately.
+    try { engine.sentLedger = new (engine.sentLedger.constructor)(engine.sentLedger.namespace); } catch { /* best-effort */ }
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: `Could not use that folder: ${err.message}` });
   }
 });
 app.post("/api/recheck-needs-review", async (req, res) => {

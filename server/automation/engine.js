@@ -1053,6 +1053,9 @@ export class AutomationEngine extends EventEmitter {
       // LIVE REI chat (facts.revivalSentThisMonth).
       if (decision.shouldSend && this.skipTextedThisMonth) {
         const key = { contactUrl: row.reiContactUrl, phone: facts.phone || row.phone };
+        // Pull in the latest shared record first, so a send made moments ago on
+        // the OTHER computer is seen here and we don't text the same lead twice.
+        this.sentLedger.reload();
         // Skip if texted THIS calendar month OR within the last 30 days
         // (rolling) — the latter keeps recently-texted leads out of Available.
         const prevIso = this.sentLedger.sentThisMonth(key) || this.sentLedger.textedWithinDays(key, this.recentTextDays);

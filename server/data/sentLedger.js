@@ -22,6 +22,72 @@ const STATE_DIR = process.env.REVIVAL_DATA_DIR
 fs.mkdirSync(STATE_DIR, { recursive: true });
 const LEDGER_FILE = path.join(STATE_DIR, "sent-ledger.json");
 
+// SHARED MEMORY across computers: if a shared folder is configured (a synced
+// OneDrive/Dropbox folder, or a network drive both PCs can see), the sent
+// record lives THERE so every computer knows who the others have already
+// texted. Set via SHARED_LEDGER_DIR, or a small config file both the app and
+// this module read. Falls back to the local per-PC folder when not configured.
+const SHARED_DIR_CONFIG = path.join(STATE_DIR, "shared-dir.txt");
+export function getConfiguredSharedDir() {
+  const env = String(process.env.SHARED_LEDGER_DIR || "").trim();
+  if (env) return env;
+  try {
+    const v = fs.readFileSync(SHARED_DIR_CONFIG, "utf8").trim();
+    return v || "";
+  } catch {
+    return "";
+  }
+}
+export function setConfiguredSharedDir(dir) {
+  const v = String(dir || "").trim();
+  if (!v) { try { fs.unlinkSync(SHARED_DIR_CONFIG); } catch { /* already gone */ } return { ok: true, sharedDir: "" }; }
+  // Verify we can actually create/write in the folder before saving it.
+  fs.mkdirSync(v, { recursive: true });
+  const probe = path.join(v, ".revival-write-test");
+  fs.writeFileSync(probe, "ok");
+  fs.unlinkSync(probe);
+  fs.writeFileSync(SHARED_DIR_CONFIG, v);
+  return { ok: true, sharedDir: v };
+}
+// Where a ledger file for `namespace` should live right now.
+function ledgerDirFor() {
+  const shared = getConfiguredSharedDir();
+  if (shared) {
+    try { fs.mkdirSync(shared, { recursive: true }); return shared; } catch { /* fall back */ }
+  }
+  return STATE_DIR;
+}
+
+// Keep the later of two ISO timestamps (so the 30-day window is always measured
+// from the MOST RECENT send across all computers).
+function laterIso(a, b) {
+  const ta = Date.parse(a || "") || 0;
+  const tb = Date.parse(b || "") || 0;
+  if (!ta) return b || "";
+  if (!tb) return a || "";
+  return ta >= tb ? a : b;
+}
+// Merge two ledger entries for the same lead without losing either PC's info.
+function mergeEntry(x, y) {
+  if (!x) return y;
+  if (!y) return x;
+  return {
+    ...x, ...y,
+    textedIso: laterIso(x.textedIso, y.textedIso),   // most-recent send wins
+    checkedIso: laterIso(x.checkedIso, y.checkedIso),
+    doNotText: !!(x.doNotText || y.doNotText),         // either PC suppressing = suppressed
+    suppressClass: y.suppressClass || x.suppressClass || "",
+    suppressReason: y.suppressReason || x.suppressReason || "",
+    textSentTimestamp: laterIso(x.textSentTimestamp, y.textSentTimestamp),
+  };
+}
+// Merge two whole ledger maps by key.
+function mergeMaps(a, b) {
+  const out = { ...(a || {}) };
+  for (const k of Object.keys(b || {})) out[k] = mergeEntry(out[k], b[k]);
+  return out;
+}
+
 function normalizePhone(phone) {
   const d = String(phone || "").replace(/\D+/g, "");
   if (!d) return "";
@@ -65,20 +131,49 @@ export class SentLedger {
   constructor(namespace = "") {
     const ns = String(namespace || "").replace(/[^a-z0-9._-]+/gi, "_").slice(0, 80);
     this.namespace = ns;
-    this.file = ns ? path.join(STATE_DIR, `sent-ledger-${ns}.json`) : LEDGER_FILE;
     this.map = {};
+    this._resolveFile();
+    this._readFromDisk();
+  }
+
+  // The ledger file path can change at runtime (when a shared folder is set), so
+  // resolve it fresh from the current shared-dir config each time we touch disk.
+  _resolveFile() {
+    const dir = ledgerDirFor();
+    this.file = this.namespace
+      ? path.join(dir, `sent-ledger-${this.namespace}.json`)
+      : path.join(dir, "sent-ledger.json");
+    return this.file;
+  }
+
+  _readFromDisk() {
+    this._resolveFile();
     try {
       if (fs.existsSync(this.file)) {
-        this.map = JSON.parse(fs.readFileSync(this.file, "utf8")) || {};
+        const onDisk = JSON.parse(fs.readFileSync(this.file, "utf8")) || {};
+        this.map = mergeMaps(this.map, onDisk); // merge, never drop in-memory
       }
-    } catch {
-      this.map = {};
-    }
+    } catch { /* partial/locked file mid-sync — keep what we have */ }
+  }
+
+  // Pull in anything other computers wrote to the shared file since we last
+  // looked. Call before a duplicate check so a send on PC #2 is seen by PC #1.
+  reload() {
+    this._readFromDisk();
+    return this;
   }
 
   _save() {
     try {
-      fs.writeFileSync(this.file, JSON.stringify(this.map));
+      this._resolveFile();
+      // MERGE-ON-SAVE: re-read the shared file and combine, so two computers
+      // writing to the same folder never clobber each other's records.
+      let onDisk = {};
+      try { if (fs.existsSync(this.file)) onDisk = JSON.parse(fs.readFileSync(this.file, "utf8")) || {}; } catch { onDisk = {}; }
+      this.map = mergeMaps(onDisk, this.map);
+      const tmp = this.file + ".tmp";
+      fs.writeFileSync(tmp, JSON.stringify(this.map));
+      fs.renameSync(tmp, this.file); // atomic-ish swap so readers never see a half-written file
     } catch (err) {
       console.error("[sentLedger] failed to save:", err.message);
     }

@@ -709,6 +709,33 @@ if (els.schedEnabled) {
   els.schedTime.onchange = () => { if (els.schedEnabled.checked) saveSchedule(); else renderSchedNote(); };
 }
 
+// --- Shared "already texted" folder (cross-PC memory) -----------------------
+async function loadSharedDir() {
+  const inp = document.getElementById("sharedDir");
+  const note = document.getElementById("sharedDirNote");
+  if (!inp) return;
+  try {
+    const r = await api("/api/shared-memory");
+    inp.value = r.sharedDir || "";
+    if (note) note.textContent = r.sharedDir ? "✓ Sharing on — all PCs pointed here won't double-text." : "Off — this PC uses its own memory only.";
+  } catch { /* ignore */ }
+}
+async function saveSharedDir() {
+  const inp = document.getElementById("sharedDir");
+  const note = document.getElementById("sharedDirNote");
+  if (!inp) return;
+  try {
+    const r = await api("/api/shared-memory", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sharedDir: inp.value.trim() }) });
+    if (note) note.textContent = r.sharedDir ? "✓ Saved — point your other PC at the SAME folder." : "Cleared — using this PC's own memory.";
+    toast(r.sharedDir ? "Shared memory folder saved." : "Shared memory turned off.", "ok");
+  } catch (err) { toast(err.message, "error"); if (note) note.textContent = "⚠ " + err.message; }
+}
+{
+  const btn = document.getElementById("sharedDirSave");
+  if (btn) btn.onclick = saveSharedDir;
+  loadSharedDir();
+}
+
 // --- Live-send toggle -------------------------------------------------------
 let liveSendOn = false;
 function renderLiveSend(on) {
