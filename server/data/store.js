@@ -9,6 +9,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { DISPOSITION, ELIGIBILITY, MATCH_STATUS, TERMINAL_DISPOSITIONS } from "../automation/constants.js";
 import { cleanPersonName } from "../automation/message.js";
+import { classifyReply } from "../automation/sop.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // State lives in the writable data dir (install dir is read-only in Program Files).
@@ -154,6 +155,19 @@ export function normalizeRow(r) {
   if (wasConfirmedSent && (deliveryStatus === "" || deliveryStatus === "Unknown" || deliveryStatus === "Needs Recheck")) {
     deliveryStatus = "Sent";
   }
+  // RE-CLASSIFY a stored reply against the CURRENT rules on load, so a reply
+  // saved under older logic (e.g. Keri saved as "needs review" before the
+  // conditional-seller rule existed) self-corrects to "interested" without
+  // needing a manual Re-verify. Only recomputes when we actually have the words.
+  let replyClassification = r.replyClassification || "";
+  let replyClassificationReason = r.replyClassificationReason || "";
+  let activeDeal = !!r.activeDeal;
+  if (r.replyReceived && r.replyText) {
+    const cls = classifyReply(r.replyText);
+    replyClassification = cls.classification;
+    replyClassificationReason = cls.reason;
+    if (cls.classification === "interested") activeDeal = true;
+  }
   return {
     rowNumber: r.rowNumber,
     original: r.original || {},
@@ -194,10 +208,10 @@ export function normalizeRow(r) {
     replyReceived: !!r.replyReceived,
     replyText: r.replyText || "",
     replyReceivedAt: r.replyReceivedAt || "",
-    replyClassification: r.replyClassification || "",     // interested|not_interested|needs_review|""
-    replyClassificationReason: r.replyClassificationReason || "",
+    replyClassification: replyClassification,     // re-classified above against current rules
+    replyClassificationReason: replyClassificationReason,
     needsManualReview: !!r.needsManualReview,
-    activeDeal: !!r.activeDeal,
+    activeDeal: activeDeal,
     activeDealReason: r.activeDealReason || "",
     recheckCompleted: !!r.recheckCompleted,
     recheckError: r.recheckError || "",
