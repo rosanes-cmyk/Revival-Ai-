@@ -162,11 +162,16 @@ export function normalizeRow(r) {
   let replyClassification = r.replyClassification || "";
   let replyClassificationReason = r.replyClassificationReason || "";
   let activeDeal = !!r.activeDeal;
+  let needsManualReview = !!r.needsManualReview;
   if (r.replyReceived && r.replyText) {
     const cls = classifyReply(r.replyText);
     replyClassification = cls.classification;
     replyClassificationReason = cls.reason;
-    if (cls.classification === "interested") activeDeal = true;
+    // Keep the tab in sync with the (re)classification so a stale flag can't
+    // strand an interested seller in Needs Review.
+    if (cls.classification === "interested") { activeDeal = true; needsManualReview = false; }
+    else if (cls.classification === "not_interested") { needsManualReview = false; }
+    else { needsManualReview = true; } // genuinely unclear
   }
   return {
     rowNumber: r.rowNumber,
@@ -210,7 +215,7 @@ export function normalizeRow(r) {
     replyReceivedAt: r.replyReceivedAt || "",
     replyClassification: replyClassification,     // re-classified above against current rules
     replyClassificationReason: replyClassificationReason,
-    needsManualReview: !!r.needsManualReview,
+    needsManualReview: needsManualReview,
     activeDeal: activeDeal,
     activeDealReason: r.activeDealReason || "",
     recheckCompleted: !!r.recheckCompleted,
