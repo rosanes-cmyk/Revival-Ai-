@@ -8,6 +8,7 @@ import { cleanPersonName, firstNameFrom, renderMessage, getApprovedMessage, pick
 import { SentLedger } from "../server/data/sentLedger.js";
 import { AutomationEngine, deriveState } from "../server/automation/engine.js";
 import { parseSpreadsheet, exportToXlsx, exportToCsv } from "../server/data/spreadsheet.js";
+import { parseConversationByLabels } from "../server/automation/reibb.js";
 import fs from "node:fs";
 
 let pass = 0, fail = 0;
@@ -62,6 +63,19 @@ eq("whats it worth → interested", classifyReply("sure, whats it worth?").class
 eq("not open + stop still opts out", classifyReply("not open to selling, stop texting").optOut, true);
 eq("mixed → needs_review", classifyReply("make me an offer but i'm not interested right now").classification, "needs_review");
 eq("empty → needs_review", classifyReply("").classification, "needs_review");
+
+// Reply detection from REI's "Sent to:" / "Received from:" labels (no DOM
+// selectors) — this is what makes the reply rate accurate on real REI.
+{
+  const body = "Hi Keri its Juan. reviewing some older conversations PD #: (650) 431-3006 Sent to: (530) 391-6369 2:43 PM I still have my property if you want to make a offer im open to see what it is 6:18 PM PD #: (650) 431-3006 Received from: (530) 391-6369 as a cash buyer we come in around 60-80% PD #: (650) 431-3006 Sent to: (530) 391-6369 3:14 PM Ill think about it and let u know thx 3:37 PM PD #: (650) 431-3006 Received from: (530) 391-6369";
+  const convo = parseConversationByLabels(body);
+  eq("label-parse: message count", convo.length, 4);
+  eq("label-parse: dirs", convo.map((m) => m.dir).join(","), "out,in,out,in");
+  ok("label-parse: seller reply detected", convo.some((m) => m.dir === "in"));
+  const joined = convo.filter((m) => m.dir === "in").map((m) => m.text).join(" | ");
+  eq("label-parse: joined reply → interested", classifyReply(joined).classification, "interested");
+  eq("label-parse: no-reply body → 0 inbound", parseConversationByLabels("Hi Bob PD #: (650) 431-3006 Sent to: (510) 555-1234 2:00 PM").filter((m) => m.dir === "in").length, 0);
+}
 
 console.log("C. categorizeRow() → tabs");
 const mk = (o) => ({ disposition: o.d || "Pending", activeDeal: !!o.ad, needsManualReview: !!o.nr });

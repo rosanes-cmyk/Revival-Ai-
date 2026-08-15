@@ -1198,6 +1198,37 @@ export class ReiBlackBookAdapter {
           out.replyAt = last.ts || "";
         }
       }
+
+      // 3b) TEXT FALLBACK — the structured DOM parse above usually finds nothing
+      // on real REI (its message selectors are unconfirmed), so replies were
+      // being missed entirely. REI labels every message with "Sent to: (phone)"
+      // (our outbound) or "Received from: (phone)" (the seller's reply). Parse
+      // the visible page text by those labels — no fragile selectors — and treat
+      // any inbound AFTER our revival message as a reply. This is what makes the
+      // reply rate actually accurate.
+      if (!out.replyReceived) {
+        const convo = parseConversationByLabels(bodyText);
+        if (convo.length) {
+          let ours = convo.findIndex(
+            (m) => m.dir === "out" &&
+              ((sentChunk && m.text.toLowerCase().includes(sentChunk)) ||
+               REVIVAL_NEEDLES.some((n) => m.text.toLowerCase().includes(n)))
+          );
+          if (ours < 0) ours = convo.findIndex((m) => m.dir === "out"); // fall back to first outbound
+          const laterInbound = convo
+            .slice(ours >= 0 ? ours + 1 : 0)
+            .filter((m) => m.dir === "in" && m.text && !REVIVAL_NEEDLES.some((n) => m.text.toLowerCase().includes(n)));
+          if (laterInbound.length) {
+            out.replyReceived = true;
+            // Join ALL of the seller's replies so classification sees the full
+            // picture (e.g. "open to an offer … I'll think about it") and the
+            // dashboard shows everything they said — newest last.
+            out.replyText = laterInbound.map((m) => m.text).join(" | ").slice(0, 2000);
+            out.replyAt = laterInbound[laterInbound.length - 1].time || "";
+            if (out.deliveryStatus === "Unknown") out.deliveryStatus = "Sent"; // a reply proves it sent
+          }
+        }
+      }
       out.ok = true;
       return out;
     } catch (err) {
@@ -1552,6 +1583,41 @@ export class ReiBlackBookAdapter {
 }
 
 // --- pure helpers ----------------------------------------------------------
+
+// Parse a REI chat conversation from the flattened page text using REI's own
+// per-message labels, so it works WITHOUT the (unconfirmed) message-bubble DOM
+// selectors. Each message is followed by a metadata block like:
+//   "... PD #: (650) 431-3006 Sent to: (530) 391-6369 3:14 PM"      (our outbound)
+//   "... PD #: (650) 431-3006 Received from: (530) 391-6369 3:37 PM" (seller reply)
+// The message TEXT is whatever precedes that block (back to the previous block).
+// Returns an ordered [{ dir: "in"|"out", text, time }].
+export function parseConversationByLabels(bodyText) {
+  const text = String(bodyText || "").replace(/\s+/g, " ");
+  // A metadata block: optional leading time, then PD #: <phone>, then the
+  // direction label + phone, then optional trailing time.
+  const phone = "\\(?\\d{3}\\)?[-.\\s]?\\d{3}[-.\\s]?\\d{4}";
+  const time = "\\d{1,2}:\\d{2}\\s*(?:AM|PM)?";
+  const blockRe = new RegExp(
+    `(?:${time}\\s*)?PD #:\\s*${phone}\\s*(Sent to:|Received from:)\\s*${phone}\\s*(${time})?`,
+    "gi"
+  );
+  const msgs = [];
+  let lastEnd = 0;
+  let m;
+  while ((m = blockRe.exec(text)) !== null) {
+    const dir = /received/i.test(m[1]) ? "in" : "out";
+    const timeStr = (m[2] || "").trim();
+    // Message text = everything since the previous block, minus date/time chrome.
+    let seg = text.slice(lastEnd, m.index)
+      .replace(/\b(Today|Yesterday|Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday)\b/gi, " ")
+      .replace(new RegExp(time, "gi"), " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (seg) msgs.push({ dir, text: seg, time: timeStr });
+    lastEnd = blockRe.lastIndex;
+  }
+  return msgs;
+}
 
 // Build the ordered search attempts (SOP FLOW step 3), de-duplicating identical
 // terms. Address-based + owner -> Property Pipeline; owner/phone/email -> Contacts.
