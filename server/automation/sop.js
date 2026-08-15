@@ -350,6 +350,12 @@ const INTERESTED_PHRASES = [
   "you can call", "let's talk", "lets talk", "we can talk", "contact me later",
   "reach out later", "depending on price", "depends on the price", "for the right price",
   "know my options", "my options", "what are my options", "i would like to know",
+  // Willing-to-hear-an-offer language (real sellers phrase interest this way):
+  "make a offer", "make offer", "want to make a offer", "want to make an offer",
+  "makeme an offer", "im open", "i'm open", "i am open", "still open",
+  "open to see", "open to hear", "open to an offer", "open to a offer", "open to offers",
+  "open to selling", "open to sell", "see what it is", "see your offer", "see the offer",
+  "hear your offer", "hear the offer", "hear an offer", "whats it worth", "what's it worth",
 ];
 const NOT_INTERESTED_PHRASES = [
   "not interested", "no longer interested", "not selling", "i'm not selling",

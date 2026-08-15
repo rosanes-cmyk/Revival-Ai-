@@ -55,6 +55,11 @@ eq("not interested → not_interested", classifyReply("not interested").classifi
 eq("STOP → not_interested optout", classifyReply("STOP").optOut, true);
 eq("please remove → optout", classifyReply("please remove").optOut, true);
 eq("who is this → needs_review", classifyReply("who is this?").classification, "needs_review");
+// Real seller interest phrased loosely must count as interested, not needs_review.
+eq("still have + open to offer → interested", classifyReply("I still have my property... if you want to make a offer im open to see what it is.").classification, "interested");
+eq("im open to hear offer → interested", classifyReply("im open to hear your offer").classification, "interested");
+eq("whats it worth → interested", classifyReply("sure, whats it worth?").classification, "interested");
+eq("not open + stop still opts out", classifyReply("not open to selling, stop texting").optOut, true);
 eq("mixed → needs_review", classifyReply("make me an offer but i'm not interested right now").classification, "needs_review");
 eq("empty → needs_review", classifyReply("").classification, "needs_review");
 
