@@ -8,7 +8,7 @@
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
     "app": "electron electron/main.cjs",
-    "predist": "node scripts/write-build-info.js",
+    "predist": "node scripts/write-build-info.js && node scripts/ensure-browser.js",
     "dist": "electron-builder --win --publish never",
     "postinstall": "node -e \"console.log('Reminder: run npx playwright install chromium if browser automation is not already available.')\""
   },
