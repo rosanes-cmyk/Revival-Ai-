@@ -1109,6 +1109,13 @@ export class ReiBlackBookAdapter {
         if (await this.clickIfVisible(sel, 1200)) break;
       }
       await this.page.waitForTimeout(900);
+      // HARDENING: wait for the conversation to actually finish rendering, and
+      // scroll older messages in, BEFORE reading — otherwise a slow/half-loaded
+      // chat makes us miss the outbound message and wrongly report "Unknown /
+      // could not locate" for a text that really did send.
+      await this._waitForChatLoaded();
+      await this._scrollChatToTop();
+      await this.page.waitForTimeout(300);
 
       const bodyText = ((await this.page.locator("body").innerText().catch(() => "")) || "").replace(/\s+/g, " ");
       if (!bodyText) { out.error = "Chat did not load."; return out; }
