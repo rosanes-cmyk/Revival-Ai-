@@ -92,6 +92,13 @@ export function parseSpreadsheet(buffer) {
   const notesHeader = resolved.notes || "Notes";
 
   const val = (row, field) => (resolved[field] ? String(row[resolved[field]] ?? "").trim() : "");
+  // Read a result column BACK by its exact export header name. This makes the
+  // export→upload round-trip lossless: re-uploading a sheet we produced restores
+  // the FULL dashboard — delivery status, replies, timestamps, percentages —
+  // not just the disposition. (A brand-new sheet that never had these columns
+  // simply reads "" for each, so nothing breaks.)
+  const dcol = (row, header) => String(row[header] ?? "").trim();
+  const isYes = (row, header) => /^(yes|true|1)$/i.test(dcol(row, header));
 
   const rows = raw.map((row, i) => ({
     rowNumber: i + 1,
@@ -107,20 +114,36 @@ export function parseSpreadsheet(buffer) {
     email: val(row, "email"),
     disposition: normalizeDisposition(val(row, "disposition")),
     notes: val(row, "notes"),
-    reiMatchStatus: "",
+    reiMatchStatus: dcol(row, "REI Match Status"),
     // Use the uploaded REI link only if it's a real /contacts/<id> URL.
     reiContactUrl: (function () {
-      const u = val(row, "reiContactUrl");
+      const u = val(row, "reiContactUrl") || dcol(row, "REI Contact Link");
       return /\/contacts\/\d+/i.test(u) ? u : "";
     })(),
-    searchMethod: "",
-    propertyStatus: "",
-    propertyStatusUrl: "",
-    safetyStatus: "",
-    eligibilityStatus: "",
+    searchMethod: dcol(row, "Search Method Used"),
+    propertyStatus: dcol(row, "Property Status"),
+    propertyStatusUrl: dcol(row, "Property Check Link"),
+    safetyStatus: dcol(row, "Opt-Out / Safety"),
+    eligibilityStatus: dcol(row, "Eligibility Status"),
     reiTagApplied: "",
-    textSentTimestamp: "",
-    errorLog: "",
+    // Restore send + delivery + reply results so counts and the Percentage
+    // Report rebuild exactly as they were when the sheet was exported.
+    textSentTimestamp: dcol(row, "Text Sent Timestamp"),
+    sentMessageBody: dcol(row, "Message Sent"),
+    messageDeliveryStatus: dcol(row, "Delivery Status"),
+    deliveryStatusEvidence: dcol(row, "Delivery Evidence"),
+    messageStatusLastCheckedAt: dcol(row, "Status Last Checked"),
+    replyReceived: isYes(row, "Reply Received"),
+    replyText: dcol(row, "Reply Text"),
+    replyReceivedAt: dcol(row, "Reply Received At"),
+    replyClassification: dcol(row, "Reply Classification"),
+    replyClassificationReason: dcol(row, "Reply Reason"),
+    needsManualReview: isYes(row, "Needs Manual Review"),
+    activeDeal: isYes(row, "Active Deal"),
+    activeDealReason: dcol(row, "Active Deal Reason"),
+    recheckCompleted: isYes(row, "Recheck Completed"),
+    recheckError: dcol(row, "Recheck Error"),
+    errorLog: dcol(row, "Error Log"),
   }));
 
   return { rows, originalHeaders, dispositionHeader, notesHeader };

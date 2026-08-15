@@ -147,6 +147,21 @@ const job = { originalHeaders: parsed.originalHeaders, dispositionHeader: "Dispo
 const csv = exportToCsv(job);
 ok("csv has Message Sent col", csv.includes("Message Sent"));
 ok("xlsx builds", exportToXlsx(job).length > 1000);
+// Lossless round-trip: export a texted+replied lead, re-import, and confirm the
+// delivery/reply results (not just the disposition) survive so the Percentage
+// Report rebuilds after a re-upload on another PC.
+const rtJob = { originalHeaders: ["Owner Name","Phone","Disposition","Notes"], dispositionHeader: "Disposition", notesHeader: "Notes",
+  rows: [{ rowNumber:1, original:{"Owner Name":"Jane","Phone":"5105551234","Disposition":"","Notes":""}, ownerName:"Jane", phone:"5105551234", state:"CA",
+    disposition:"Text Sent", notes:"sent", reiContactUrl:"https://my.reiblackbook.com/contacts/55",
+    textSentTimestamp:"2026-08-11T17:00:00Z", sentMessageBody:"Hi Jane...", messageDeliveryStatus:"Delivered",
+    replyReceived:true, replyText:"Yes interested", replyClassification:"interested", recheckCompleted:true }] };
+const rt = parseSpreadsheet(exportToXlsx(rtJob)).rows[0];
+eq("round-trip disposition", rt.disposition, "Text Sent");
+eq("round-trip delivery survives", rt.messageDeliveryStatus, "Delivered");
+ok("round-trip reply survives", rt.replyReceived === true && rt.replyClassification === "interested");
+const rtRep = computePercentageReport([rt]);
+eq("round-trip reply rate 100%", rtRep.rates.overallReplyRate, 100);
+eq("round-trip interested-among-replies 100%", rtRep.replyRates.interestedAmongReplies, 100);
 
 console.log(`\n=== RESULT: ${pass} passed, ${fail} failed ===`);
 process.exit(fail ? 1 : 0);
