@@ -470,7 +470,18 @@ export class ReiBlackBookAdapter {
     // distinctive, name-free phrases shared by the approved messages (current +
     // previous script), since the sent text has the contact's real name filled in.
     const hist = history.fullText.toLowerCase();
-    const matchedNeedle = REVIVAL_NEEDLES.find((n) => hist.includes(n));
+    let matchedNeedle = REVIVAL_NEEDLES.find((n) => hist.includes(n));
+    // Second, independent check: parse the conversation by REI's own
+    // "Sent to:"/"Received from:" labels and look for our revival text in an
+    // OUTBOUND bubble. Catches a prior send even if the flat-text substring
+    // missed it (spacing/format), so we don't re-text someone already contacted.
+    if (!matchedNeedle) {
+      try {
+        const conv = parseConversationByLabels(history.fullText);
+        const outHit = conv.find((m) => m.dir === "out" && REVIVAL_NEEDLES.some((n) => m.text.toLowerCase().includes(n)));
+        if (outHit) matchedNeedle = REVIVAL_NEEDLES.find((n) => outHit.text.toLowerCase().includes(n));
+      } catch { /* ignore */ }
+    }
     const alreadySentApproved = !!matchedNeedle;
 
     // REI is the source of truth (NOT any local file): find the date next to the
