@@ -402,6 +402,25 @@ export function classifyReply(replyText) {
   const positive = posHits.length > 0 || bareYes;
   const negative = negHits.length > 0 || bareNo;
 
+  // CONDITIONAL SELLER — "I'm not selling UNLESS the price is right", names a
+  // minimum price, or "send me a number / I'll consider" — is an INTERESTED
+  // lead, even though it contains "not selling". Real sellers phrase interest
+  // this way constantly (e.g. Keri: "im not selling nor know I will unless the
+  // price is worth it ... 600 minimum ... i am interested"). Catch it before the
+  // mixed/negative branches so the "not selling" part doesn't bury the interest.
+  const CONDITIONAL_INTEREST_RE = /\b(unless the price|if the price|the right price|right price|price is right|price is worth|for the right price|depending on (the )?price|depends on (the )?price|\d{2,4}\s*(k|,000)?\s*(minimum|min)\b|i (would|will|might) consider|would consider|open to (an?|the) offer|send (me )?a? ?number|make me an offer|if it'?s something i (am|would be) interested)\b/i;
+  // A blunt, present-tense "not interested" (or similar hard no) is a real no —
+  // don't let a price cue override it. "not selling" is softer (usually the
+  // "…unless the price" kind), so it does NOT count as a hard no here.
+  const HARD_NEGATIVE_RE = /\b(not interested|no longer interested|never selling|not for sale|leave me alone|do not want)\b/i;
+  if (!bareNo && !HARD_NEGATIVE_RE.test(lower) && CONDITIONAL_INTEREST_RE.test(lower)) {
+    return {
+      classification: "interested",
+      reason: "Conditional seller — open to selling at the right price/offer.",
+      activeDeal: true, needsReview: false, optOut: false,
+    };
+  }
+
   // Mixed signals → a human decides.
   if (positive && negative) {
     return {

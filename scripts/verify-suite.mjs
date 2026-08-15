@@ -61,6 +61,12 @@ eq("still have + open to offer → interested", classifyReply("I still have my p
 eq("im open to hear offer → interested", classifyReply("im open to hear your offer").classification, "interested");
 eq("whats it worth → interested", classifyReply("sure, whats it worth?").classification, "interested");
 eq("not open + stop still opts out", classifyReply("not open to selling, stop texting").optOut, true);
+// Conditional seller ("not selling UNLESS the price is right", names a minimum)
+// is INTERESTED, not a no and not needs-review (real case: Keri).
+eq("conditional: not selling unless price → interested", classifyReply("im not selling nor know I will unless the price is worth it, 600 minimum").classification, "interested");
+eq("conditional: send me a number → interested", classifyReply("your the one interested so send me a number and i will see").classification, "interested");
+eq("plain not selling → not_interested", classifyReply("no im not selling").classification, "not_interested");
+eq("hard no take me off → optout", classifyReply("not interested, take me off your list").optOut, true);
 eq("mixed → needs_review", classifyReply("make me an offer but i'm not interested right now").classification, "needs_review");
 eq("empty → needs_review", classifyReply("").classification, "needs_review");
 
