@@ -1254,6 +1254,26 @@ export class ReiBlackBookAdapter {
           }
         }
       }
+
+      // 3c) LAST-RESORT reply presence — guarantees the reply RATE is right even
+      // if bubble parsing didn't cleanly split messages. REI shows the seller's
+      // inbound texts with a "Received from: <phone>" label. If that label
+      // appears AT ALL in this conversation, the seller replied — count it. We
+      // grab the words just before the last such label as the reply text so it
+      // can still be classified; if we can't, it's flagged for a human.
+      if (!out.replyReceived && /received from/i.test(bodyText)) {
+        out.replyReceived = true;
+        if (out.deliveryStatus === "Unknown") out.deliveryStatus = "Sent";
+        const idx = bodyText.toLowerCase().lastIndexOf("received from");
+        // The seller's message text sits just before its "Received from" label.
+        const before = bodyText.slice(Math.max(0, idx - 300), idx)
+          .replace(/\b\d{1,2}:\d{2}\s*(AM|PM)?\b/gi, " ")
+          .replace(/PD ?#:?\s*\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/gi, " ")
+          .replace(/\b(Today|Yesterday|Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday)\b/gi, " ")
+          .replace(/\s+/g, " ").trim();
+        out.replyText = before.slice(-500) || "(seller replied — see REI chat)";
+      }
+
       out.ok = true;
       return out;
     } catch (err) {
@@ -1618,12 +1638,15 @@ export class ReiBlackBookAdapter {
 // Returns an ordered [{ dir: "in"|"out", text, time }].
 export function parseConversationByLabels(bodyText) {
   const text = String(bodyText || "").replace(/\s+/g, " ");
-  // A metadata block: optional leading time, then PD #: <phone>, then the
-  // direction label + phone, then optional trailing time.
+  // A metadata block: optional leading time, an OPTIONAL "PD #: <phone>", then
+  // the direction label, then an OPTIONAL phone, then optional trailing time.
+  // Everything except the direction label is optional so small format
+  // differences in REI's chat (missing PD#, different phone/time spacing) can't
+  // break reply detection.
   const phone = "\\(?\\d{3}\\)?[-.\\s]?\\d{3}[-.\\s]?\\d{4}";
   const time = "\\d{1,2}:\\d{2}\\s*(?:AM|PM)?";
   const blockRe = new RegExp(
-    `(?:${time}\\s*)?PD #:\\s*${phone}\\s*(Sent to:|Received from:)\\s*${phone}\\s*(${time})?`,
+    `(?:${time}\\s*)?(?:PD ?#:?\\s*${phone}\\s*)?(Sent to:?|Received from:?)\\s*(?:${phone})?\\s*(${time})?`,
     "gi"
   );
   const msgs = [];
