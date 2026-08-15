@@ -11,7 +11,8 @@
 // in flight always finishes, so a send is never left half-done).
 
 import { EventEmitter } from "events";
-import { ReiBlackBookAdapter } from "./reibb.js";
+import { ReiBlackBookAdapter, parseConversationByLabels } from "./reibb.js";
+import { REVIVAL_NEEDLES } from "./message.js";
 import { PropertyRadarAdapter } from "./propertyradar.js";
 import { RedfinAdapter } from "./redfin.js";
 import { resolveRedfinUrl } from "./redfinLink.js";
@@ -449,6 +450,35 @@ export class AutomationEngine extends EventEmitter {
       this._loopActive = false;
       this._control = "stopped";
     }
+  }
+
+  // Detect + join a seller's reply(ies) from the chat history text we already
+  // read, using REI's "Sent to:"/"Received from:" labels. Returns the same shape
+  // the recheck uses so classification is consistent. Any inbound after our
+  // revival message counts as a reply.
+  _detectReplyFromHistory(historyText) {
+    const out = { replyReceived: false, replyText: "", replyAt: "" };
+    try {
+      const convo = parseConversationByLabels(historyText || "");
+      if (!convo.length) {
+        // Fallback: the label appears but parsing didn't split — still count it.
+        if (/received from/i.test(historyText || "")) { out.replyReceived = true; out.replyText = "(seller replied — see REI chat)"; }
+        return out;
+      }
+      let ours = convo.findIndex(
+        (m) => m.dir === "out" && REVIVAL_NEEDLES.some((n) => m.text.toLowerCase().includes(n))
+      );
+      if (ours < 0) ours = convo.findIndex((m) => m.dir === "out");
+      const inbound = convo
+        .slice(ours >= 0 ? ours + 1 : 0)
+        .filter((m) => m.dir === "in" && m.text && !REVIVAL_NEEDLES.some((n) => m.text.toLowerCase().includes(n)));
+      if (inbound.length) {
+        out.replyReceived = true;
+        out.replyText = inbound.map((m) => m.text).join(" | ").slice(0, 2000);
+        out.replyAt = inbound[inbound.length - 1].time || "";
+      }
+    } catch { /* leave replyReceived false */ }
+    return out;
   }
 
   // DIAGNOSTIC: dump the raw REI chat text for one contact so we can see exactly
@@ -922,6 +952,37 @@ export class AutomationEngine extends EventEmitter {
           company: facts.companySource || decision.company || "",
           iso: facts.revivalSentAt,
         });
+      }
+
+      // CAPTURE + CLASSIFY a seller reply from the REI chat we just read — for
+      // ANY lead, including ones we already texted before and are skipping now.
+      // Without this, a lead texted in a prior batch (e.g. Keri) who replied
+      // would be skipped as "already texted" and her interested reply would
+      // never be counted. If we can see we texted them AND they replied, record
+      // it so the reply rate + Interested/Not numbers are complete.
+      if (facts.historyText && (facts.alreadySentApproved || decision.disposition === DISPOSITION.TEXTED_THIS_MONTH || decision.disposition === DISPOSITION.ALREADY_CONTACTED)) {
+        const rep = this._detectReplyFromHistory(facts.historyText);
+        if (rep.replyReceived) {
+          row.replyReceived = true;
+          if (!row.replyText) { row.replyText = rep.replyText; row.replyReceivedAt = rep.replyAt || row.replyReceivedAt || ""; }
+          const cls = classifyReply(row.replyText);
+          row.replyClassification = cls.classification;
+          row.replyClassificationReason = cls.reason;
+          // Mark as a confirmed prior send so it counts as "texted" in the report.
+          if (!row.textSentTimestamp && facts.revivalSentAt) row.textSentTimestamp = facts.revivalSentAt;
+          if (!row.sentMessageBody) row.sentMessageBody = "(sent in a prior batch — confirmed in REI chat)";
+          if (cls.classification === "interested") {
+            row.activeDeal = true;
+            row.activeDealReason = "Seller reply shows interest — " + cls.reason;
+          } else if (cls.classification === "not_interested") {
+            row.needsManualReview = false;
+            if (cls.optOut) {
+              try { this.sentLedger.suppress({ contactUrl: row.reiContactUrl, phone: facts.phone || row.phone, classification: "not_interested", reason: cls.reason }); } catch { /* best-effort */ }
+            }
+          } else {
+            row.needsManualReview = true;
+          }
+        }
       }
 
       row.propertyStatus = decision.propertyStatus;
