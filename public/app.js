@@ -40,13 +40,12 @@ let recheckHasState = false; // a recheck produced progress/results to show
 // --- Tabs -------------------------------------------------------------------
 const TABS = [
   { key: "all", label: "All Leads" },
-  { key: "available-to-text", label: "Available to Text" },
   { key: "text-sent", label: "Text Sent" },
-  { key: "property-sold", label: "Property Sold" },
+  { key: "active-deal", label: "Interested / Active Deal" },
   { key: "not-interested", label: "Not Interested / To Delete" },
+  { key: "property-sold", label: "Property Sold" },
   { key: "bad-leads", label: "Bad Leads" },
   { key: "out-of-state", label: "Out of State" },
-  { key: "active-deal", label: "Active Deal" },
   { key: "needs-review", label: "Needs Review" },
   { key: "percentage", label: "Percentage Report" },
 ];
@@ -67,12 +66,16 @@ function rowTab(r) {
 }
 function rowsForTab(tab) {
   if (tab === "all") return allRows;
+  // Text Sent shows EVERY texted lead (even ones who replied and also appear in
+  // a result tab), so the tab count matches the "Texts Sent" total.
+  if (tab === "text-sent") return allRows.filter(isTextSent);
   return allRows.filter((r) => rowTab(r) === tab);
 }
 function tabCounts() {
   const c = { all: allRows.length };
   TABS.forEach((t) => { if (t.key !== "all" && t.key !== "percentage") c[t.key] = 0; });
-  for (const r of allRows) { const t = rowTab(r); if (t && t in c) c[t]++; }
+  for (const r of allRows) { const t = rowTab(r); if (t && t in c && t !== "text-sent") c[t]++; }
+  c["text-sent"] = allRows.filter(isTextSent).length; // all texted (matches the card)
   return c;
 }
 
