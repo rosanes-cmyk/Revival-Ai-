@@ -697,8 +697,17 @@ els.fileInput.onchange = async () => {
     setRows(res.snapshot.rows);
     setStatus("idle");
     setProgress(0, res.snapshot.summary.total);
-    els.uploadStatus.textContent = `Loaded ${res.snapshot.summary.total} leads. Ready to start.`;
-    els.uploadStatus.className = "upload-status ok";
+    // If the file is ALREADY worked (most rows have a result), say so clearly and
+    // tell the user NOT to press Start (which would re-check and change numbers).
+    const total = res.snapshot.summary.total || 0;
+    const processed = (res.snapshot.rows || []).filter((r) => r.disposition && r.disposition !== "Pending").length;
+    if (total && processed >= total * 0.9) {
+      els.uploadStatus.innerHTML = `✅ <b>Showing finished results — ${processed.toLocaleString()} of ${total.toLocaleString()} already processed.</b> These are the exact numbers from your file. <b>Do NOT press Start</b> unless you want to re-check against REI (that re-crawls and changes the numbers). Look at the tabs and Percentage Report.`;
+      els.uploadStatus.className = "upload-status ok viewmode";
+    } else {
+      els.uploadStatus.textContent = `Loaded ${total.toLocaleString()} leads. Ready to start.`;
+      els.uploadStatus.className = "upload-status ok";
+    }
   } catch (err) {
     els.uploadStatus.textContent = err.message;
     els.uploadStatus.className = "upload-status error";
