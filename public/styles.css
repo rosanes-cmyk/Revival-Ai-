@@ -336,6 +336,19 @@ td.error { color: var(--err); }
 .pct-table td.num, .pct-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .pct-table .based { color: var(--muted); font-size: 12px; }
 .percentage-card h3 { font-size: 14px; margin: 14px 0 4px; }
+/* Plain-English summary box (easy read after upload) */
+.simple-summary { background: linear-gradient(135deg, rgba(36,180,126,.10), rgba(79,140,255,.08)); border: 1px solid rgba(148,163,184,.22); border-radius: 14px; padding: 16px 18px; margin: 14px 0; }
+.simple-summary .ss-head { font-size: 16px; margin-bottom: 12px; }
+.simple-summary .ss-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+.simple-summary .ss-item { display: flex; align-items: center; gap: 8px; background: rgba(148,163,184,.08); border: 1px solid rgba(148,163,184,.15); border-radius: 10px; padding: 10px 12px; }
+.simple-summary .ss-emoji { font-size: 18px; }
+.simple-summary .ss-val { font-size: 20px; font-weight: 800; min-width: 1.5em; }
+.simple-summary .ss-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .3px; }
+.simple-summary .ss-item.hot { border-color: rgba(224,83,61,.5); background: rgba(224,83,61,.10); }
+.simple-summary .ss-item.hot .ss-val { color: #ff6b52; }
+.simple-summary .ss-item.ok .ss-val { color: var(--accent); }
+.simple-summary .ss-note { margin-top: 12px; font-size: 13px; color: var(--muted); line-height: 1.5; }
+
 /* At-a-glance KPI tiles for the Percentage Report */
 .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 14px 0 18px; }
 .kpi { background: var(--panel-2, rgba(148,163,184,.08)); border: 1px solid rgba(148,163,184,.18); border-radius: 12px; padding: 16px 18px; }

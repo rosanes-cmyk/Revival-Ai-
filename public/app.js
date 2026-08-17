@@ -288,6 +288,35 @@ function renderCards() {
     const k = el.dataset.k;
     if (k in v) el.querySelector(".stat-num").textContent = v[k];
   });
+  renderSimpleSummary(v);
+}
+
+// Plain-English summary box — reads like a sentence, no hunting through tabs.
+function renderSimpleSummary(v) {
+  const box = document.getElementById("simpleSummary");
+  if (!box) return;
+  const total = allRows.length;
+  if (!total) { box.hidden = true; return; }
+  box.hidden = false;
+  const n = (x) => Number(x || 0).toLocaleString();
+  const sold = allRows.filter((r) => rowTab(r) === "property-sold").length;
+  const outState = allRows.filter((r) => rowTab(r) === "out-of-state").length;
+  const replyRate = v.textsSent ? Math.round((v.totalReplies / v.textsSent) * 100) : 0;
+  const line = (emoji, label, val, cls = "") =>
+    `<div class="ss-item ${cls}"><span class="ss-emoji">${emoji}</span><span class="ss-val">${n(val)}</span><span class="ss-label">${label}</span></div>`;
+  box.innerHTML = `
+    <div class="ss-head">📋 <b>${n(total)} leads loaded</b> — here's what's happening:</div>
+    <div class="ss-grid">
+      ${line("✅", "texted", v.textsSent, "ok")}
+      ${line("💬", `replied (${replyRate}%)`, v.totalReplies)}
+      ${line("🔥", "INTERESTED", v.interested, "hot")}
+      ${line("👎", "not interested", v.notInterested)}
+      ${line("🤝", "active deals", v.activeDeals)}
+      ${line("🏠", "already sold/listed", sold)}
+      ${line("📍", "out of state", outState)}
+      ${line("❓", "needs a look", v.needsReview)}
+    </div>
+    <div class="ss-note">In plain words: we've texted <b>${n(v.textsSent)}</b>, <b>${n(v.interested)}</b> ${v.interested === 1 ? "seller is" : "sellers are"} interested. The rest were skipped (sold, not interested, already texted, or out of state) — nothing wasted.</div>`;
 }
 
 // --- Data in ----------------------------------------------------------------
