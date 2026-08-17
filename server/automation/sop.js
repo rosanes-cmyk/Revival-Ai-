@@ -418,8 +418,19 @@ export function classifyReply(replyText) {
   const bareYes = parts.some(isBareYes);
   const bareNo = parts.some(isBareNo);
 
+  // CLEAR negatives that real sellers phrase in plain English inside a longer
+  // sentence, so they don't match a stock phrase or a bare "No":
+  //  • wrong number / wrong person / "got the wrong guy" / "you're mistaken"
+  //  • the owner is deceased / passed away / no longer owns it
+  //  • a reply that OPENS with "No I didn't / No we don't / No thanks / No sorry"
+  const WRONG_OR_GONE_RE = /\b(wrong (number|person|guy|gal|lady|man|house|address|contact|info)|got the wrong|have the wrong|you'?ve got the wrong|you'?re mistaken|i'?m mistaken|mistaken identity|deceased|passed away|passed on|no longer (alive|with us|owns?|own it)|is dead|(he|she|they|dad|mom|father|mother|husband|wife|owner) (has |have )?(died|passed away|passed)|not the (owner|right (person|guy))|do ?n'?t own (it|this|that|the)|never owned)\b/i;
+  const NO_LEADING_RE = /^no\b[\s,]*(i|we|im|i'?m|he|she|they|thanks|thank you|not|never|do ?n'?t|did ?n'?t|do not|sorry|but|longer)\b/i;
+  const clearNeg = WRONG_OR_GONE_RE.test(lower) || parts.some((p) => NO_LEADING_RE.test(p));
+
+  const wrongOrGone = WRONG_OR_GONE_RE.test(lower);
+
   const positive = posHits.length > 0 || bareYes;
-  const negative = negHits.length > 0 || bareNo;
+  const negative = negHits.length > 0 || bareNo || clearNeg;
 
   // CONDITIONAL SELLER — "I'm not selling UNLESS the price is right", names a
   // minimum price, or "send me a number / I'll consider" — is an INTERESTED
@@ -432,7 +443,7 @@ export function classifyReply(replyText) {
   // don't let a price cue override it. "not selling" is softer (usually the
   // "…unless the price" kind), so it does NOT count as a hard no here.
   const HARD_NEGATIVE_RE = /\b(not interested|no longer interested|never selling|not for sale|leave me alone|do not want)\b/i;
-  if (!bareNo && !HARD_NEGATIVE_RE.test(lower) && CONDITIONAL_INTEREST_RE.test(lower)) {
+  if (!bareNo && !clearNeg && !HARD_NEGATIVE_RE.test(lower) && CONDITIONAL_INTEREST_RE.test(lower)) {
     return {
       classification: "interested",
       reason: "Conditional seller — open to selling at the right price/offer.",
@@ -446,9 +457,14 @@ export function classifyReply(replyText) {
   // Everything else defaults to Interested so a warm/unclear reply is reviewed,
   // never auto-deleted.
   if (negative && !positive) {
+    const reason = negHits.length
+      ? `Negative: "${negHits[0]}"`
+      : wrongOrGone
+      ? "Wrong number / owner no longer reachable — not a seller."
+      : "Replied No.";
     return {
       classification: "not_interested",
-      reason: negHits.length ? `Negative: "${negHits[0]}"` : "Replied No.",
+      reason,
       activeDeal: false, needsReview: false, optOut: false,
     };
   }

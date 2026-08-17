@@ -80,6 +80,15 @@ eq("joined No | You too → not_interested", classifyReply("No | Aug 3, 2026 You
 eq("bare Sold → not_interested", classifyReply("Sold").classification, "not_interested");
 eq("joined Sold | thanks → not_interested", classifyReply("Sold | thanks anyway").classification, "not_interested");
 eq("date + Sold → not_interested", classifyReply("Aug 3, 2026 Sold").classification, "not_interested");
+// Plain-English clear negatives that don't start with a bare "No" and have no
+// stock phrase (real bugs: these were showing green "interested").
+eq("wrong guy → not_interested", classifyReply("No I didn't I think you're mistaken got the wrong guy").classification, "not_interested");
+eq("deceased owner → not_interested", classifyReply("First of all, I'm not sure if you're aware, but paula has been deceased for almost two years now").classification, "not_interested");
+eq("wrong number in sentence → not_interested", classifyReply("you have the wrong number buddy").classification, "not_interested");
+eq("No I don't own → not_interested", classifyReply("No we dont own that property anymore").classification, "not_interested");
+// Must NOT over-catch: a real interest reply that happens to start with 'No'.
+eq("No but interested at right price → interested", classifyReply("No but I would consider selling for the right price").classification, "interested");
+eq("No idea (unclear) stays interested", classifyReply("No idea what you're talking about, tell me more").classification, "interested");
 
 // Reply detection from REI's "Sent to:" / "Received from:" labels (no DOM
 // selectors) — this is what makes the reply rate accurate on real REI.
