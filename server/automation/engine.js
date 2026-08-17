@@ -18,7 +18,7 @@ import { RedfinAdapter } from "./redfin.js";
 import { resolveRedfinUrl } from "./redfinLink.js";
 import { decide, classifyReply } from "./sop.js";
 import { assertMessageIntegrity, normalizeCompany, COMPANY, renderMessage, pickApprovedTemplate, cleanPersonName } from "./message.js";
-import { JOB_STATUS, categorizeRow, TAB } from "../data/store.js";
+import { JOB_STATUS, categorizeRow, TAB, wasTexted } from "../data/store.js";
 import { SentLedger } from "../data/sentLedger.js";
 import { DISPOSITION, ELIGIBILITY, REVIVAL_TAG } from "./constants.js";
 
@@ -532,7 +532,7 @@ export class AutomationEngine extends EventEmitter {
       if (this._recheckList && this._recheckCursor > 0 && this._recheckCursor < this._recheckList.length) {
         list = this._recheckList; // resume a stopped pass
       } else {
-        list = this.store.rows.filter((r) => categorizeRow(r) === TAB.TEXT_SENT);
+        list = this.store.rows.filter(wasTexted); // re-verify EVERY texted lead (matches the Text Sent tab)
         this._recheckList = list;
         this._recheckCursor = 0;
       }

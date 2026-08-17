@@ -283,9 +283,18 @@ export function categorizeRow(row) {
   return null;
 }
 
+/** True if we actually texted this lead (regardless of any later reply). */
+export function wasTexted(row) {
+  return !!(row.textSentTimestamp || row.sentMessageBody || row.disposition === DISPOSITION.TEXT_SENT);
+}
+
 /** Rows belonging to a given tab ("all" returns everything). */
 export function rowsForTab(rows, tab) {
   if (!tab || tab === TAB.ALL) return rows.slice();
+  // Text Sent shows EVERY lead we texted — even ones who later replied and also
+  // appear in a result tab — so the tab count matches the "Texts Sent" total and
+  // there's no "6 sent but tab shows 1" confusion.
+  if (tab === TAB.TEXT_SENT) return rows.filter(wasTexted);
   return rows.filter((r) => categorizeRow(r) === tab);
 }
 
@@ -297,5 +306,8 @@ export function tabCounts(rows) {
     const t = categorizeRow(r);
     if (t) counts[t] += 1;
   }
+  // Text Sent counts ALL texted leads (overlaps with the result tabs on purpose),
+  // so its badge equals the true number of texts sent.
+  counts[TAB.TEXT_SENT] = rows.filter(wasTexted).length;
   return counts;
 }
