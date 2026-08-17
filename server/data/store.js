@@ -236,6 +236,7 @@ export const TAB = Object.freeze({
   BAD_LEADS: "bad-leads",
   OUT_OF_STATE: "out-of-state",
   ACTIVE_DEAL: "active-deal",
+  ALREADY_TEXTED: "already-texted",
   NEEDS_REVIEW: "needs-review",
 });
 
@@ -249,6 +250,7 @@ export const TAB_FILE = Object.freeze({
   [TAB.BAD_LEADS]: "bad-leads",
   [TAB.OUT_OF_STATE]: "out-of-state",
   [TAB.ACTIVE_DEAL]: "active-deals",
+  [TAB.ALREADY_TEXTED]: "already-texted",
   [TAB.NEEDS_REVIEW]: "needs-review",
 });
 
@@ -279,7 +281,12 @@ export function categorizeRow(row) {
   if (d === DISPOSITION.BAD_LEAD || d === DISPOSITION.FAILED_NUMBER || d === DISPOSITION.LEAD_NOT_FOUND) {
     return TAB.BAD_LEADS;
   }
-  // Pending / Ready / Already-contacted / Texted-this-month → only in "all".
+  // 8) Already texted (this month / previously) — skipped to avoid a repeat, so
+  //    every worked lead lands in a tab and the counts add up to the total.
+  if (d === DISPOSITION.TEXTED_THIS_MONTH || d === DISPOSITION.ALREADY_CONTACTED) {
+    return TAB.ALREADY_TEXTED;
+  }
+  // Pending / Ready → only in "all".
   return null;
 }
 

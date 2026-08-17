@@ -47,6 +47,7 @@ const TABS = [
   { key: "property-sold", label: "Property Sold" },
   { key: "bad-leads", label: "Bad Leads" },
   { key: "out-of-state", label: "Out of State" },
+  { key: "already-texted", label: "Already Texted" },
   { key: "needs-review", label: "Needs Review" },
   { key: "percentage", label: "Percentage Report" },
 ];
@@ -63,6 +64,7 @@ function rowTab(r) {
   if (d === "Property Sold" || d === "Listed") return "property-sold";
   if (d === "Out of State") return "out-of-state";
   if (d === "Bad Lead" || d === "Failed Number" || d === "Lead NOT Found") return "bad-leads";
+  if (d === "Texted This Month" || d === "Already Contacted") return "already-texted";
   return null;
 }
 function rowsForTab(tab) {
