@@ -173,9 +173,15 @@ function reiLink(r, label) {
 }
 function addressCell(r) {
   const addr = esc(r.propertyAddress);
-  if (addr && r.propertyStatusUrl && /redfin\.com/i.test(r.propertyStatusUrl))
+  if (!addr) return "";
+  // Prefer a resolved Redfin property page (found during a live run).
+  if (r.propertyStatusUrl && /redfin\.com/i.test(r.propertyStatusUrl))
     return `<a class="rei-link" href="${esc(r.propertyStatusUrl)}" target="_blank" rel="noopener">${addr} 🔗</a>`;
-  return addr;
+  // Otherwise make it clickable anyway — open the address on Google Maps so any
+  // address (including ones just backfilled by Recheck) is one click away.
+  const full = [r.propertyAddress, r.city, r.state, r.zip].filter(Boolean).join(", ");
+  const q = encodeURIComponent(full || r.propertyAddress);
+  return `<a class="rei-link" href="https://www.google.com/maps/search/?api=1&query=${q}" target="_blank" rel="noopener">${addr} 🔗</a>`;
 }
 function deliveryBadge(r) {
   const s = r.messageDeliveryStatus || "";
