@@ -402,6 +402,7 @@ function renderPercentage(rep) {
       ${tile("Confirmed Sent", pc(r.confirmedSentRate), `${n(t.confirmedSent)} of ${n(t.totalTextsSent)} in REI`)}
       ${tile("Reply Rate", pc(r.overallReplyRate), `${n(t.totalReplies)} replied`)}
       ${tile("Interested", n(t.interested), `${pc(rr.interestedAmongReplies)} of replies`)}
+      ${tile("Not Interested", n(t.notInterested), `${pc(rr.notInterestedAmongReplies)} of replies`)}
     </div>`;
 
   // One short, plain table — result breakdown, no jargon columns.
