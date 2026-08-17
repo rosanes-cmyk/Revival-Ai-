@@ -154,6 +154,13 @@ export function parseSpreadsheet(buffer) {
 export function normalizeDisposition(rawValue) {
   const v = norm(rawValue).replace(/\s+/g, " "); // collapse "Text  Sent" -> "text sent"
   if (!v) return DISPOSITION.PENDING;
+  // Our own result statuses, recognized so a RE-UPLOAD of an exported file keeps
+  // every lead's result (otherwise these fall through to Pending and the counts
+  // look unprocessed).
+  if (v.includes("texted this month") || v.includes("this month")) return DISPOSITION.TEXTED_THIS_MONTH;
+  if (v.includes("recent contact")) return DISPOSITION.RECENT_CONTACT;
+  if (v.includes("bad lead") || v === "bad") return DISPOSITION.BAD_LEAD;
+  if (v.includes("out of state") || v.includes("out-of-state")) return DISPOSITION.OUT_OF_STATE;
   if (v.includes("text sent") || v === "sent" || v === "texted") return DISPOSITION.TEXT_SENT;
   if (v.includes("not found") || v.includes("no match")) return DISPOSITION.LEAD_NOT_FOUND;
   if (v.includes("sold")) return DISPOSITION.PROPERTY_SOLD;
