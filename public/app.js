@@ -105,9 +105,9 @@ function setTab(key) {
   } else {
     els.percentageCard.hidden = true;
     els.tableCard.hidden = false;
-    // Show the recheck panel on the Text Sent tab whenever a recheck is running
-    // or has left results to show (so switching away and back restores it).
-    els.recheckPanel.hidden = !(key === "text-sent" && (recheckRunning || recheckHasState));
+    // Show the recheck panel on any tab that can recheck whenever a recheck is
+    // running or has left results to show (so switching away and back restores it).
+    els.recheckPanel.hidden = !(tabSupportsRecheck(key) && (recheckRunning || recheckHasState));
     renderTable();
   }
 }
@@ -129,6 +129,10 @@ function renderTabToolbar() {
     return;
   }
   let left = "";
+  // Tabs that can't be rechecked against REI (nothing to reopen) — everything
+  // else gets a Recheck button so it can pull the Property Address (and any
+  // reply) straight from REI for leads that are missing it.
+  const noRecheck = new Set(["available-to-text", "needs-review"]);
   if (currentTab === "text-sent")
     left = `<button class="btn btn-small" id="recheckBtn">🔎 Recheck Text Sent</button>
             <button class="btn btn-small btn-stop" id="recheckStopBtn" hidden>⏹ Stop Recheck</button>`;
@@ -136,6 +140,9 @@ function renderTabToolbar() {
     left = `<button class="btn btn-small" id="scanBtn">🔄 Build / Refresh (recheck all — no texts sent)</button>`;
   else if (currentTab === "needs-review")
     left = `<button class="btn btn-small" id="recheckNRBtn">🔁 Recheck Needs Review (re-run just these)</button>`;
+  else if (!noRecheck.has(currentTab))
+    left = `<button class="btn btn-small" id="recheckBtn">🔎 Recheck (fetch address + replies)</button>
+            <button class="btn btn-small btn-stop" id="recheckStopBtn" hidden>⏹ Stop Recheck</button>`;
   els.tabToolbar.innerHTML = `
     <div class="toolbar-left">${left}</div>
     <div class="toolbar-right">
@@ -145,7 +152,7 @@ function renderTabToolbar() {
     </div>`;
   $("dlXlsx").onclick = () => (window.location = `/api/export?format=xlsx&tab=${currentTab}`);
   $("dlCsv").onclick = () => (window.location = `/api/export?format=csv&tab=${currentTab}`);
-  if (currentTab === "text-sent") {
+  if ($("recheckBtn")) {
     $("recheckBtn").onclick = startRecheck;
     $("recheckStopBtn").onclick = stopRecheck;
     reflectRecheckButtons();
@@ -459,10 +466,17 @@ function renderPercentage(rep) {
 }
 
 // --- Recheck Text Sent ------------------------------------------------------
+// Tabs that expose a Recheck button (text-sent + the data tabs, but not
+// percentage / available-to-text / needs-review which have their own actions).
+function tabSupportsRecheck(key) {
+  return key !== "percentage" && key !== "available-to-text" && key !== "needs-review";
+}
 function reflectRecheckButtons() {
   const b = $("recheckBtn"), s = $("recheckStopBtn");
   if (!b || !s) return;
-  b.textContent = recheckRunning ? "🔎 Rechecking Text Sent…" : "🔎 Recheck Text Sent";
+  const onTextSent = currentTab === "text-sent";
+  const idle = onTextSent ? "🔎 Recheck Text Sent" : "🔎 Recheck (fetch address + replies)";
+  b.textContent = recheckRunning ? "🔎 Rechecking…" : idle;
   b.disabled = recheckRunning;
   s.hidden = !recheckRunning;
 }
@@ -496,12 +510,16 @@ async function startRecheckNeedsReview() {
   } catch (err) { toast(err.message, "error"); }
 }
 async function startRecheck() {
-  const ok = window.confirm(
-    "Recheck all Text Sent leads?\n\nThis will open each REI conversation, verify the sent message, and check for seller replies. It will NOT send any new messages."
-  );
-  if (!ok) return;
+  const onTextSent = currentTab === "text-sent";
+  const msg = onTextSent
+    ? "Recheck all Text Sent leads?\n\nThis will open each REI conversation, verify the sent message, and check for seller replies. It will NOT send any new messages."
+    : "Recheck the leads in this tab?\n\nThis re-opens each lead in REI to pull its Property Address (and any reply) — only for leads that have a REI contact. It will NOT send any new messages.";
+  if (!window.confirm(msg)) return;
   try {
-    await api("/api/recheck", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+    // On Text Sent (and All) the server default rechecks every texted lead; on
+    // any other tab we pass the tab so it rechecks just those leads.
+    const body = onTextSent ? {} : { tab: currentTab };
+    await api("/api/recheck", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     recheckRunning = true;
     els.recheckPanel.hidden = false;
     reflectRecheckButtons();
@@ -517,7 +535,7 @@ function renderRecheck(d) {
   recheckRunning = !!d.running;
   recheckHasState = true;
   reflectRecheckButtons();
-  if (currentTab === "text-sent") els.recheckPanel.hidden = false;
+  if (tabSupportsRecheck(currentTab)) els.recheckPanel.hidden = false;
   const line = (lbl, val, cls = "") => `<div class="rk-item ${cls}"><span class="rk-num">${val ?? 0}</span><span class="rk-lbl">${lbl}</span></div>`;
   els.recheckPanel.innerHTML = `
     <div class="rk-head">

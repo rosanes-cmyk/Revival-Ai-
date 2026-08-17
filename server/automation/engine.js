@@ -18,7 +18,7 @@ import { RedfinAdapter } from "./redfin.js";
 import { resolveRedfinUrl } from "./redfinLink.js";
 import { decide, classifyReply } from "./sop.js";
 import { assertMessageIntegrity, normalizeCompany, COMPANY, renderMessage, pickApprovedTemplate, cleanPersonName } from "./message.js";
-import { JOB_STATUS, categorizeRow, TAB, wasTexted } from "../data/store.js";
+import { JOB_STATUS, categorizeRow, TAB, wasTexted, rowsForTab } from "../data/store.js";
 import { SentLedger } from "../data/sentLedger.js";
 import { DISPOSITION, ELIGIBILITY, REVIVAL_TAG } from "./constants.js";
 
@@ -506,7 +506,11 @@ export class AutomationEngine extends EventEmitter {
   // stopped. Streams a "recheck" progress event.
   requestStopRecheck() { this._recheckStop = true; }
 
-  async recheckTextSent() {
+  async recheckTextSent(opts = {}) {
+    // Optional tab scope — recheck ANY tab (not just Text Sent) so a tab whose
+    // leads have no Property Address can pull it from REI. Only rows that carry a
+    // REI contact URL can be reopened/read, so we filter to those.
+    const scopeTab = opts && opts.tab ? String(opts.tab) : "";
     if (this._loopActive) throw new Error("Automation is running. Stop it first, then Recheck.");
     if (!this.store) throw new Error("No leads loaded to recheck.");
     this._loopActive = true;
@@ -528,12 +532,26 @@ export class AutomationEngine extends EventEmitter {
       // freshly filtered one. A reply can reclassify a lead out of "Text Sent"
       // mid-pass; rebuilding the list would shift indexes and skip un-checked
       // leads. So we keep the row references from the first pass.
+      // Which leads this pass covers. Default = every texted lead (Text Sent tab).
+      // A tab scope rechecks that tab's leads instead — only those with a REI
+      // contact URL, since a recheck must reopen the contact in REI to read it.
+      const buildList = () => {
+        if (scopeTab && scopeTab !== TAB.TEXT_SENT && scopeTab !== TAB.ALL) {
+          return rowsForTab(this.store.rows, scopeTab).filter((r) => r.reiContactUrl);
+        }
+        if (scopeTab === TAB.ALL) return this.store.rows.filter((r) => r.reiContactUrl);
+        return this.store.rows.filter(wasTexted); // re-verify EVERY texted lead
+      };
       let list;
-      if (this._recheckList && this._recheckCursor > 0 && this._recheckCursor < this._recheckList.length) {
-        list = this._recheckList; // resume a stopped pass
+      const canResume =
+        this._recheckList && this._recheckScope === scopeTab &&
+        this._recheckCursor > 0 && this._recheckCursor < this._recheckList.length;
+      if (canResume) {
+        list = this._recheckList; // resume a stopped pass on the same scope
       } else {
-        list = this.store.rows.filter(wasTexted); // re-verify EVERY texted lead (matches the Text Sent tab)
+        list = buildList();
         this._recheckList = list;
+        this._recheckScope = scopeTab;
         this._recheckCursor = 0;
       }
       const total = list.length;
@@ -548,7 +566,8 @@ export class AutomationEngine extends EventEmitter {
           ...extra,
         });
 
-      this.emitState(`Rechecking ${total} Text Sent lead(s)…`);
+      const scopeLabel = scopeTab && scopeTab !== TAB.TEXT_SENT ? "" : "Text Sent ";
+      this.emitState(`Rechecking ${total} ${scopeLabel}lead(s)…`);
       emitRecheck({ running: true });
 
       for (let i = startIdx; i < list.length; i++) {
@@ -571,21 +590,38 @@ export class AutomationEngine extends EventEmitter {
           // instead of scaring the user with "could not locate". A slow/half-
           // loaded chat is the usual reason it isn't found on a later pass — not
           // that the text vanished. A real Failed/Undelivered still overwrites.
-          const prior = String(row.messageDeliveryStatus || "");
-          const priorConfirmed = prior === "Sent" || prior === "Delivered" ||
-            !!(row.sentMessageBody && row.textSentTimestamp);
-          const weak = detail.deliveryStatus === "Unknown" || detail.deliveryStatus === "Needs Recheck";
-          if (weak && priorConfirmed) {
-            row.messageDeliveryStatus = prior === "Delivered" ? "Delivered" : "Sent";
-            row.deliveryStatusEvidence =
-              "Confirmed sent earlier; not re-located on the latest check (REI chat slow to load) — kept as sent.";
-          } else {
-            row.messageDeliveryStatus = detail.deliveryStatus; // Sent|Delivered|Failed|Undelivered|Unknown
-            row.deliveryStatusEvidence = detail.deliveryEvidence || "";
+          // Only touch delivery status for leads we actually TEXTED. When a
+          // non-Text-Sent tab is rechecked purely to backfill addresses/replies,
+          // we must not stamp a "Sent" status on a lead we never sent to.
+          if (wasTexted(row)) {
+            const prior = String(row.messageDeliveryStatus || "");
+            const priorConfirmed = prior === "Sent" || prior === "Delivered" ||
+              !!(row.sentMessageBody && row.textSentTimestamp);
+            const weak = detail.deliveryStatus === "Unknown" || detail.deliveryStatus === "Needs Recheck";
+            if (weak && priorConfirmed) {
+              row.messageDeliveryStatus = prior === "Delivered" ? "Delivered" : "Sent";
+              row.deliveryStatusEvidence =
+                "Confirmed sent earlier; not re-located on the latest check (REI chat slow to load) — kept as sent.";
+            } else {
+              row.messageDeliveryStatus = detail.deliveryStatus; // Sent|Delivered|Failed|Undelivered|Unknown
+              row.deliveryStatusEvidence = detail.deliveryEvidence || "";
+            }
+            if (row.messageDeliveryStatus === "Failed" || row.messageDeliveryStatus === "Undelivered") failed++;
           }
           row.recheckError = "";
           row.recheckCompleted = true;
-          if (row.messageDeliveryStatus === "Failed" || row.messageDeliveryStatus === "Undelivered") failed++;
+
+          // Backfill the property address from REI when the lead has none (common
+          // for pulled-from-REI rows). Only FILL blanks — never overwrite an
+          // address that came from the uploaded sheet.
+          if (detail.address && detail.address.propertyAddress) {
+            const a = detail.address;
+            if (!row.propertyAddress) row.propertyAddress = a.propertyAddress;
+            if (!row.street && a.street) row.street = a.street;
+            if (!row.city && a.city) row.city = a.city;
+            if (!row.state && a.state) row.state = a.state;
+            if (!row.zip && a.zip) row.zip = a.zip;
+          }
 
           if (detail.replyReceived && detail.replyText) {
             row.replyReceived = true;

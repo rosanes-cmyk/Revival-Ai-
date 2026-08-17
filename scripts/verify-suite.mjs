@@ -8,7 +8,7 @@ import { cleanPersonName, firstNameFrom, renderMessage, getApprovedMessage, pick
 import { SentLedger } from "../server/data/sentLedger.js";
 import { AutomationEngine, deriveState } from "../server/automation/engine.js";
 import { parseSpreadsheet, exportToXlsx, exportToCsv } from "../server/data/spreadsheet.js";
-import { parseConversationByLabels } from "../server/automation/reibb.js";
+import { parseConversationByLabels, parseUsAddress } from "../server/automation/reibb.js";
 import fs from "node:fs";
 
 let pass = 0, fail = 0;
@@ -74,6 +74,12 @@ eq("clear no stays not_interested", classifyReply("no im not selling").classific
 // Date/time chrome must not turn a plain 'No' into Interested (real bug: Julia).
 eq("date-prefixed No → not_interested", classifyReply("Jul 16, 2026 No").classification, "not_interested");
 eq("time-prefixed No → not_interested", classifyReply("5:21 PM No").classification, "not_interested");
+// Joined multi-bubble replies: a bare 'No'/'Sold' in one bubble must win over
+// polite chit-chat in another (real bug: 'No | You too' showed Interested).
+eq("joined No | You too → not_interested", classifyReply("No | Aug 3, 2026 You, too").classification, "not_interested");
+eq("bare Sold → not_interested", classifyReply("Sold").classification, "not_interested");
+eq("joined Sold | thanks → not_interested", classifyReply("Sold | thanks anyway").classification, "not_interested");
+eq("date + Sold → not_interested", classifyReply("Aug 3, 2026 Sold").classification, "not_interested");
 
 // Reply detection from REI's "Sent to:" / "Received from:" labels (no DOM
 // selectors) — this is what makes the reply rate accurate on real REI.
@@ -86,6 +92,18 @@ eq("time-prefixed No → not_interested", classifyReply("5:21 PM No").classifica
   const joined = convo.filter((m) => m.dir === "in").map((m) => m.text).join(" | ");
   eq("label-parse: joined reply → interested", classifyReply(joined).classification, "interested");
   eq("label-parse: no-reply body → 0 inbound", parseConversationByLabels("Hi Bob PD #: (650) 431-3006 Sent to: (510) 555-1234 2:00 PM").filter((m) => m.dir === "in").length, 0);
+}
+
+// Address backfill: recheck pulls the Property Address from the REI page so an
+// empty address column gets filled.
+{
+  const a = parseUsAddress("Contact: Jane Doe Phone (510) 555-1212 1607 Santa Clara St, , Vallejo, CA, 94590 Chat");
+  eq("address: street parsed", a.propertyAddress, "1607 Santa Clara St, , Vallejo, CA, 94590");
+  eq("address: city parsed", a.city, "Vallejo");
+  eq("address: state parsed", a.state, "CA");
+  eq("address: zip parsed", a.zip, "94590");
+  const b = parseUsAddress("Contact page with no address here at all");
+  eq("address: none → empty object", Object.keys(b).length, 0);
 }
 
 console.log("C. categorizeRow() → tabs");

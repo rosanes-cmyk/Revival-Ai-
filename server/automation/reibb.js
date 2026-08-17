@@ -1130,6 +1130,7 @@ export class ReiBlackBookAdapter {
       ok: false, outboundFound: false,
       deliveryStatus: "Needs Recheck", deliveryEvidence: "",
       replyReceived: false, replyText: "", replyAt: "", error: "",
+      address: null,
     };
     if (!contactUrl) { out.error = "No REI contact URL saved for this lead."; return out; }
     const conv = (this.selectors.contactRecord && this.selectors.contactRecord.conversation) || {};
@@ -1284,6 +1285,11 @@ export class ReiBlackBookAdapter {
           .replace(/\s+/g, " ").trim();
         out.replyText = before.slice(-500) || "(seller replied — see REI chat)";
       }
+
+      // 4) Backfill the property address from the contact page so a recheck fills
+      // the (often empty) Property Address column. Best-effort; never fatal.
+      const addr = parseUsAddress(bodyText);
+      if (addr && addr.propertyAddress) out.address = addr;
 
       out.ok = true;
       return out;
@@ -1678,6 +1684,37 @@ export function parseConversationByLabels(bodyText) {
     lastEnd = blockRe.lastIndex;
   }
   return msgs;
+}
+
+// Pull the first US property address out of a blob of page text and split it
+// into address / street / city / state / zip. Shared by the contact-page reader
+// and the recheck pass so recheck can backfill an empty Property Address column.
+export function parseUsAddress(bodyText) {
+  try {
+    const text = String(bodyText || "").replace(/ /g, " ");
+    // "123 St, City, ST 12345" — state+ZIP together ("CA 94590") or split by a
+    // comma ("CA, 94590"), tolerating extra/empty comma fields in between.
+    // The (?<![\d-]) guard keeps a phone-number tail ("555-1212 1607 …") from
+    // being swallowed as the house number.
+    const m = text.match(/(?<![\d-])\d{1,6}\s+[^\n]{2,80}?\b[A-Z]{2}\b[\s,]+\d{5}(?:-\d{4})?/);
+    if (!m) return {};
+    const full = m[0].replace(/\s+/g, " ").trim();
+    const stZip = full.match(/\b([A-Z]{2})\b[\s,]+(\d{5})(?:-\d{4})?\s*$/);
+    const stateTok = stZip ? stZip[1] : "";
+    const parts = full.split(",").map((s) => s.trim()).filter(Boolean);
+    let city = "";
+    for (let i = parts.length - 1; i >= 1; i--) {
+      const p = parts[i].replace(/\b[A-Z]{2}\b[\s,]+\d{5}(?:-\d{4})?\s*$/, "").trim();
+      if (p && !/^\d/.test(p) && p.toUpperCase() !== stateTok) { city = p; break; }
+    }
+    return {
+      propertyAddress: full,
+      street: parts[0] || "",
+      city,
+      state: stateTok,
+      zip: stZip ? stZip[2] : "",
+    };
+  } catch { return {}; }
 }
 
 // Build the ordered search attempts (SOP FLOW step 3), de-duplicating identical

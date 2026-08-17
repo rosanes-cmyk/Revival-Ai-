@@ -568,7 +568,8 @@ app.post("/api/reverify", (req, res) => {
 app.post("/api/recheck", (req, res) => {
   if (engine.isBusy()) return res.status(409).json({ error: "Automation is running. Stop it first, then Recheck." });
   if (!store) return res.status(400).json({ error: "Upload or pull leads first." });
-  engine.recheckTextSent().catch((err) => broadcast("state", { message: `Recheck error: ${err.message}` }));
+  const tab = req.body && req.body.tab ? String(req.body.tab) : "";
+  engine.recheckTextSent({ tab }).catch((err) => broadcast("state", { message: `Recheck error: ${err.message}` }));
   res.json({ ok: true });
 });
 app.post("/api/recheck/stop", (req, res) => {

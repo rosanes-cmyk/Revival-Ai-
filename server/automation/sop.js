@@ -399,13 +399,24 @@ export function classifyReply(replyText) {
     };
   }
 
+  // REI joins a multi-message thread into one string with " | " between bubbles
+  // ("No | Aug 3, 2026 You, too"). Classify EACH bubble on its own so a bare "No"
+  // or "Sold" in one bubble isn't buried by chit-chat ("You too") in the next.
+  const segments = raw.split(/\s*\|\s*/).map((s) => s.trim()).filter(Boolean);
+  const parts = segments.length ? segments : [raw];
+
+  // A short, standalone yes/no/sold counts (but only when it IS the whole bubble,
+  // so an isolated keyword inside a longer, contradictory sentence can't flip it).
+  const isBareYes = (s) => /^(yes|yeah|yep|yup|sure|ok|okay|interested)\b[\s.!]*$/i.test(s);
+  const isBareNo = (s) =>
+    /^(no|nope|nah|not interested|no thanks?|no thank you)\b[\s.!]*$/i.test(s) ||
+    /^(sold|already sold|it'?s sold|we sold|i sold|sold it|sold already)\b[\s.!]*$/i.test(s);
+
   const posHits = INTERESTED_PHRASES.filter((p) => lower.includes(p));
   const negHits = NOT_INTERESTED_PHRASES.filter((p) => lower.includes(p));
 
-  // A short, standalone yes/no counts (but only when it IS the message, so an
-  // isolated keyword inside a longer, contradictory sentence can't flip it).
-  const bareYes = /^(yes|yeah|yep|sure|ok|okay|interested)\b[\s.!]*$/i.test(raw);
-  const bareNo = /^(no|nope|nah)\b[\s.!]*$/i.test(raw);
+  const bareYes = parts.some(isBareYes);
+  const bareNo = parts.some(isBareNo);
 
   const positive = posHits.length > 0 || bareYes;
   const negative = negHits.length > 0 || bareNo;
