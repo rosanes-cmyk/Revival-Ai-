@@ -104,6 +104,12 @@ eq("date + Sold → not_interested", classifyReply("Aug 3, 2026 Sold").classific
   eq("address: zip parsed", a.zip, "94590");
   const b = parseUsAddress("Contact page with no address here at all");
   eq("address: none → empty object", Object.keys(b).length, 0);
+  // Real REI contact-detail text: phone above, "Property Address" label, then the
+  // address on the next lines. Must grab the labeled address, not the phone.
+  const c = parseUsAddress("Phone (Mobile) (209) 639-3645 Campaign - Property Address 2055 Derrick Ave, Manteca, CA, 95337 Amount Offer - Next Step");
+  eq("address: labeled address wins over phone", c.propertyAddress, "2055 Derrick Ave, Manteca, CA, 95337");
+  eq("address: labeled city", c.city, "Manteca");
+  eq("address: labeled zip", c.zip, "95337");
 }
 
 console.log("C. categorizeRow() → tabs");

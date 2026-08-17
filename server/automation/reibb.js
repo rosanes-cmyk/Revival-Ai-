@@ -1142,6 +1142,14 @@ export class ReiBlackBookAdapter {
         out.error = "REI login appears to have expired — needs recheck.";
         return out;
       }
+      // Grab the Property Address from the CONTACT DETAIL view FIRST — before we
+      // switch to the Chat tab, which on many contacts drops the address panel
+      // from the page. This is why some rechecked leads had a blank address.
+      try {
+        const contactText = ((await this.page.locator("body").innerText().catch(() => "")) || "");
+        const addr0 = parseUsAddress(contactText);
+        if (addr0 && addr0.propertyAddress) out.address = addr0;
+      } catch { /* best-effort */ }
       for (const sel of ["[role='tab']:has-text('Chat')", "button:has-text('Chat')", "text=Chat"]) {
         if (await this.clickIfVisible(sel, 1200)) break;
       }
@@ -1286,10 +1294,13 @@ export class ReiBlackBookAdapter {
         out.replyText = before.slice(-500) || "(seller replied — see REI chat)";
       }
 
-      // 4) Backfill the property address from the contact page so a recheck fills
-      // the (often empty) Property Address column. Best-effort; never fatal.
-      const addr = parseUsAddress(bodyText);
-      if (addr && addr.propertyAddress) out.address = addr;
+      // 4) Backfill the property address so a recheck fills the (often empty)
+      // Property Address column. We prefer the contact-detail read above; only if
+      // that found nothing do we try the chat-view text. Best-effort; never fatal.
+      if (!out.address || !out.address.propertyAddress) {
+        const addr = parseUsAddress(bodyText);
+        if (addr && addr.propertyAddress) out.address = addr;
+      }
 
       out.ok = true;
       return out;
@@ -1696,7 +1707,17 @@ export function parseUsAddress(bodyText) {
     // comma ("CA, 94590"), tolerating extra/empty comma fields in between.
     // The (?<![\d-]) guard keeps a phone-number tail ("555-1212 1607 …") from
     // being swallowed as the house number.
-    const m = text.match(/(?<![\d-])\d{1,6}\s+[^\n]{2,80}?\b[A-Z]{2}\b[\s,]+\d{5}(?:-\d{4})?/);
+    const addrRe = /(?<![\d-])\d{1,6}\s+[^\n]{2,80}?\b[A-Z]{2}\b[\s,]+\d{5}(?:-\d{4})?/;
+    // Prefer the address REI labels as "Property Address" / "Mailing Address" —
+    // scan the ~140 chars right after that label first, so we never grab some
+    // other number on the page. Fall back to the whole page if that finds nothing.
+    let m = null;
+    const labelMatch = text.match(/(?:property|mailing|site|situs)\s+address\s*:?\s*/i);
+    if (labelMatch) {
+      const start = labelMatch.index + labelMatch[0].length;
+      m = text.slice(start, start + 140).match(addrRe);
+    }
+    if (!m) m = text.match(addrRe);
     if (!m) return {};
     const full = m[0].replace(/\s+/g, " ").trim();
     const stZip = full.match(/\b([A-Z]{2})\b[\s,]+(\d{5})(?:-\d{4})?\s*$/);
