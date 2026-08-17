@@ -32,6 +32,7 @@ function matchesSearch(r) {
 }
 
 let hasJob = false;
+let viewOnly = false; // true when a FINISHED file is loaded — Start is locked to avoid an accidental re-run
 let allRows = [];
 let currentTab = "all";
 let recheckRunning = false;
@@ -539,7 +540,8 @@ function renderRecheck(d) {
 function setStatus(status) {
   els.statusLabel.textContent = cap(status);
   const running = status === "running", paused = status === "paused";
-  els.startBtn.disabled = !hasJob || running || paused;
+  els.startBtn.disabled = viewOnly || !hasJob || running || paused;
+  els.startBtn.title = viewOnly ? "This file is already finished — locked so you don't re-run by accident. Use the 'Re-run against REI' link in the upload banner if you really want to." : "";
   els.pauseBtn.disabled = !running;
   els.resumeBtn.disabled = !(paused || status === "stopped");
   els.stopBtn.disabled = !(running || paused);
@@ -702,9 +704,20 @@ els.fileInput.onchange = async () => {
     const total = res.snapshot.summary.total || 0;
     const processed = (res.snapshot.rows || []).filter((r) => r.disposition && r.disposition !== "Pending").length;
     if (total && processed >= total * 0.9) {
-      els.uploadStatus.innerHTML = `✅ <b>Showing finished results — ${processed.toLocaleString()} of ${total.toLocaleString()} already processed.</b> These are the exact numbers from your file. <b>Do NOT press Start</b> unless you want to re-check against REI (that re-crawls and changes the numbers). Look at the tabs and Percentage Report.`;
+      viewOnly = true; // lock Start so a finished file can't be re-run by accident
+      setStatus("idle"); // re-apply so Start is disabled now that viewOnly is set
+      els.uploadStatus.innerHTML = `✅ <b>Showing finished results — ${processed.toLocaleString()} of ${total.toLocaleString()} already processed.</b> These are the exact numbers from your file. Start is <b>locked</b> so nothing re-runs by accident — just look at the tabs and Percentage Report. <a href="#" id="reRunLink" style="color:#ffb454;text-decoration:underline;">Re-run against REI</a>`;
       els.uploadStatus.className = "upload-status ok viewmode";
+      const lnk = document.getElementById("reRunLink");
+      if (lnk) lnk.onclick = (ev) => {
+        ev.preventDefault();
+        if (window.confirm("Re-run this file against REI?\n\nThis re-crawls every lead and WILL change the numbers. Only do this if you want fresh results, not just to view.")) {
+          viewOnly = false; setStatus("idle");
+          toast("Start unlocked — press Start to re-run against REI.", "ok");
+        }
+      };
     } else {
+      viewOnly = false;
       els.uploadStatus.textContent = `Loaded ${total.toLocaleString()} leads. Ready to start.`;
       els.uploadStatus.className = "upload-status ok";
     }
