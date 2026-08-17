@@ -163,14 +163,28 @@ export function normalizeRow(r) {
   let replyClassificationReason = r.replyClassificationReason || "";
   let activeDeal = !!r.activeDeal;
   let needsManualReview = !!r.needsManualReview;
+  let disposition = r.disposition || DISPOSITION.PENDING;
   if (r.replyReceived && r.replyText) {
     const cls = classifyReply(r.replyText);
     replyClassification = cls.classification;
     replyClassificationReason = cls.reason;
     // Keep the tab in sync with the (re)classification so a stale flag can't
-    // strand an interested seller in Needs Review.
+    // strand a lead in the wrong tab after the rules improve.
     if (cls.classification === "interested") { activeDeal = true; needsManualReview = false; }
-    else if (cls.classification === "not_interested") { needsManualReview = false; }
+    else if (cls.classification === "not_interested") {
+      needsManualReview = false;
+      activeDeal = false;
+      // Move a reply that is now a clear No / bounce OUT of Text Sent / Active
+      // Deal into its result tab. Leave dispositions that already sit in the
+      // right negative tab (opted out, wrong number, sold, out of state, bad).
+      const KEEP = new Set([
+        DISPOSITION.OPTED_OUT, DISPOSITION.WRONG_NUMBER, DISPOSITION.PROPERTY_SOLD,
+        DISPOSITION.LISTED, DISPOSITION.OUT_OF_STATE, DISPOSITION.BAD_LEAD,
+        DISPOSITION.FAILED_NUMBER, DISPOSITION.LEAD_NOT_FOUND,
+      ]);
+      if (cls.undeliverable) disposition = DISPOSITION.FAILED_NUMBER;
+      else if (!KEEP.has(disposition)) disposition = DISPOSITION.NOT_INTERESTED;
+    }
     else { needsManualReview = true; } // genuinely unclear
   }
   return {
@@ -187,7 +201,7 @@ export function normalizeRow(r) {
     companySource: r.companySource || "",
     phone: r.phone || "",
     email: r.email || "",
-    disposition: r.disposition || DISPOSITION.PENDING,
+    disposition: disposition,
     notes: r.notes || "",
     reiMatchStatus: r.reiMatchStatus || MATCH_STATUS.UNSEARCHED,
     reiContactUrl: r.reiContactUrl || "",

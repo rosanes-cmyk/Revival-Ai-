@@ -642,8 +642,18 @@ export class AutomationEngine extends EventEmitter {
               row.needsManualReview = false;
             } else if (cls.classification === "not_interested") {
               notInt++;
-              row.disposition = DISPOSITION.NOT_INTERESTED;
+              // A carrier bounce is a BAD NUMBER, not a "no from the seller" —
+              // route it to Bad Leads and mark the delivery as Undelivered.
+              if (cls.undeliverable) {
+                row.disposition = DISPOSITION.FAILED_NUMBER;
+                row.messageDeliveryStatus = "Undelivered";
+                row.deliveryStatusEvidence = "Carrier reported the number can't receive texts.";
+              } else {
+                row.disposition = DISPOSITION.NOT_INTERESTED;
+              }
               row.eligibilityStatus = ELIGIBILITY.NOT_ELIGIBLE;
+              row.needsManualReview = false;
+              row.activeDeal = false;
               if (cls.optOut) {
                 row.safetyStatus = "Opted out (seller reply) — suppressed";
                 // Suppression is persisted below via the ledger; we deliberately

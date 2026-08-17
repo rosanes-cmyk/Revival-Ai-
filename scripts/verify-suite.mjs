@@ -89,6 +89,12 @@ eq("No I don't own → not_interested", classifyReply("No we dont own that prope
 // Must NOT over-catch: a real interest reply that happens to start with 'No'.
 eq("No but interested at right price → interested", classifyReply("No but I would consider selling for the right price").classification, "interested");
 eq("No idea (unclear) stays interested", classifyReply("No idea what you're talking about, tell me more").classification, "interested");
+// Carrier bounce — not a seller reply at all. Hard stop → not_interested + flagged undeliverable.
+eq("carrier bounce → not_interested", classifyReply("I'm sorry, but this number does not currently accept text messages.").classification, "not_interested");
+ok("carrier bounce → undeliverable flag", classifyReply("this number does not currently accept text messages").undeliverable === true);
+eq("not in service → not_interested", classifyReply("This number is no longer in service").classification, "not_interested");
+// Hard no wins over a stray positive word.
+eq("hard no beats stray yes", classifyReply("yes yes not interested please stop wasting my time").classification, "not_interested");
 
 // Reply detection from REI's "Sent to:" / "Received from:" labels (no DOM
 // selectors) — this is what makes the reply rate accurate on real REI.

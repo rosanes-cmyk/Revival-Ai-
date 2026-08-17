@@ -429,8 +429,37 @@ export function classifyReply(replyText) {
 
   const wrongOrGone = WRONG_OR_GONE_RE.test(lower);
 
+  // Carrier / system BOUNCE — the "reply" is really an undeliverable notice, not
+  // a seller. This is a bad number, never a lead. Match a negation within a few
+  // words of "accept/receive … text", plus the common service/undeliverable
+  // notices, so wording differences ("does not currently accept text messages",
+  // "can't receive texts") are all caught.
+  const bounceAccept = /\b(not|cannot|can ?not|unable|can'?t|does ?n'?t|do ?n'?t|will ?not|won'?t)\b[^.\n]{0,30}\b(accept|receive|get)\b[^.\n]{0,15}\btext/i;
+  const bounceService = /\b(no longer in service|not in service|number (is )?disconnected|disconnected|undeliverable|could not be delivered|message (was )?not delivered|failed to (send|deliver)|invalid (number|recipient|phone)|has blocked|blocked this number|not a valid (number|phone))\b/i;
+  const undeliverable = bounceAccept.test(lower) || bounceService.test(lower);
+
   const positive = posHits.length > 0 || bareYes;
   const negative = negHits.length > 0 || bareNo || clearNeg;
+
+  // ---- ABSOLUTE HARD STOPS ------------------------------------------------
+  // A carrier bounce or a dead/wrong-number owner is NEVER a lead — these win
+  // over any stray positive word. (Opt-out / STOP is handled above; a plain
+  // "not interested" is handled by the negative logic below so a genuine offer
+  // in the same message can still keep it warm.)
+  if (undeliverable) {
+    return {
+      classification: "not_interested",
+      reason: "Undeliverable — the number can't receive texts (bad number, not a lead).",
+      activeDeal: false, needsReview: false, optOut: false, undeliverable: true,
+    };
+  }
+  if (wrongOrGone) {
+    return {
+      classification: "not_interested",
+      reason: "Wrong number / owner no longer reachable — not a seller.",
+      activeDeal: false, needsReview: false, optOut: false,
+    };
+  }
 
   // CONDITIONAL SELLER — "I'm not selling UNLESS the price is right", names a
   // minimum price, or "send me a number / I'll consider" — is an INTERESTED
