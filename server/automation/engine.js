@@ -16,7 +16,7 @@ import { REVIVAL_NEEDLES } from "./message.js";
 import { PropertyRadarAdapter } from "./propertyradar.js";
 import { RedfinAdapter } from "./redfin.js";
 import { resolveRedfinUrl } from "./redfinLink.js";
-import { decide, classifyReply } from "./sop.js";
+import { decide, classifyReply, evaluateSafety } from "./sop.js";
 import { assertMessageIntegrity, normalizeCompany, COMPANY, renderMessage, pickApprovedTemplate, cleanPersonName } from "./message.js";
 import { JOB_STATUS, categorizeRow, TAB, wasTexted, rowsForTab } from "../data/store.js";
 import { SentLedger } from "../data/sentLedger.js";
@@ -676,6 +676,31 @@ export class AutomationEngine extends EventEmitter {
               classification: cls.classification,
               reason: cls.reason,
             });
+          }
+
+          // REI TAG SAFETY — a human-set "Not Interested" / "Do Not Contact" /
+          // "Remove From List" / opt-out tag makes the lead terminal-negative,
+          // even with no reply. This keeps a tagged-dead lead out of Interested.
+          // A genuinely interested reply this pass (activeDeal) still wins.
+          if (Array.isArray(detail.tags) && detail.tags.length && !row.activeDeal) {
+            const safety = evaluateSafety(detail.tags, "");
+            const SUPPRESS = [
+              DISPOSITION.OPTED_OUT, DISPOSITION.NOT_INTERESTED,
+              DISPOSITION.WRONG_NUMBER, DISPOSITION.BAD_LEAD,
+            ];
+            if (safety && SUPPRESS.includes(safety.outcome)) {
+              row.disposition = safety.outcome;
+              row.eligibilityStatus = ELIGIBILITY.NOT_ELIGIBLE;
+              row.needsManualReview = false;
+              row.activeDeal = false;
+              row.safetyStatus = safety.reason || "Suppressed by REI tag";
+              this.sentLedger.suppress({
+                contactUrl: row.reiContactUrl,
+                phone: row.phone,
+                classification: "not_interested",
+                reason: safety.reason || "REI tag suppression",
+              });
+            }
           }
         } else {
           // Transient: expired login / browser / selector / missing conversation.

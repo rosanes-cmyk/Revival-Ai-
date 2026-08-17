@@ -391,7 +391,11 @@ export function classifyReply(replyText) {
   // not left as needs_review.
   const REPLY_OPTOUT_RE =
     /\b(stop|stopp|unsubscribe|remove( me| us)?|take me off|lose my number|leave me alone|do ?not ?(text|call|contact|message)|don'?t (text|call|contact|message))\b/i;
-  if (DO_NOT_AUTOMATE_REGEX.test(lower) || OPTOUT_REGEX.test(lower) || detectStopReply(raw) || REPLY_OPTOUT_RE.test(lower)) {
+  // Spanish opt-out: "no me contacte/n", "déjeme en paz", "quíteme de su lista",
+  // "elimíneme", "no me moleste", "no vuelva a contactarme".
+  const ES_OPTOUT_RE =
+    /\bno\s+me\s+(contacte|contacten|llame|llamen|escriba|escriban|mande|manden|moleste|molesten|vuelva\s+a\s+(contactar|escribir|llamar|molestar))\b|d[eé]je(me|nme)\s+en\s+paz|q[uú][ií]te(me|nme)\s+de\s+(su|la)\s+lista|el[ií]m[ií]ne(me|nme)|b[oó]rre(me|nme)\s+de\s+(su|la)\s+lista/i;
+  if (DO_NOT_AUTOMATE_REGEX.test(lower) || OPTOUT_REGEX.test(lower) || detectStopReply(raw) || REPLY_OPTOUT_RE.test(lower) || ES_OPTOUT_RE.test(lower)) {
     return {
       classification: "not_interested",
       reason: "Opt-out / STOP language — suppression applied.",
@@ -415,8 +419,19 @@ export function classifyReply(replyText) {
   const posHits = INTERESTED_PHRASES.filter((p) => lower.includes(p));
   const negHits = NOT_INTERESTED_PHRASES.filter((p) => lower.includes(p));
 
-  const bareYes = parts.some(isBareYes);
+  const bareYes = parts.some(isBareYes) || /^(s[ií]|claro|por supuesto)\b[\s.!]*$/i.test(raw);
   const bareNo = parts.some(isBareNo);
+
+  // SPANISH replies — many sellers answer in Spanish. Detect the common
+  // not-interested / not-for-sale / wrong-number / deceased phrases, and the
+  // common interest phrases, so a Spanish reply isn't left as a default Interested.
+  // NOTE: JS \b treats accented letters (á, ó, ñ…) as non-word chars, so a \b
+  // right AFTER an accented char never matches. We avoid a trailing \b after any
+  // accented token and lean on \s / phrase context instead.
+  const ES_NEG_RE =
+    /\bno\s+est[aá]\s+[^.\n]{0,15}venta|\bno\s+(la|lo|las|los)\s+vend|\bno\s+quiero\s+vender|\bno\s+voy\s+a\s+vender|\bno\s+(estoy|estamos)\s+vend|\bno\s+(estoy|estamos)\s+interesad|\bno\s+me\s+interesa|\bno\s+gracias|\bn[uú]mero\s+equivocad|\bpersona\s+equivocad|\bno\s+soy\s+(el|la)\s+due|\bfalleci|\bmuri[oó]|\bfallecid|\bdifunt|\bya\s+(la|lo)\s+vend[ií]/i;
+  const ES_POS_RE =
+    /(?<!no\s)(?<!no\s\w{1,10}\s)\bme\s+interesa|\b(estoy|estamos)\s+interesad|\bquiero\s+vender|\bc[uú][aá]nto\s+(ofrecen|me\s+dan|me\s+pagan|pagan|vale|ofrece)|\bh[aá]game\s+una\s+oferta|\bacepto\s+ofertas?|\bll[aá]me(me|nme)|\bcu[aá]l\s+es\s+su\s+oferta|\bs[ií]\s+me\s+interesa|\bs[ií]\s+quiero/i;
 
   // CLEAR negatives that real sellers phrase in plain English inside a longer
   // sentence, so they don't match a stock phrase or a bare "No":
@@ -425,7 +440,7 @@ export function classifyReply(replyText) {
   //  • a reply that OPENS with "No I didn't / No we don't / No thanks / No sorry"
   const WRONG_OR_GONE_RE = /\b(wrong (number|person|guy|gal|lady|man|house|address|contact|info)|got the wrong|have the wrong|you'?ve got the wrong|you'?re mistaken|i'?m mistaken|mistaken identity|deceased|passed away|passed on|no longer (alive|with us|owns?|own it)|is dead|(he|she|they|dad|mom|father|mother|husband|wife|owner) (has |have )?(died|passed away|passed)|not the (owner|right (person|guy))|do ?n'?t own (it|this|that|the)|never owned)\b/i;
   const NO_LEADING_RE = /^no\b[\s,]*(i|we|im|i'?m|he|she|they|thanks|thank you|not|never|do ?n'?t|did ?n'?t|do not|sorry|but|longer)\b/i;
-  const clearNeg = WRONG_OR_GONE_RE.test(lower) || parts.some((p) => NO_LEADING_RE.test(p));
+  const clearNeg = WRONG_OR_GONE_RE.test(lower) || ES_NEG_RE.test(lower) || parts.some((p) => NO_LEADING_RE.test(p));
 
   const wrongOrGone = WRONG_OR_GONE_RE.test(lower);
 
@@ -438,7 +453,7 @@ export function classifyReply(replyText) {
   const bounceService = /\b(no longer in service|not in service|number (is )?disconnected|disconnected|undeliverable|could not be delivered|message (was )?not delivered|failed to (send|deliver)|invalid (number|recipient|phone)|has blocked|blocked this number|not a valid (number|phone))\b/i;
   const undeliverable = bounceAccept.test(lower) || bounceService.test(lower);
 
-  const positive = posHits.length > 0 || bareYes;
+  const positive = posHits.length > 0 || bareYes || ES_POS_RE.test(lower);
   const negative = negHits.length > 0 || bareNo || clearNeg;
 
   // ---- ABSOLUTE HARD STOPS ------------------------------------------------

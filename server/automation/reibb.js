@@ -1130,7 +1130,7 @@ export class ReiBlackBookAdapter {
       ok: false, outboundFound: false,
       deliveryStatus: "Needs Recheck", deliveryEvidence: "",
       replyReceived: false, replyText: "", replyAt: "", error: "",
-      address: null,
+      address: null, tags: [],
     };
     if (!contactUrl) { out.error = "No REI contact URL saved for this lead."; return out; }
     const conv = (this.selectors.contactRecord && this.selectors.contactRecord.conversation) || {};
@@ -1160,6 +1160,13 @@ export class ReiBlackBookAdapter {
             await this.page.waitForTimeout(500);
           } else break;
         }
+      } catch { /* best-effort */ }
+      // Read the contact's REI Tag(s) too — a human-set "Not Interested" / "Do
+      // Not Contact" / "Remove From List" tag must keep the lead out of Interested
+      // even when there's no reply. Still on the contact-detail view here.
+      try {
+        const tg = await this.readTags();
+        if (tg && tg.readable && Array.isArray(tg.tags)) out.tags = tg.tags;
       } catch { /* best-effort */ }
       for (const sel of ["[role='tab']:has-text('Chat')", "button:has-text('Chat')", "text=Chat"]) {
         if (await this.clickIfVisible(sel, 1200)) break;

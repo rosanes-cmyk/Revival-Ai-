@@ -95,6 +95,13 @@ ok("carrier bounce → undeliverable flag", classifyReply("this number does not 
 eq("not in service → not_interested", classifyReply("This number is no longer in service").classification, "not_interested");
 // Hard no wins over a stray positive word.
 eq("hard no beats stray yes", classifyReply("yes yes not interested please stop wasting my time").classification, "not_interested");
+// Spanish replies — many sellers answer in Spanish.
+eq("ES: no está ala venta → not_interested", classifyReply("Lo ciento | Por contestar mal | Pero mi propiedad no está ala venta").classification, "not_interested");
+eq("ES: no me interesa → not_interested", classifyReply("Gracias pero no me interesa vender").classification, "not_interested");
+eq("ES: número equivocado → not_interested", classifyReply("Creo que tiene el número equivocado").classification, "not_interested");
+eq("ES: no me contacte → optout", classifyReply("Por favor no me contacte más").optOut, true);
+eq("ES: me interesa → interested", classifyReply("Sí me interesa, cuánto ofrecen?").classification, "interested");
+eq("ES: quiero vender → interested", classifyReply("Sí quiero vender mi casa").classification, "interested");
 
 // Reply detection from REI's "Sent to:" / "Received from:" labels (no DOM
 // selectors) — this is what makes the reply rate accurate on real REI.
