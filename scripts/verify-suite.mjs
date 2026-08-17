@@ -55,7 +55,7 @@ eq("yes call me → interested", classifyReply("Yes, call me").classification, "
 eq("not interested → not_interested", classifyReply("not interested").classification, "not_interested");
 eq("STOP → not_interested optout", classifyReply("STOP").optOut, true);
 eq("please remove → optout", classifyReply("please remove").optOut, true);
-eq("who is this → needs_review", classifyReply("who is this?").classification, "needs_review");
+eq("who is this → interested (no needs-review)", classifyReply("who is this?").classification, "interested");
 // Real seller interest phrased loosely must count as interested, not needs_review.
 eq("still have + open to offer → interested", classifyReply("I still have my property... if you want to make a offer im open to see what it is.").classification, "interested");
 eq("im open to hear offer → interested", classifyReply("im open to hear your offer").classification, "interested");
@@ -67,8 +67,10 @@ eq("conditional: not selling unless price → interested", classifyReply("im not
 eq("conditional: send me a number → interested", classifyReply("your the one interested so send me a number and i will see").classification, "interested");
 eq("plain not selling → not_interested", classifyReply("no im not selling").classification, "not_interested");
 eq("hard no take me off → optout", classifyReply("not interested, take me off your list").optOut, true);
-eq("mixed → needs_review", classifyReply("make me an offer but i'm not interested right now").classification, "needs_review");
-eq("empty → needs_review", classifyReply("").classification, "needs_review");
+eq("mixed → interested (review, not deleted)", classifyReply("make me an offer but i'm not interested right now").classification, "interested");
+eq("empty reply → interested (review)", classifyReply("").classification, "interested");
+eq("you too → interested (unclear, not deleted)", classifyReply("you too").classification, "interested");
+eq("clear no stays not_interested", classifyReply("no im not selling").classification, "not_interested");
 
 // Reply detection from REI's "Sent to:" / "Received from:" labels (no DOM
 // selectors) — this is what makes the reply rate accurate on real REI.

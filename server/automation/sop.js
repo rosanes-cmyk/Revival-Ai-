@@ -374,7 +374,7 @@ export function classifyReply(replyText) {
   const raw = String(replyText || "").trim();
   const lower = raw.toLowerCase();
   if (!raw) {
-    return { classification: "needs_review", reason: "Empty/unreadable reply.", activeDeal: false, needsReview: true, optOut: false };
+    return { classification: "interested", reason: "Replied (text unreadable) — kept as interested for review.", activeDeal: true, needsReview: false, optOut: false };
   }
 
   // Hard opt-out first — STOP, unsubscribe, do-not-contact, do-not-automate.
@@ -421,19 +421,23 @@ export function classifyReply(replyText) {
     };
   }
 
-  // Mixed signals → a human decides.
-  if (positive && negative) {
-    return {
-      classification: "needs_review",
-      reason: `Mixed signals (interested: ${posHits.join(", ") || "yes"}; not: ${negHits.join(", ") || "no"}).`,
-      activeDeal: false, needsReview: true, optOut: false,
-    };
-  }
-  if (negative) {
+  // NO 'needs review' for replies — every reply is Interested or Not Interested.
+  // Only a CLEAR negative (with no interest signal) is Not Interested; a mixed
+  // reply still counts as Interested (they showed some interest — worth a look).
+  // Everything else defaults to Interested so a warm/unclear reply is reviewed,
+  // never auto-deleted.
+  if (negative && !positive) {
     return {
       classification: "not_interested",
       reason: negHits.length ? `Negative: "${negHits[0]}"` : "Replied No.",
       activeDeal: false, needsReview: false, optOut: false,
+    };
+  }
+  if (positive && negative) {
+    return {
+      classification: "interested",
+      reason: `Mixed reply — kept as interested for review (interested: ${posHits.join(", ") || "yes"}).`,
+      activeDeal: true, needsReview: false, optOut: false,
     };
   }
   if (positive) {
@@ -444,11 +448,12 @@ export function classifyReply(replyText) {
     };
   }
 
-  // Anything else (a bare question, unclear intent) → needs review.
+  // Anything else (a bare question, emoji, "you too", unclear) → Interested, so
+  // it gets a human look instead of being deleted as "not interested".
   return {
-    classification: "needs_review",
-    reason: "Reply present but intent unclear — needs a human decision.",
-    activeDeal: false, needsReview: true, optOut: false,
+    classification: "interested",
+    reason: "Replied — intent unclear, kept as interested for a human to review.",
+    activeDeal: true, needsReview: false, optOut: false,
   };
 }
 
