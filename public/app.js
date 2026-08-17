@@ -23,6 +23,27 @@ const els = {
   searchBar: $("searchBar"), leadSearch: $("leadSearch"), searchCount: $("searchCount"),
 };
 
+// --- Front-end safety net: scrub bogus "replies" -----------------------------
+// Older builds sometimes saved a scrape of the REI page UI (compose box, Notes
+// panel, deal panel) as a seller "reply", which then showed as a green
+// "interested" badge. The server now drops these, but we ALSO scrub here so an
+// already-loaded/cached row can never show as interested in the dashboard.
+const REPLY_CHROME_RE = /(message length|credits\s*:?\s*\d|associated deals|no deals to display|personalize\s+from|highlights for crm|purpose of call|information provided|check number|trigger workflow|current workflows?|upcoming tasks?|write your reply|primary details|social profiles|filter by\s*:|reply yes or no)/i;
+function scrubRow(r) {
+  if (!r) return r;
+  const txt = String(r.replyText || "");
+  const bogus = r.replyReceived && (!txt.trim() || REPLY_CHROME_RE.test(txt));
+  if (bogus) {
+    r.replyReceived = false;
+    r.replyText = "";
+    r.replyClassification = "";
+    r.replyClassificationReason = "";
+    // Interest can only come from a real reply (or a Recent Contact stage).
+    if (r.disposition !== "Recent Contact") r.activeDeal = false;
+  }
+  return r;
+}
+
 let searchQuery = "";
 function matchesSearch(r) {
   if (!searchQuery) return true;
@@ -340,13 +361,14 @@ function renderSimpleSummary(v) {
 
 // --- Data in ----------------------------------------------------------------
 function setRows(rows) {
-  allRows = rows || [];
+  allRows = (rows || []).map(scrubRow);
   renderTabs();
   renderCards();
   if (currentTab === "percentage") loadPercentage();
   else renderTable();
 }
 function updateRow(r) {
+  r = scrubRow(r);
   const idx = allRows.findIndex((x) => x.rowNumber === r.rowNumber);
   if (idx >= 0) allRows[idx] = r; else allRows.push(r);
   renderTabs();
