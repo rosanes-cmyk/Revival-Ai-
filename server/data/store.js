@@ -186,6 +186,14 @@ export function normalizeRow(r) {
       else if (!KEEP.has(disposition)) disposition = DISPOSITION.NOT_INTERESTED;
     }
     else { needsManualReview = true; } // genuinely unclear
+  } else if (activeDeal && disposition !== DISPOSITION.RECENT_CONTACT) {
+    // NO reply on this lead, yet it's flagged Interested/Active Deal. Interest
+    // must come from a real seller reply (or an active-deal REI stage, which is
+    // stored as RECENT_CONTACT). A leftover activeDeal flag with no reply — from
+    // an older buggy pass — is cleared so an un-replied lead can't sit in
+    // Interested. It falls back to its real disposition (usually Text Sent), and
+    // a Recheck can then read its REI tags and route it correctly.
+    activeDeal = false;
   }
   return {
     rowNumber: r.rowNumber,
