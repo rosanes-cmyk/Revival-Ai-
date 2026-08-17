@@ -164,7 +164,17 @@ export function normalizeRow(r) {
   let activeDeal = !!r.activeDeal;
   let needsManualReview = !!r.needsManualReview;
   let disposition = r.disposition || DISPOSITION.PENDING;
-  if (r.replyReceived && r.replyText) {
+  let replyReceived = !!r.replyReceived;
+  // A "reply received" flag with NO reply text is bogus (an older pass set the
+  // flag off a phone-number/label match without any real inbound message). Drop
+  // it so a non-reply lead can't show a reply badge or count as interested.
+  if (replyReceived && !String(r.replyText || "").trim()) {
+    replyReceived = false;
+    replyClassification = "";
+    replyClassificationReason = "";
+    activeDeal = false;
+  }
+  if (replyReceived && r.replyText) {
     const cls = classifyReply(r.replyText);
     replyClassification = cls.classification;
     replyClassificationReason = cls.reason;
@@ -232,7 +242,7 @@ export function normalizeRow(r) {
     deliveryStatusEvidence: r.deliveryStatusEvidence || "",
     messageStatusLastCheckedAt: r.messageStatusLastCheckedAt || "",
     messageStatusCheckAttempts: Number(r.messageStatusCheckAttempts || 0),
-    replyReceived: !!r.replyReceived,
+    replyReceived: replyReceived,
     replyText: r.replyText || "",
     replyReceivedAt: r.replyReceivedAt || "",
     replyClassification: replyClassification,     // re-classified above against current rules

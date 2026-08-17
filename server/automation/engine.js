@@ -623,6 +623,16 @@ export class AutomationEngine extends EventEmitter {
             if (!row.zip && a.zip) row.zip = a.zip;
           }
 
+          // The fresh read is authoritative: if it found NO seller reply but the
+          // row still carries a stale reply flag with no saved text (an older
+          // buggy pass), clear it so a non-reply lead stops showing interested.
+          if (!detail.replyReceived && row.replyReceived && !String(row.replyText || "").trim()) {
+            row.replyReceived = false;
+            row.replyClassification = "";
+            row.replyClassificationReason = "";
+            row.activeDeal = false;
+          }
+
           if (detail.replyReceived && detail.replyText) {
             row.replyReceived = true;
             // NEVER overwrite the original stored reply — keep the earliest.
@@ -679,16 +689,22 @@ export class AutomationEngine extends EventEmitter {
           }
 
           // REI TAG SAFETY — a human-set "Not Interested" / "Do Not Contact" /
-          // "Remove From List" / opt-out tag makes the lead terminal-negative,
-          // even with no reply. This keeps a tagged-dead lead out of Interested.
-          // A genuinely interested reply this pass (activeDeal) still wins.
-          if (Array.isArray(detail.tags) && detail.tags.length && !row.activeDeal) {
+          // "Remove From List" / opt-out tag makes the lead terminal-negative.
+          // A human tag is authoritative, so it wins even if the row was
+          // (falsely) flagged interested — a tagged-dead lead is never a lead.
+          if (Array.isArray(detail.tags) && detail.tags.length) {
             const safety = evaluateSafety(detail.tags, "");
             const SUPPRESS = [
               DISPOSITION.OPTED_OUT, DISPOSITION.NOT_INTERESTED,
               DISPOSITION.WRONG_NUMBER, DISPOSITION.BAD_LEAD,
             ];
             if (safety && SUPPRESS.includes(safety.outcome)) {
+              // Clear any (possibly false) interested state so it can't linger.
+              if (row.activeDeal && !row.replyText) {
+                row.replyReceived = false;
+                row.replyClassification = "";
+                row.replyClassificationReason = "";
+              }
               row.disposition = safety.outcome;
               row.eligibilityStatus = ELIGIBILITY.NOT_ELIGIBLE;
               row.needsManualReview = false;
