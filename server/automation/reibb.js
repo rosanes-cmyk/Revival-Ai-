@@ -1145,10 +1145,21 @@ export class ReiBlackBookAdapter {
       // Grab the Property Address from the CONTACT DETAIL view FIRST — before we
       // switch to the Chat tab, which on many contacts drops the address panel
       // from the page. This is why some rechecked leads had a blank address.
+      // REI is a single-page app, so the address panel can render a beat after
+      // the page "loads" — poll briefly until the address (or its label) shows,
+      // then parse. Break as soon as we find one so leads that genuinely have no
+      // address don't stall the pass for long.
       try {
-        const contactText = ((await this.page.locator("body").innerText().catch(() => "")) || "");
-        const addr0 = parseUsAddress(contactText);
-        if (addr0 && addr0.propertyAddress) out.address = addr0;
+        for (let attempt = 0; attempt < 5; attempt++) {
+          const contactText = ((await this.page.locator("body").innerText().catch(() => "")) || "");
+          const addr0 = parseUsAddress(contactText);
+          if (addr0 && addr0.propertyAddress) { out.address = addr0; break; }
+          // No address yet — if the page hasn't even rendered the address label,
+          // give it another moment; otherwise there just isn't one, so stop.
+          if (!/property\s+address|mailing\s+address/i.test(contactText)) {
+            await this.page.waitForTimeout(500);
+          } else break;
+        }
       } catch { /* best-effort */ }
       for (const sel of ["[role='tab']:has-text('Chat')", "button:has-text('Chat')", "text=Chat"]) {
         if (await this.clickIfVisible(sel, 1200)) break;
