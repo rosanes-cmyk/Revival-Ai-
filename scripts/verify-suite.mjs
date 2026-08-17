@@ -71,6 +71,9 @@ eq("mixed → interested (review, not deleted)", classifyReply("make me an offer
 eq("empty reply → interested (review)", classifyReply("").classification, "interested");
 eq("you too → interested (unclear, not deleted)", classifyReply("you too").classification, "interested");
 eq("clear no stays not_interested", classifyReply("no im not selling").classification, "not_interested");
+// Date/time chrome must not turn a plain 'No' into Interested (real bug: Julia).
+eq("date-prefixed No → not_interested", classifyReply("Jul 16, 2026 No").classification, "not_interested");
+eq("time-prefixed No → not_interested", classifyReply("5:21 PM No").classification, "not_interested");
 
 // Reply detection from REI's "Sent to:" / "Received from:" labels (no DOM
 // selectors) — this is what makes the reply rate accurate on real REI.

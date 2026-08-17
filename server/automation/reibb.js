@@ -1666,8 +1666,10 @@ export function parseConversationByLabels(bodyText) {
   while ((m = blockRe.exec(text)) !== null) {
     const dir = /received/i.test(m[1]) ? "in" : "out";
     const timeStr = (m[2] || "").trim();
-    // Message text = everything since the previous block, minus date/time chrome.
+    // Message text = everything since the previous block, minus date/time chrome
+    // ("Jul 16, 2026", "5:21 PM", "Tuesday") so a bare "No" reads as "No".
     let seg = text.slice(lastEnd, m.index)
+      .replace(/\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+\d{1,2}(?:,?\s*\d{4})?/gi, " ")
       .replace(/\b(Today|Yesterday|Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday)\b/gi, " ")
       .replace(new RegExp(time, "gi"), " ")
       .replace(/\s+/g, " ")

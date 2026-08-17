@@ -371,7 +371,15 @@ const NOT_INTERESTED_PHRASES = [
  * classification ∈ 'interested' | 'not_interested' | 'needs_review'.
  */
 export function classifyReply(replyText) {
-  const raw = String(replyText || "").trim();
+  // Strip date/time chrome REI leaves in the captured reply ("Jul 16, 2026 No",
+  // "5:21 PM No") so a plain "No" is recognized as a real No instead of falling
+  // through to Interested.
+  const raw = String(replyText || "")
+    .replace(/\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+\d{1,2}(?:,?\s*\d{4})?/gi, " ")
+    .replace(/\b\d{1,2}:\d{2}\s*(?:am|pm)?\b/gi, " ")
+    .replace(/\b(?:today|yesterday|sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
   const lower = raw.toLowerCase();
   if (!raw) {
     return { classification: "interested", reason: "Replied (text unreadable) — kept as interested for review.", activeDeal: true, needsReview: false, optOut: false };
