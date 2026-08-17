@@ -440,7 +440,14 @@ export function classifyReply(replyText) {
   //  • a reply that OPENS with "No I didn't / No we don't / No thanks / No sorry"
   const WRONG_OR_GONE_RE = /\b(wrong (number|person|guy|gal|lady|man|house|address|contact|info)|got the wrong|have the wrong|you'?ve got the wrong|you'?re mistaken|i'?m mistaken|mistaken identity|deceased|passed away|passed on|no longer (alive|with us|owns?|own it)|is dead|(he|she|they|dad|mom|father|mother|husband|wife|owner) (has |have )?(died|passed away|passed)|not the (owner|right (person|guy))|do ?n'?t own (it|this|that|the)|never owned)\b/i;
   const NO_LEADING_RE = /^no\b[\s,]*(i|we|im|i'?m|he|she|they|thanks|thank you|not|never|do ?n'?t|did ?n'?t|do not|sorry|but|longer)\b/i;
-  const clearNeg = WRONG_OR_GONE_RE.test(lower) || ES_NEG_RE.test(lower) || parts.some((p) => NO_LEADING_RE.test(p));
+  // "I did not contact you / never reached out / you have the wrong idea" — the
+  // person is annoyed we messaged them, not a seller.
+  const NOT_ME_RE = /\bi\s+(did ?n'?t|did not|never)\s+(contact|reach|reach out|call|text|message|sign up|ask)\b|\bnever\s+(contacted|reached out|called|asked)\b|\bdid ?n'?t\s+reach out\b|\bi\s+did\s+not\s+contact\b/i;
+  // Hostile / profane brush-off — never a lead. (Overlaps some opt-out language,
+  // which is already handled above; this catches the rest.)
+  const HOSTILE_RE = /\b(full of (shit|it)|f+u+c+k+(\s*(off|you|this))?|piss off|screw (you|off)|go away|leave me the|stop (bothering|harass|harassing|messaging|texting|calling|contacting)|quit (bothering|texting|messaging|harassing)|scam(mer|ming)?|spam(mer|ming)?|harass(ing|ment)?|get lost|buzz off|not again)\b/i;
+  const clearNeg = WRONG_OR_GONE_RE.test(lower) || ES_NEG_RE.test(lower) ||
+    NOT_ME_RE.test(lower) || HOSTILE_RE.test(lower) || parts.some((p) => NO_LEADING_RE.test(p));
 
   const wrongOrGone = WRONG_OR_GONE_RE.test(lower);
 

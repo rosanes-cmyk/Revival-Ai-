@@ -102,6 +102,13 @@ eq("ES: número equivocado → not_interested", classifyReply("Creo que tiene el
 eq("ES: no me contacte → optout", classifyReply("Por favor no me contacte más").optOut, true);
 eq("ES: me interesa → interested", classifyReply("Sí me interesa, cuánto ofrecen?").classification, "interested");
 eq("ES: quiero vender → interested", classifyReply("Sí quiero vender mi casa").classification, "interested");
+// Hostile / "I didn't contact you" brush-offs are not leads.
+eq("didn't contact you + profanity → not_interested", classifyReply("I did not contact you. You're full of shit").classification, "not_interested");
+eq("never reached out → not_interested", classifyReply("I never reached out to you, take a hint").classification, "not_interested");
+eq("stop harassing → optout", classifyReply("stop harassing me").optOut, true);
+eq("scam → not_interested", classifyReply("this is a scam, go away").classification, "not_interested");
+// Profanity + genuine interest still stays warm.
+eq("hell yes sell → interested", classifyReply("hell yes I want to sell, make me an offer").classification, "interested");
 
 // Reply detection from REI's "Sent to:" / "Received from:" labels (no DOM
 // selectors) — this is what makes the reply rate accurate on real REI.
