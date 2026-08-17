@@ -109,6 +109,15 @@ eq("stop harassing → optout", classifyReply("stop harassing me").optOut, true)
 eq("scam → not_interested", classifyReply("this is a scam, go away").classification, "not_interested");
 // Profanity + genuine interest still stays warm.
 eq("hell yes sell → interested", classifyReply("hell yes I want to sell, make me an offer").classification, "interested");
+// A page-scrape blob saved as a "reply" by an older build must be dropped, not
+// counted as an interested reply (real bug: Jose Quintero row).
+{
+  const blob = "Personalize From: EQT (Checks) (510) 694-0799 Message Length 0/0 Credits:0 Associated Deals No deals to display Notes (02) Highlights for CRM Upload Purpose of Call check for $757";
+  const r = normalizeRow({ rowNumber: 1, replyReceived: true, replyText: blob, replyClassification: "interested", activeDeal: true, disposition: "Text Sent" });
+  ok("page-scrape reply dropped", r.replyReceived === false && r.replyClassification === "" && r.activeDeal === false);
+  const real = normalizeRow({ rowNumber: 2, replyReceived: true, replyText: "yes call me", disposition: "Text Sent" });
+  ok("real reply kept", real.replyReceived === true && real.replyClassification === "interested");
+}
 
 // Reply detection from REI's "Sent to:" / "Received from:" labels (no DOM
 // selectors) — this is what makes the reply rate accurate on real REI.

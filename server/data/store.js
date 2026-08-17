@@ -165,17 +165,23 @@ export function normalizeRow(r) {
   let needsManualReview = !!r.needsManualReview;
   let disposition = r.disposition || DISPOSITION.PENDING;
   let replyReceived = !!r.replyReceived;
-  // A "reply received" flag with NO reply text is bogus (an older pass set the
-  // flag off a phone-number/label match without any real inbound message). Drop
-  // it so a non-reply lead can't show a reply badge or count as interested.
-  if (replyReceived && !String(r.replyText || "").trim()) {
+  let replyText = String(r.replyText || "");
+  // A "reply received" flag is bogus when it has NO text, OR when its "text" is
+  // actually a scrape of the REI page UI (compose box, Notes panel, deal panel)
+  // that an older build mistook for an inbound message. A real SMS reply never
+  // contains this chrome. Drop it so a non-reply lead can't show a reply badge
+  // or count as interested.
+  const REPLY_CHROME_RE = /(message length|credits\s*:|associated deals|no deals to display|personalize\s+from|highlights for crm|purpose of call|information provided|check number|trigger workflow|current workflows?|upcoming tasks?|write your reply|primary details|contact type|social profiles|filter by\s*:|reply yes or no)/i;
+  const bogusReply = !replyText.trim() || REPLY_CHROME_RE.test(replyText);
+  if (replyReceived && bogusReply) {
     replyReceived = false;
+    replyText = "";
     replyClassification = "";
     replyClassificationReason = "";
     activeDeal = false;
   }
-  if (replyReceived && r.replyText) {
-    const cls = classifyReply(r.replyText);
+  if (replyReceived && replyText) {
+    const cls = classifyReply(replyText);
     replyClassification = cls.classification;
     replyClassificationReason = cls.reason;
     // Keep the tab in sync with the (re)classification so a stale flag can't
@@ -243,7 +249,7 @@ export function normalizeRow(r) {
     messageStatusLastCheckedAt: r.messageStatusLastCheckedAt || "",
     messageStatusCheckAttempts: Number(r.messageStatusCheckAttempts || 0),
     replyReceived: replyReceived,
-    replyText: r.replyText || "",
+    replyText: replyText,
     replyReceivedAt: r.replyReceivedAt || "",
     replyClassification: replyClassification,     // re-classified above against current rules
     replyClassificationReason: replyClassificationReason,
