@@ -55,7 +55,7 @@ eq("yes call me → interested", classifyReply("Yes, call me").classification, "
 eq("not interested → not_interested", classifyReply("not interested").classification, "not_interested");
 eq("STOP → not_interested optout", classifyReply("STOP").optOut, true);
 eq("please remove → optout", classifyReply("please remove").optOut, true);
-eq("who is this → interested (no needs-review)", classifyReply("who is this?").classification, "interested");
+eq("who is this → not_interested (vague, spec default)", classifyReply("who is this?").classification, "not_interested");
 // Real seller interest phrased loosely must count as interested, not needs_review.
 eq("still have + open to offer → interested", classifyReply("I still have my property... if you want to make a offer im open to see what it is.").classification, "interested");
 eq("im open to hear offer → interested", classifyReply("im open to hear your offer").classification, "interested");
@@ -67,9 +67,9 @@ eq("conditional: not selling unless price → interested", classifyReply("im not
 eq("conditional: send me a number → interested", classifyReply("your the one interested so send me a number and i will see").classification, "interested");
 eq("plain not selling → not_interested", classifyReply("no im not selling").classification, "not_interested");
 eq("hard no take me off → optout", classifyReply("not interested, take me off your list").optOut, true);
-eq("mixed → interested (review, not deleted)", classifyReply("make me an offer but i'm not interested right now").classification, "interested");
-eq("empty reply → interested (review)", classifyReply("").classification, "interested");
-eq("you too → interested (unclear, not deleted)", classifyReply("you too").classification, "interested");
+eq("mixed with hard-no → not_interested (spec)", classifyReply("make me an offer but i'm not interested right now").classification, "not_interested");
+eq("empty reply → not_interested (spec)", classifyReply("").classification, "not_interested");
+eq("you too → not_interested (vague, spec)", classifyReply("you too").classification, "not_interested");
 eq("clear no stays not_interested", classifyReply("no im not selling").classification, "not_interested");
 // Date/time chrome must not turn a plain 'No' into Interested (real bug: Julia).
 eq("date-prefixed No → not_interested", classifyReply("Jul 16, 2026 No").classification, "not_interested");
@@ -160,7 +160,7 @@ eq("realtor. No → not_interested", classifyReply("I am a realtor. No").classif
 eq("sell my own home → not_interested", classifyReply("I'll sell my own home").classification, "not_interested");
 eq("NOOOOOOO → not_interested", classifyReply("NOOOOOOO").classification, "not_interested");
 // Guards: these must STAY interested.
-eq("let me know stays interested", classifyReply("sounds good, let me know").classification, "interested");
+eq("vague let me know → not_interested (spec)", classifyReply("sounds good, let me know").classification, "not_interested");
 eq("dont know price yet still interested", classifyReply("I want to sell but dont know the price, call me").classification, "interested");
 // More investor/agent (not a seller) + sold variants from the live dump.
 eq("home flipper and investor → not_interested", classifyReply("I'm a home flipper and investor, looking for fixer upper properties").classification, "not_interested");
@@ -172,13 +172,31 @@ eq("has been sold → not_interested", classifyReply("Thank it has been sold").c
 eq("sold last week → not_interested", classifyReply("I'm out of state. Oh yes, sold last week").classification, "not_interested");
 // Guard: a seller who still HAS it must not be caught by 'been sold'.
 eq("hasnt been sold stays interested", classifyReply("no it hasn't been sold, I still have it, call me").classification, "interested");
+// NEW SPEC: default is NOT interested; only a clear positive is interested.
+eq("spec default: vague 'ok thanks' → not_interested", classifyReply("ok thanks").classification, "not_interested");
+eq("spec default: emoji only → not_interested", classifyReply("👍").classification, "not_interested");
+eq("spec default: lol → not_interested", classifyReply("lol").classification, "not_interested");
+eq("spec default: gibberish → not_interested", classifyReply("asdf jkl qwerty").classification, "not_interested");
+eq("spec: 'maybe' → interested", classifyReply("Maybe!").classification, "interested");
+eq("spec: still have it → interested", classifyReply("I still have it").classification, "interested");
+eq("spec: still for sale → interested", classifyReply("Its still for sale, you want to buy it?").classification, "interested");
+eq("spec: No but for right price → interested", classifyReply("No but I would consider selling for the right price").classification, "interested");
+// RULE 0: unnamed/unknown lead is never Interested, even with a positive reply.
+{
+  const unk = normalizeRow({ rowNumber: 9, ownerName: "Unknown", replyReceived: true, replyText: "yes I want to sell, call me", disposition: "Text Sent" });
+  ok("RULE0: Unknown + positive → not interested", unk.activeDeal === false && unk.replyClassification === "not_interested");
+  const noinfo = normalizeRow({ rowNumber: 10, ownerName: "No info provided", replyReceived: true, replyText: "yes interested", disposition: "Text Sent" });
+  ok("RULE0: 'No info provided' → not interested", noinfo.replyClassification === "not_interested");
+  const named = normalizeRow({ rowNumber: 11, ownerName: "Maria Lopez", replyReceived: true, replyText: "yes I want to sell, call me", disposition: "Text Sent" });
+  ok("RULE0: named + positive stays interested", named.activeDeal === true && named.replyClassification === "interested");
+}
 // A page-scrape blob saved as a "reply" by an older build must be dropped, not
 // counted as an interested reply (real bug: Jose Quintero row).
 {
   const blob = "Personalize From: EQT (Checks) (510) 694-0799 Message Length 0/0 Credits:0 Associated Deals No deals to display Notes (02) Highlights for CRM Upload Purpose of Call check for $757";
   const r = normalizeRow({ rowNumber: 1, replyReceived: true, replyText: blob, replyClassification: "interested", activeDeal: true, disposition: "Text Sent" });
   ok("page-scrape reply dropped", r.replyReceived === false && r.replyClassification === "" && r.activeDeal === false);
-  const real = normalizeRow({ rowNumber: 2, replyReceived: true, replyText: "yes call me", disposition: "Text Sent" });
+  const real = normalizeRow({ rowNumber: 2, ownerName: "Jane Doe", replyReceived: true, replyText: "yes call me", disposition: "Text Sent" });
   ok("real reply kept", real.replyReceived === true && real.replyClassification === "interested");
 }
 

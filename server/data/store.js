@@ -162,6 +162,15 @@ export function hasRealReplyWords(text) {
   return /[a-z]{2,}/i.test(stripped); // at least one real word (2+ letters)
 }
 
+// True when a lead has no verifiable name/identity. Per the classification spec,
+// unnamed leads are never counted as Interested — we can't confirm they own the
+// property, so we don't pursue them as a seller.
+export function isUnknownLead(name) {
+  const n = String(name || "").trim().toLowerCase().replace(/[.\s]+$/, "");
+  if (!n) return true;
+  return /^(unknown|unknown caller|no caller name|no caller|no name|no info|no info provided|no information|no information provided|not provided|n\/a|na|unnamed|no caller id|caller unknown)$/.test(n);
+}
+
 export function normalizeRow(r) {
   // AUTO-CORRECT a stale "Unknown" delivery status. If we have the exact text
   // we sent AND the timestamp of the send (both are only recorded on a CONFIRMED
@@ -228,6 +237,15 @@ export function normalizeRow(r) {
     // Interested. It falls back to its real disposition (usually Text Sent), and
     // a Recheck can then read its REI tags and route it correctly.
     activeDeal = false;
+  }
+  // RULE 0 — an unnamed/unknown lead is NEVER counted as Interested (we can't
+  // verify they own the property). Downgrade any interested tag to not-interested.
+  if (isUnknownLead(r.ownerName)) {
+    activeDeal = false;
+    if (replyClassification === "interested") {
+      replyClassification = "not_interested";
+      replyClassificationReason = "Unnamed/unknown lead — identity unverified, not pursued.";
+    }
   }
   return {
     rowNumber: r.rowNumber,

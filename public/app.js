@@ -43,6 +43,12 @@ function hasRealReplyWords(text) {
     .trim();
   return /[a-z]{2,}/i.test(stripped);
 }
+// An unnamed/unknown lead is never Interested (identity unverified).
+function isUnknownLead(name) {
+  const n = String(name || "").trim().toLowerCase().replace(/[.\s]+$/, "");
+  if (!n) return true;
+  return /^(unknown|unknown caller|no caller name|no caller|no name|no info|no info provided|no information|no information provided|not provided|n\/a|na|unnamed|no caller id|caller unknown)$/.test(n);
+}
 function scrubRow(r) {
   if (!r) return r;
   const txt = String(r.replyText || "");
@@ -54,6 +60,11 @@ function scrubRow(r) {
     r.replyClassificationReason = "";
     // Interest can only come from a real reply (or a Recent Contact stage).
     if (r.disposition !== "Recent Contact") r.activeDeal = false;
+  }
+  // RULE 0: unnamed/unknown lead is never Interested.
+  if (isUnknownLead(r.ownerName)) {
+    r.activeDeal = false;
+    if (r.replyClassification === "interested") r.replyClassification = "not_interested";
   }
   return r;
 }

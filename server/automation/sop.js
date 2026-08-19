@@ -359,6 +359,11 @@ const INTERESTED_PHRASES = [
   // Scheduling / more-info intent (clear interest, low collision with negation):
   "when can we", "when can i", "tell me more", "still available", "is it available",
   "schedule a call", "schedule a time", "set up a call", "set up a time",
+  // Soft-yes / still-have-it / shopping-around (spec RULE 3 lists these as interest):
+  "maybe", "possibly", "thinking about it", "still thinking", "think about it",
+  "i still have it", "still have the property", "still have the house", "i still own",
+  "still own it", "we still own", "still for sale", "it's for sale", "its for sale",
+  "still holding", "comparing offers", "shopping around", "best offer",
 ];
 const NOT_INTERESTED_PHRASES = [
   "not interested", "no longer interested", "not selling", "i'm not selling",
@@ -401,7 +406,8 @@ export function classifyReply(replyText) {
     .trim();
   const lower = raw.toLowerCase();
   if (!raw) {
-    return { classification: "interested", reason: "Replied (text unreadable) — kept as interested for review.", activeDeal: true, needsReview: false, optOut: false };
+    // No readable reply → NOT interested (spec: no clear positive = not a lead).
+    return { classification: "not_interested", reason: "No readable reply — no clear interest.", activeDeal: false, needsReview: false, optOut: false };
   }
 
   // Hard opt-out first — STOP, unsubscribe, do-not-contact, do-not-automate.
@@ -539,7 +545,10 @@ export function classifyReply(replyText) {
   // don't let a price cue override it. "not selling" is softer (usually the
   // "…unless the price" kind), so it does NOT count as a hard no here.
   const HARD_NEGATIVE_RE = /\b(not interested|no longer interested|never selling|not for sale|leave me alone|do not want)\b/i;
-  if (!bareNo && !clearNeg && !HARD_NEGATIVE_RE.test(lower) && CONDITIONAL_INTEREST_RE.test(lower)) {
+  // A conditional-interest cue ("for the right price", "make me an offer") means
+  // Interested even if the message opens with "No but…". Only a bare "No", a hard
+  // negative, or a hostile message blocks it.
+  if (!bareNo && !HARD_NEGATIVE_RE.test(lower) && !HOSTILE_RE.test(lower) && CONDITIONAL_INTEREST_RE.test(lower)) {
     return {
       classification: "interested",
       reason: "Conditional seller — open to selling at the right price/offer.",
@@ -547,30 +556,25 @@ export function classifyReply(replyText) {
     };
   }
 
-  // NO 'needs review' for replies — every reply is Interested or Not Interested.
-  // Only a CLEAR negative (with no interest signal) is Not Interested; a mixed
-  // reply still counts as Interested (they showed some interest — worth a look).
-  // Everything else defaults to Interested so a warm/unclear reply is reviewed,
-  // never auto-deleted.
+  // Every reply is Interested or Not Interested. DEFAULT = Not Interested — a
+  // lead is Interested ONLY on a clear positive signal (spec: "when in doubt,
+  // tag as NOT INTERESTED"). This makes gibberish, emojis, "lol", "thanks", and
+  // vague replies fall to Not Interested automatically.
   if (negative && !positive) {
-    const reason = negHits.length
-      ? `Negative: "${negHits[0]}"`
-      : wrongOrGone
-      ? "Wrong number / owner no longer reachable — not a seller."
-      : "Replied No.";
+    const reason = negHits.length ? `Negative: "${negHits[0]}"` : "Replied No.";
+    return { classification: "not_interested", reason, activeDeal: false, needsReview: false, optOut: false };
+  }
+  // MIXED (some interest AND a negative) → NOT interested. When in doubt, not a
+  // lead. (A genuine conditional seller is already handled above and returned
+  // Interested before reaching here.)
+  if (positive && negative) {
     return {
       classification: "not_interested",
-      reason,
+      reason: `Mixed reply with a negative — not treated as interested (neg: ${negHits[0] || "no"}).`,
       activeDeal: false, needsReview: false, optOut: false,
     };
   }
-  if (positive && negative) {
-    return {
-      classification: "interested",
-      reason: `Mixed reply — kept as interested for review (interested: ${posHits.join(", ") || "yes"}).`,
-      activeDeal: true, needsReview: false, optOut: false,
-    };
-  }
+  // CLEAR positive, no negative → Interested.
   if (positive) {
     return {
       classification: "interested",
@@ -579,12 +583,12 @@ export function classifyReply(replyText) {
     };
   }
 
-  // Anything else (a bare question, emoji, "you too", unclear) → Interested, so
-  // it gets a human look instead of being deleted as "not interested".
+  // Anything else (bare question, emoji, "lol", "thanks", "you too", unclear) →
+  // NOT interested. No clear positive from a seller = not a lead.
   return {
-    classification: "interested",
-    reason: "Replied — intent unclear, kept as interested for a human to review.",
-    activeDeal: true, needsReview: false, optOut: false,
+    classification: "not_interested",
+    reason: "No clear interest — vague / minimal / unclear reply.",
+    activeDeal: false, needsReview: false, optOut: false,
   };
 }
 

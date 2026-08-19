@@ -18,7 +18,7 @@ import { RedfinAdapter } from "./redfin.js";
 import { resolveRedfinUrl } from "./redfinLink.js";
 import { decide, classifyReply, evaluateSafety } from "./sop.js";
 import { assertMessageIntegrity, normalizeCompany, COMPANY, renderMessage, pickApprovedTemplate, cleanPersonName } from "./message.js";
-import { JOB_STATUS, categorizeRow, TAB, wasTexted, rowsForTab } from "../data/store.js";
+import { JOB_STATUS, categorizeRow, TAB, wasTexted, rowsForTab, isUnknownLead } from "../data/store.js";
 import { SentLedger } from "../data/sentLedger.js";
 import { DISPOSITION, ELIGIBILITY, REVIVAL_TAG } from "./constants.js";
 
@@ -641,6 +641,13 @@ export class AutomationEngine extends EventEmitter {
               row.replyReceivedAt = detail.replyAt || row.replyReceivedAt || row.messageStatusLastCheckedAt;
             }
             const cls = classifyReply(row.replyText);
+            // RULE 0 — an unnamed/unknown lead is never Interested (identity
+            // unverified). Downgrade a positive reply to not-interested.
+            if (cls.classification === "interested" && isUnknownLead(row.ownerName)) {
+              cls.classification = "not_interested";
+              cls.activeDeal = false;
+              cls.reason = "Unnamed/unknown lead — identity unverified, not pursued.";
+            }
             row.replyClassification = cls.classification;
             row.replyClassificationReason = cls.reason;
             replies++; // one reply per lead in a pass
