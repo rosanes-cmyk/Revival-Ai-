@@ -100,6 +100,8 @@ export function computePercentageReport(rows, filters = {}) {
   const activeDeals = cat(TAB.ACTIVE_DEAL);
   const notInterestedTab = cat(TAB.NOT_INTERESTED);
   const needsReviewTab = cat(TAB.NEEDS_REVIEW);
+  const alreadyTexted = cat(TAB.ALREADY_TEXTED);
+  const availableToText = cat(TAB.AVAILABLE);
 
   const recheckedCount = texted.filter((r) => r.recheckCompleted).length;
 
@@ -111,7 +113,7 @@ export function computePercentageReport(rows, filters = {}) {
       totalReplies, interested, notInterested: notInterestedReplies,
       needsReview: needsReviewReplies, noReply,
       propertySold, badLeads, outOfState, activeDeals,
-      notInterestedTab, needsReviewTab,
+      notInterestedTab, needsReviewTab, alreadyTexted, availableToText,
     },
     // Rates over Total Texts Sent (delivery + reply).
     rates: {
@@ -140,6 +142,8 @@ export function computePercentageReport(rows, filters = {}) {
       outOfStatePct: pct(outOfState, totalProcessed),
       activeDealPct: pct(activeDeals, totalProcessed),
       notInterestedToDeletePct: pct(notInterestedTab, totalProcessed),
+      needsReviewTabPct: pct(needsReviewTab, totalProcessed),
+      alreadyTextedPct: pct(alreadyTexted, totalProcessed),
     },
     // Active-deal conversion. Clamped to 100% — activeDeals (a tab count that
     // can include REI-tag active deals with no reply) can otherwise exceed the
@@ -169,16 +173,21 @@ export function reportTableRowsSimple(rep) {
   const t = rep.totals, r = rep.rates, lr = rep.leadRates;
   const p = (v) => v.toFixed(2) + "%";
   return [
+    // --- Sending funnel ---
     { Metric: "Total Leads", Total: t.totalLeads, Percentage: "", "Percentage Based On": "" },
     { Metric: "Total Leads Processed", Total: t.totalProcessed, Percentage: "", "Percentage Based On": "" },
     { Metric: "Texts Sent", Total: t.totalTextsSent, Percentage: p(lr.textSentPct), "Percentage Based On": "Leads Processed" },
     { Metric: "Confirmed Sent (in REI)", Total: t.confirmedSent, Percentage: p(r.confirmedSentRate), "Percentage Based On": "Texts Sent" },
     { Metric: "Replied", Total: t.totalReplies, Percentage: p(r.overallReplyRate), "Percentage Based On": "Texts Sent" },
-    { Metric: "Interested", Total: t.interested, Percentage: p(r.interestedSellerRate), "Percentage Based On": "Texts Sent" },
-    { Metric: "Not Interested", Total: t.notInterested, Percentage: p(r.notInterestedRate), "Percentage Based On": "Texts Sent" },
     { Metric: "No Reply Yet", Total: t.noReply, Percentage: p(r.noReplyRate), "Percentage Based On": "Texts Sent" },
+    // --- Dashboard result tabs (each as a share of Leads Processed) ---
+    { Metric: "Interested / Active Deal", Total: t.activeDeals, Percentage: p(lr.activeDealPct), "Percentage Based On": "Leads Processed" },
+    { Metric: "Not Interested / To Delete", Total: t.notInterestedTab, Percentage: p(lr.notInterestedToDeletePct), "Percentage Based On": "Leads Processed" },
     { Metric: "Property Sold / Listed", Total: t.propertySold, Percentage: p(lr.propertySoldPct), "Percentage Based On": "Leads Processed" },
-    { Metric: "Active Deals", Total: t.activeDeals, Percentage: p(lr.activeDealPct), "Percentage Based On": "Leads Processed" },
+    { Metric: "Out of State", Total: t.outOfState, Percentage: p(lr.outOfStatePct), "Percentage Based On": "Leads Processed" },
+    { Metric: "Bad Leads", Total: t.badLeads, Percentage: p(lr.badLeadPct), "Percentage Based On": "Leads Processed" },
+    { Metric: "Needs Review", Total: t.needsReviewTab, Percentage: p(lr.needsReviewTabPct), "Percentage Based On": "Leads Processed" },
+    { Metric: "Already Texted", Total: t.alreadyTexted, Percentage: p(lr.alreadyTextedPct), "Percentage Based On": "Leads Processed" },
   ];
 }
 
