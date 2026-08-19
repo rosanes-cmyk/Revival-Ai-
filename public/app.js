@@ -602,6 +602,7 @@ function renderRecheck(d) {
     <div class="rk-head">
       <b>Recheck Progress</b>
       <span>${d.checked ?? 0} of ${d.total ?? 0} checked — <b>${Number(d.percent || 0).toFixed(2)}%</b></span>
+      ${d.noLink ? `<span class="rk-cur">This tab has ${Number(d.scopeTabTotal).toLocaleString()} leads, but only ${Number(d.total).toLocaleString()} have a REI link to re-open — the other ${Number(d.noLink).toLocaleString()} came from your file with no REI contact, so there's nothing to recheck for them.</span>` : ""}
       ${d.currentSeller ? `<span class="rk-cur">Now: ${esc(d.currentSeller)} · ${esc(d.currentProperty || "")}</span>` : ""}
     </div>
     <div class="rk-grid">

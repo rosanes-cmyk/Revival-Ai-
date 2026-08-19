@@ -557,12 +557,19 @@ export class AutomationEngine extends EventEmitter {
       const total = list.length;
       const startIdx = this._recheckCursor;
 
+      // How many leads are in the tab overall (before filtering to those with a
+      // REI link) — so the panel can explain why "total" may be smaller.
+      const scopeTabTotal = (scopeTab && scopeTab !== TAB.TEXT_SENT && scopeTab !== TAB.ALL)
+        ? rowsForTab(this.store.rows, scopeTab).length
+        : total;
+
       let checked = startIdx, replies = 0, interested = 0, notInt = 0, failed = 0, needsRev = 0, errors = 0;
       const emitRecheck = (extra = {}) =>
         this.emit("recheck", {
           total, checked, remaining: Math.max(0, total - checked),
           replies, interested, notInterested: notInt, failed, needsReview: needsRev, errors,
           percent: total ? Number(((checked / total) * 100).toFixed(2)) : 0,
+          scopeTabTotal, noLink: Math.max(0, scopeTabTotal - total), scope: scopeTab || "text-sent",
           ...extra,
         });
 
