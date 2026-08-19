@@ -136,6 +136,13 @@ ok("phone-only has no real words", hasRealReplyWords("(650) 889-5897 3:57 PM") =
   const r = normalizeRow({ rowNumber: 5, ownerName: "Ruben Perez", replyReceived: true, replyText: "8 PM Received from: (760) 851-2351 Received from: (760) 851-2351 Received from: (760) 851-2351", replyClassification: "interested", activeDeal: true, disposition: "Text Sent" });
   ok("label-only reply dropped", r.replyReceived === false && r.activeDeal === false && r.replyClassification === "");
 }
+// Investor/agent replies are NOT sellers → Not Interested (real bug: Erica Jean).
+eq("investor: represent us/double end → not_interested", classifyReply("Happy for you to represent us or double end. Looking for our next project, any pocket listings?").classification, "not_interested");
+eq("investor: we buy houses → not_interested", classifyReply("we buy houses in the bay area, send us deals").classification, "not_interested");
+eq("investor: I'm a wholesaler → not_interested", classifyReply("hey I'm a wholesaler, got any off-market deals?").classification, "not_interested");
+eq("investor: send you an offer → not_interested", classifyReply("I'm ready to review and send you an offer right away").classification, "not_interested");
+// A real seller who says 'make me an offer' is still Interested (not caught).
+eq("seller make me an offer still interested", classifyReply("sure, make me an offer for my house").classification, "interested");
 // A page-scrape blob saved as a "reply" by an older build must be dropped, not
 // counted as an interested reply (real bug: Jose Quintero row).
 {
