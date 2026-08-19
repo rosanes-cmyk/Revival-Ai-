@@ -370,6 +370,14 @@ const NOT_INTERESTED_PHRASES = [
   "no interested", "not for me", "changed my mind", "changed our mind",
   "not looking to sell", "under contract", "in escrow", "deal closed",
   "already closed", "we closed",
+  // More real-world no's (from live replies):
+  "it sold", "is sold", "house is sold", "it's sold", "its sold",
+  "not any more", "not anymore", "no longer own", "no longer have",
+  "not ready to sell", "not planning to sell", "not planning on selling",
+  "no plans to sell", "no plans on selling", "don't plan", "dont plan",
+  "do not plan", "no intention", "signed a contract", "in contract",
+  "sell my own", "sell it myself", "sell myself", "do it myself",
+  "list it myself", "sell it on my own",
 ];
 
 /**
@@ -420,8 +428,10 @@ export function classifyReply(replyText) {
   // so an isolated keyword inside a longer, contradictory sentence can't flip it).
   const isBareYes = (s) => /^(yes|yeah|yep|yup|sure|ok|okay|interested)\b[\s.!]*$/i.test(s);
   const isBareNo = (s) =>
-    /^(no|nope|nah|not interested|no thanks?|no thank you)\b[\s.!]*$/i.test(s) ||
-    /^(sold|already sold|it'?s sold|we sold|i sold|sold it|sold already)\b[\s.!]*$/i.test(s);
+    /^(no|nope|nah)\b[\s.!,]*$/i.test(s) ||
+    /^n+o+[\s.!,]*$/i.test(s) ||                         // elongated "NOOOOO"
+    /^(not interested|no thanks?|no thank you)\b[\s.!]*$/i.test(s) ||
+    /^(sold|already sold|it'?s sold|its sold|we sold|i sold|sold it|sold already|it sold|house sold)\b/i.test(s);
 
   const posHits = INTERESTED_PHRASES.filter((p) => lower.includes(p));
   const negHits = NOT_INTERESTED_PHRASES.filter((p) => lower.includes(p));
@@ -436,7 +446,7 @@ export function classifyReply(replyText) {
   // right AFTER an accented char never matches. We avoid a trailing \b after any
   // accented token and lean on \s / phrase context instead.
   const ES_NEG_RE =
-    /\bno\s+est[aá]\s+[^.\n]{0,15}venta|\bno\s+(la|lo|las|los)\s+vend|\bno\s+quiero\s+vender|\bno\s+voy\s+a\s+vender|\bno\s+(estoy|estamos)\s+vend|\bno\s+(estoy|estamos)\s+interesad|\bno\s+me\s+interesa|\bno\s+gracias|\bn[uú]mero\s+equivocad|\bpersona\s+equivocad|\bno\s+soy\s+(el|la)\s+due|\bfalleci|\bmuri[oó]|\bfallecid|\bdifunt|\bya\s+(la|lo)\s+vend[ií]/i;
+    /\bno\s+est[aá]\s+[^.\n]{0,15}venta|\bno\s+(la|lo|las|los)\s+vend|\bno\s+quiero\s+vender|\bno\s+voy\s+a\s+vender|\bno\s+pienso\s+vender|\bno\s+planeo\s+vender|\bno\s+tengo\s+planes|\bno\s+(estoy|estamos)\s+vend|\bno\s+(estoy|estamos)\s+interesad|\bno\s+me\s+interesa|\bno\s+gracias|\bn[uú]mero\s+equivocad|\bpersona\s+equivocad|\bno\s+soy\s+(el|la)\s+due|\bfalleci|\bmuri[oó]|\bfallecid|\bdifunt|\bya\s+(la|lo)\s+vend[ií]/i;
   const ES_POS_RE =
     /(?<!no\s)(?<!no\s\w{1,10}\s)\bme\s+interesa|\b(estoy|estamos)\s+interesad|\bquiero\s+vender|\bc[uú][aá]nto\s+(ofrecen|me\s+dan|me\s+pagan|pagan|vale|ofrece)|\bh[aá]game\s+una\s+oferta|\bacepto\s+ofertas?|\bll[aá]me(me|nme)|\bcu[aá]l\s+es\s+su\s+oferta|\bs[ií]\s+me\s+interesa|\bs[ií]\s+quiero/i;
 
@@ -452,9 +462,18 @@ export function classifyReply(replyText) {
   const NOT_ME_RE = /\bi\s+(did ?n'?t|did not|never)\s+(contact|reach|reach out|call|text|message|sign up|ask)\b|\bnever\s+(contacted|reached out|called|asked)\b|\bdid ?n'?t\s+reach out\b|\bi\s+did\s+not\s+contact\b/i;
   // Hostile / profane brush-off — never a lead. (Overlaps some opt-out language,
   // which is already handled above; this catches the rest.)
-  const HOSTILE_RE = /\b(full of (shit|it)|f+u+c+k+(\s*(off|you|this))?|piss off|screw (you|off)|go away|leave me the|stop (bothering|harass|harassing|messaging|texting|calling|contacting)|quit (bothering|texting|messaging|harassing)|scam(mer|ming)?|spam(mer|ming)?|harass(ing|ment)?|get lost|buzz off|not again|lie|lies|liar|lying|you a lie|liars)\b/i;
+  const HOSTILE_RE = /\b(full of (shit|it)|f+u+c+k+(\s*(off|you|this))?|piss off|screw (you|off)|go away|leave me the|get[\s.,!]+lost|stop (bothering|harass|harassing|messaging|texting|calling|contacting)|quit (bothering|texting|messaging|harassing)|scam(mer|ming)?|spam(mer|ming)?|harass(ing|ment)?|buzz off|not again|lie|lies|liar|lying|you a lie|liars)\b/i;
+  // The contact is gone / unreachable — moved, relocated, doesn't live here, or
+  // named person is gone ("Chet's gone"). Not a valid lead.
+  const GONE_RE = /\b(moved (away|out|already)|has moved|relocat(ed|ing)|doesn'?t live here|does not live here|not here anymore|no longer here|left the country|\w+'?s? gone|is gone|are gone)\b/i;
+  // A very short reply that opens with "no" (≤3 words) with no interest is a No
+  // ("No home daddy", "No sir"). A reply that ENDS with a standalone "no" is too
+  // ("I am a realtor. No").
+  const shortNo = parts.some((p) => /^n+o+\b/i.test(p) && p.trim().split(/\s+/).length <= 3);
+  const trailingNo = parts.some((p) => /\bno\b[\s.!]*$/i.test(p) && !/\bknow\b[\s.!]*$/i.test(p));
   const clearNeg = WRONG_OR_GONE_RE.test(lower) || ES_NEG_RE.test(lower) ||
-    NOT_ME_RE.test(lower) || HOSTILE_RE.test(lower) || parts.some((p) => NO_LEADING_RE.test(p));
+    NOT_ME_RE.test(lower) || HOSTILE_RE.test(lower) || GONE_RE.test(lower) ||
+    shortNo || trailingNo || parts.some((p) => NO_LEADING_RE.test(p));
 
   const wrongOrGone = WRONG_OR_GONE_RE.test(lower);
 

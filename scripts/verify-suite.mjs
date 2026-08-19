@@ -143,6 +143,25 @@ eq("investor: I'm a wholesaler → not_interested", classifyReply("hey I'm a who
 eq("investor: send you an offer → not_interested", classifyReply("I'm ready to review and send you an offer right away").classification, "not_interested");
 // A real seller who says 'make me an offer' is still Interested (not caught).
 eq("seller make me an offer still interested", classifyReply("sure, make me an offer for my house").classification, "interested");
+// Batch of real not-interested replies that were showing as interested.
+eq("Get. Lost → not_interested", classifyReply("Get. Lost").classification, "not_interested");
+eq("My house is sold → not_interested", classifyReply("My house is sold, thanks").classification, "not_interested");
+eq("It sold → not_interested", classifyReply("It sold").classification, "not_interested");
+eq("Not any more thanks → not_interested", classifyReply("Not any more thanks").classification, "not_interested");
+eq("No pienso vender → not_interested", classifyReply("No pienso vender").classification, "not_interested");
+eq("not ready for years → not_interested", classifyReply("Not ready to sell for several years").classification, "not_interested");
+eq("don't plan on selling → not_interested", classifyReply("Don't plan on selling it").classification, "not_interested");
+eq("just signed a contract → not_interested", classifyReply("We just signed a contract").classification, "not_interested");
+eq("in contract → not_interested", classifyReply("My house is currently in contract").classification, "not_interested");
+eq("not selling anymore → not_interested", classifyReply("Not selling anymore").classification, "not_interested");
+eq("Chets gone → not_interested", classifyReply("Chets gone").classification, "not_interested");
+eq("No home daddy → not_interested", classifyReply("No home daddy").classification, "not_interested");
+eq("realtor. No → not_interested", classifyReply("I am a realtor. No").classification, "not_interested");
+eq("sell my own home → not_interested", classifyReply("I'll sell my own home").classification, "not_interested");
+eq("NOOOOOOO → not_interested", classifyReply("NOOOOOOO").classification, "not_interested");
+// Guards: these must STAY interested.
+eq("let me know stays interested", classifyReply("sounds good, let me know").classification, "interested");
+eq("dont know price yet still interested", classifyReply("I want to sell but dont know the price, call me").classification, "interested");
 // A page-scrape blob saved as a "reply" by an older build must be dropped, not
 // counted as an interested reply (real bug: Jose Quintero row).
 {
