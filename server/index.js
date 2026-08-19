@@ -144,7 +144,17 @@ function findAnyChromium() {
   if (process.env.PLAYWRIGHT_BROWSERS_PATH && process.env.PLAYWRIGHT_BROWSERS_PATH !== "0") roots.push(process.env.PLAYWRIGHT_BROWSERS_PATH);
   roots.push(path.join(__dirname, "..", "node_modules", "playwright-core", ".local-browsers"));
   roots.push("/opt/pw-browsers");
-  const names = ["chrome", "chrome.exe", "headless_shell", "chrome-headless-shell", "chrome-headless-shell.exe"];
+  // The DEFAULT Playwright browser cache per OS — this is where a plain
+  // `npm start` install (no PLAYWRIGHT_BROWSERS_PATH) puts the full Chromium the
+  // REI automation already uses, so PDF export can reuse it instead of needing a
+  // separate chrome-headless-shell download.
+  const home = os.homedir();
+  roots.push(path.join(home, "AppData", "Local", "ms-playwright"));      // Windows
+  roots.push(path.join(home, "Library", "Caches", "ms-playwright"));     // macOS
+  roots.push(path.join(home, ".cache", "ms-playwright"));                // Linux
+  // Prefer a FULL chrome build over the headless shell (either works for PDF,
+  // but the full build is what's installed when the shell is missing).
+  const names = ["chrome.exe", "chrome", "chrome-headless-shell.exe", "chrome-headless-shell", "headless_shell"];
   const walk = (dir, depth) => {
     if (depth < 0) return "";
     let entries = [];
