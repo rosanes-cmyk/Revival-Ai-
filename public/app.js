@@ -477,8 +477,8 @@ function renderPercentage(rep) {
         ${row("Confirmed sent (in REI)", t.confirmedSent, r.confirmedSentRate)}
         ${row("Replied", t.totalReplies, r.overallReplyRate)}
         ${row("No reply yet", t.noReply, r.noReplyRate)}
-        ${row("Interested / Active Deal", t.activeDeals, lr.activeDealPct)}
-        ${row("Not Interested / To Delete", t.notInterestedTab, lr.notInterestedToDeletePct)}
+        ${row("Interested / Active Deal", t.activeDeals, r.activeDealOfTexts)}
+        ${row("Not Interested / To Delete", t.notInterestedTab, r.notInterestedTabOfTexts)}
         ${row("Property Sold / Listed", t.propertySold, lr.propertySoldPct)}
         ${row("Out of State", t.outOfState, lr.outOfStatePct)}
         ${row("Bad Leads", t.badLeads, lr.badLeadPct)}

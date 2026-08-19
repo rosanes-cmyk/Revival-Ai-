@@ -127,6 +127,10 @@ export function computePercentageReport(rows, filters = {}) {
       interestedSellerRate: pct(interested, totalTextsSent),
       notInterestedRate: pct(notInterestedReplies, totalTextsSent),
       needsReviewRate: pct(needsReviewReplies, totalTextsSent),
+      // Tab-count outcomes as a share of Texts Sent (the meaningful denominator
+      // for reply outcomes — only texted leads reply). Clamped to 100%.
+      activeDealOfTexts: Math.min(100, pct(activeDeals, totalTextsSent)),
+      notInterestedTabOfTexts: Math.min(100, pct(notInterestedTab, totalTextsSent)),
     },
     // Percentages based on Total Replies (kept separate + clearly labeled).
     replyRates: {
@@ -181,8 +185,8 @@ export function reportTableRowsSimple(rep) {
     { Metric: "Replied", Total: t.totalReplies, Percentage: p(r.overallReplyRate), "Percentage Based On": "Texts Sent" },
     { Metric: "No Reply Yet", Total: t.noReply, Percentage: p(r.noReplyRate), "Percentage Based On": "Texts Sent" },
     // --- Dashboard result tabs (each as a share of Leads Processed) ---
-    { Metric: "Interested / Active Deal", Total: t.activeDeals, Percentage: p(lr.activeDealPct), "Percentage Based On": "Leads Processed" },
-    { Metric: "Not Interested / To Delete", Total: t.notInterestedTab, Percentage: p(lr.notInterestedToDeletePct), "Percentage Based On": "Leads Processed" },
+    { Metric: "Interested / Active Deal", Total: t.activeDeals, Percentage: p(r.activeDealOfTexts), "Percentage Based On": "Texts Sent" },
+    { Metric: "Not Interested / To Delete", Total: t.notInterestedTab, Percentage: p(r.notInterestedTabOfTexts), "Percentage Based On": "Texts Sent" },
     { Metric: "Property Sold / Listed", Total: t.propertySold, Percentage: p(lr.propertySoldPct), "Percentage Based On": "Leads Processed" },
     { Metric: "Out of State", Total: t.outOfState, Percentage: p(lr.outOfStatePct), "Percentage Based On": "Leads Processed" },
     { Metric: "Bad Leads", Total: t.badLeads, Percentage: p(lr.badLeadPct), "Percentage Based On": "Leads Processed" },
