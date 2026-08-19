@@ -378,6 +378,10 @@ const NOT_INTERESTED_PHRASES = [
   "do not plan", "no intention", "signed a contract", "in contract",
   "sell my own", "sell it myself", "sell myself", "do it myself",
   "list it myself", "sell it on my own",
+  // Sold, phrased as an assertion (guarded so "hasn't been sold" is NOT caught —
+  // that substring differs):
+  "has been sold", "already been sold", "just sold", "sold last week",
+  "was sold", "it's been sold", "its been sold", "property is sold", "home is sold",
 ];
 
 /**
@@ -491,7 +495,7 @@ export function classifyReply(replyText) {
   // Jean: "we'll go up to 3-4m … pocket listings … represent us or double end").
   // Uses buyer-/agent-side language a normal homeowner would essentially never
   // use, so the false-positive risk on real sellers is low.
-  const INVESTOR_AGENT_RE = /\b(represent us|double[- ]?end|pocket listing|off[- ]?market|our next (project|flip|deal)|next (project|flip)|bread and butter|money to be made|i'?m an? (investor|agent|realtor|wholesaler|broker)|i am an? (investor|agent|realtor|wholesaler|broker)|we buy (houses|homes|properties)|we'?re (buyers|investors|buying)|we are (buyers|investors|buying)|we purchase (houses|homes|properties)|wholesal(er|ing)|assign(ing)? the contract|joint venture|jv (deal|on it)|fellow investor|find(ing)? (us )?deals|send you (an|the) offer)\b/i;
+  const INVESTOR_AGENT_RE = /\b(represent us|double[- ]?end|pocket listing|off[- ]?market|our next (project|flip|deal)|next (project|flip)|bread and butter|money to be made|i'?m an? (investor|agent|realtor|wholesaler|broker)|i am an? (investor|agent|realtor|wholesaler|broker)|we buy (houses|homes|properties)|we'?re (buyers|investors|buying)|we are (buyers|investors|buying)|we purchase (houses|homes|properties)|wholesal(er|ing)|assign(ing)? the contract|joint venture|jv (deal|on it)|fellow investor|find(ing)? (us )?deals|send you (an|the) offer|real estate agent|home flipper|\bflipper\b|looking for (a )?fixer|fixer upper propert|send (me|us) deals|i have a (property|listing|deal) for you|i have a listing|possible clients|my clients|properties off the market)\b/i;
   const notASeller = INVESTOR_AGENT_RE.test(lower);
 
   const positive = posHits.length > 0 || bareYes || ES_POS_RE.test(lower);

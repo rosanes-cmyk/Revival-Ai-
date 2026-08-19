@@ -162,6 +162,16 @@ eq("NOOOOOOO → not_interested", classifyReply("NOOOOOOO").classification, "not
 // Guards: these must STAY interested.
 eq("let me know stays interested", classifyReply("sounds good, let me know").classification, "interested");
 eq("dont know price yet still interested", classifyReply("I want to sell but dont know the price, call me").classification, "interested");
+// More investor/agent (not a seller) + sold variants from the live dump.
+eq("home flipper and investor → not_interested", classifyReply("I'm a home flipper and investor, looking for fixer upper properties").classification, "not_interested");
+eq("flipper send me deals → not_interested", classifyReply("I'm a flipper looking for fixers send me deals").classification, "not_interested");
+eq("real estate agent property for you → not_interested", classifyReply("I am a Real estate agent, I have a property for you").classification, "not_interested");
+eq("agent with a listing → not_interested", classifyReply("I'm a real estate agent, I have a listing on Olive St").classification, "not_interested");
+eq("possible clients → not_interested", classifyReply("Not my home but possible clients end of August").classification, "not_interested");
+eq("has been sold → not_interested", classifyReply("Thank it has been sold").classification, "not_interested");
+eq("sold last week → not_interested", classifyReply("I'm out of state. Oh yes, sold last week").classification, "not_interested");
+// Guard: a seller who still HAS it must not be caught by 'been sold'.
+eq("hasnt been sold stays interested", classifyReply("no it hasn't been sold, I still have it, call me").classification, "interested");
 // A page-scrape blob saved as a "reply" by an older build must be dropped, not
 // counted as an interested reply (real bug: Jose Quintero row).
 {
