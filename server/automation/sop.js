@@ -452,7 +452,7 @@ export function classifyReply(replyText) {
   const NOT_ME_RE = /\bi\s+(did ?n'?t|did not|never)\s+(contact|reach|reach out|call|text|message|sign up|ask)\b|\bnever\s+(contacted|reached out|called|asked)\b|\bdid ?n'?t\s+reach out\b|\bi\s+did\s+not\s+contact\b/i;
   // Hostile / profane brush-off — never a lead. (Overlaps some opt-out language,
   // which is already handled above; this catches the rest.)
-  const HOSTILE_RE = /\b(full of (shit|it)|f+u+c+k+(\s*(off|you|this))?|piss off|screw (you|off)|go away|leave me the|stop (bothering|harass|harassing|messaging|texting|calling|contacting)|quit (bothering|texting|messaging|harassing)|scam(mer|ming)?|spam(mer|ming)?|harass(ing|ment)?|get lost|buzz off|not again)\b/i;
+  const HOSTILE_RE = /\b(full of (shit|it)|f+u+c+k+(\s*(off|you|this))?|piss off|screw (you|off)|go away|leave me the|stop (bothering|harass|harassing|messaging|texting|calling|contacting)|quit (bothering|texting|messaging|harassing)|scam(mer|ming)?|spam(mer|ming)?|harass(ing|ment)?|get lost|buzz off|not again|lie|lies|liar|lying|you a lie|liars)\b/i;
   const clearNeg = WRONG_OR_GONE_RE.test(lower) || ES_NEG_RE.test(lower) ||
     NOT_ME_RE.test(lower) || HOSTILE_RE.test(lower) || parts.some((p) => NO_LEADING_RE.test(p));
 

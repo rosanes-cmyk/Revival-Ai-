@@ -122,6 +122,12 @@ eq("still available → interested", classifyReply("is it still available?").cla
 eq("conditional still interested (vocab)", classifyReply("not selling unless the price is right").classification, "interested");
 // 'closed' generic must NOT false-trigger (office/road closed).
 eq("generic closed not a signal", classifyReply("the road was closed so I was late, anyway yes call me").classification, "interested");
+// Hostile "lie/lies" accusations are not leads (real bugs: Kimberlee, Temecula).
+eq("You a lie - no → not_interested", classifyReply("You a lie - no").classification, "not_interested");
+eq("Lies | Thank you → not_interested", classifyReply("Lies. | Thank you").classification, "not_interested");
+eq("you are a liar → not_interested", classifyReply("you are a liar stop").classification, "not_interested");
+// Must NOT over-catch words that merely contain 'lie' (believe).
+eq("believe does not trigger", classifyReply("I believe I want to sell, call me").classification, "interested");
 // A page-scrape blob saved as a "reply" by an older build must be dropped, not
 // counted as an interested reply (real bug: Jose Quintero row).
 {
