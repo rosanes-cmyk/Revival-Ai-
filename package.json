@@ -5,6 +5,7 @@
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
+    "prestart": "node scripts/ensure-browser-runtime.js",
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
     "app": "electron electron/main.cjs",
