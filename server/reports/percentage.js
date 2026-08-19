@@ -177,16 +177,19 @@ export function reportTableRowsSimple(rep) {
   const t = rep.totals, r = rep.rates, lr = rep.leadRates;
   const p = (v) => v.toFixed(2) + "%";
   return [
-    // --- Sending funnel ---
+    // --- Totals ---
     { Metric: "Total Leads", Total: t.totalLeads, Percentage: "", "Percentage Based On": "" },
     { Metric: "Total Leads Processed", Total: t.totalProcessed, Percentage: "", "Percentage Based On": "" },
+    // --- Texting performance (of the leads you texted) ---
     { Metric: "Texts Sent", Total: t.totalTextsSent, Percentage: p(lr.textSentPct), "Percentage Based On": "Leads Processed" },
     { Metric: "Confirmed Sent (in REI)", Total: t.confirmedSent, Percentage: p(r.confirmedSentRate), "Percentage Based On": "Texts Sent" },
     { Metric: "Replied", Total: t.totalReplies, Percentage: p(r.overallReplyRate), "Percentage Based On": "Texts Sent" },
     { Metric: "No Reply Yet", Total: t.noReply, Percentage: p(r.noReplyRate), "Percentage Based On": "Texts Sent" },
-    // --- Dashboard result tabs (each as a share of Leads Processed) ---
-    { Metric: "Interested / Active Deal", Total: t.activeDeals, Percentage: p(r.activeDealOfTexts), "Percentage Based On": "Texts Sent" },
-    { Metric: "Not Interested / To Delete", Total: t.notInterestedTab, Percentage: p(r.notInterestedTabOfTexts), "Percentage Based On": "Texts Sent" },
+    { Metric: "Interested (replied yes)", Total: t.interested, Percentage: p(r.interestedSellerRate), "Percentage Based On": "Texts Sent" },
+    { Metric: "Not Interested (replied no)", Total: t.notInterested, Percentage: p(r.notInterestedRate), "Percentage Based On": "Texts Sent" },
+    // --- Where all leads ended up (share of Leads Processed; adds to ~100%) ---
+    { Metric: "Interested / Active Deal", Total: t.activeDeals, Percentage: p(lr.activeDealPct), "Percentage Based On": "Leads Processed" },
+    { Metric: "Not Interested / To Delete", Total: t.notInterestedTab, Percentage: p(lr.notInterestedToDeletePct), "Percentage Based On": "Leads Processed" },
     { Metric: "Property Sold / Listed", Total: t.propertySold, Percentage: p(lr.propertySoldPct), "Percentage Based On": "Leads Processed" },
     { Metric: "Out of State", Total: t.outOfState, Percentage: p(lr.outOfStatePct), "Percentage Based On": "Leads Processed" },
     { Metric: "Bad Leads", Total: t.badLeads, Percentage: p(lr.badLeadPct), "Percentage Based On": "Leads Processed" },

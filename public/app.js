@@ -467,23 +467,28 @@ function renderPercentage(rep) {
       ${tile("Not Interested", n(t.notInterested), `${pc(rr.notInterestedAmongReplies)} of replies`)}
     </div>`;
 
-  // One short, plain table — result breakdown, no jargon columns.
-  const row = (m, tot, p) => `<tr><td>${m}</td><td class="num">${n(tot)}</td><td class="num">${p === "" ? "" : pc(p)}</td></tr>`;
+  // Two labeled sections so every % is unambiguous.
+  const row = (m, tot, p, basis) => `<tr><td>${m}</td><td class="num">${n(tot)}</td><td class="num">${p === "" ? "" : pc(p)}</td><td class="based">${basis || ""}</td></tr>`;
+  const sec = (label) => `<tr class="pct-sec"><td colspan="4">${label}</td></tr>`;
   const simpleTable = `
     <table class="pct-table">
-      <thead><tr><th>Result</th><th class="num">Count</th><th class="num">%</th></tr></thead>
+      <thead><tr><th>Result</th><th class="num">Count</th><th class="num">%</th><th>Based on</th></tr></thead>
       <tbody>
-        ${row("Texts sent", t.totalTextsSent, lr.textSentPct)}
-        ${row("Confirmed sent (in REI)", t.confirmedSent, r.confirmedSentRate)}
-        ${row("Replied", t.totalReplies, r.overallReplyRate)}
-        ${row("No reply yet", t.noReply, r.noReplyRate)}
-        ${row("Interested / Active Deal", t.activeDeals, r.activeDealOfTexts)}
-        ${row("Not Interested / To Delete", t.notInterestedTab, r.notInterestedTabOfTexts)}
-        ${row("Property Sold / Listed", t.propertySold, lr.propertySoldPct)}
-        ${row("Out of State", t.outOfState, lr.outOfStatePct)}
-        ${row("Bad Leads", t.badLeads, lr.badLeadPct)}
-        ${row("Needs Review", t.needsReviewTab, lr.needsReviewTabPct)}
-        ${row("Already Texted", t.alreadyTexted, lr.alreadyTextedPct)}
+        ${sec("Texting performance (of the leads you texted)")}
+        ${row("Texts sent", t.totalTextsSent, lr.textSentPct, "Leads Processed")}
+        ${row("Confirmed sent (in REI)", t.confirmedSent, r.confirmedSentRate, "Texts Sent")}
+        ${row("Replied", t.totalReplies, r.overallReplyRate, "Texts Sent")}
+        ${row("No reply yet", t.noReply, r.noReplyRate, "Texts Sent")}
+        ${row("Interested (replied yes)", t.interested, r.interestedSellerRate, "Texts Sent")}
+        ${row("Not interested (replied no)", t.notInterested, r.notInterestedRate, "Texts Sent")}
+        ${sec("Where all leads ended up (of every processed lead — adds to 100%)")}
+        ${row("Interested / Active Deal", t.activeDeals, lr.activeDealPct, "Leads Processed")}
+        ${row("Not Interested / To Delete", t.notInterestedTab, lr.notInterestedToDeletePct, "Leads Processed")}
+        ${row("Property Sold / Listed", t.propertySold, lr.propertySoldPct, "Leads Processed")}
+        ${row("Out of State", t.outOfState, lr.outOfStatePct, "Leads Processed")}
+        ${row("Bad Leads", t.badLeads, lr.badLeadPct, "Leads Processed")}
+        ${row("Needs Review", t.needsReviewTab, lr.needsReviewTabPct, "Leads Processed")}
+        ${row("Already Texted", t.alreadyTexted, lr.alreadyTextedPct, "Leads Processed")}
       </tbody>
     </table>`;
 

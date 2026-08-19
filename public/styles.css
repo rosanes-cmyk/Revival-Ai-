@@ -336,6 +336,7 @@ td.error { color: var(--err); }
 .pct-table th { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .4px; }
 .pct-table td.num, .pct-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .pct-table .based { color: var(--muted); font-size: 12px; }
+.pct-table tr.pct-sec td { background: rgba(148,163,184,.10); color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .4px; font-weight: 600; padding-top: 12px; }
 .percentage-card h3 { font-size: 14px; margin: 14px 0 4px; }
 /* Plain-English summary box (easy read after upload) */
 .simple-summary { background: linear-gradient(135deg, rgba(36,180,126,.10), rgba(79,140,255,.08)); border: 1px solid rgba(148,163,184,.22); border-radius: 14px; padding: 16px 18px; margin: 14px 0; }
