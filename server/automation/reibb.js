@@ -1300,16 +1300,26 @@ export class ReiBlackBookAdapter {
       // grab the words just before the last such label as the reply text so it
       // can still be classified; if we can't, it's flagged for a human.
       if (!out.replyReceived && /received from/i.test(bodyText)) {
-        out.replyReceived = true;
-        if (out.deliveryStatus === "Unknown") out.deliveryStatus = "Sent";
         const idx = bodyText.toLowerCase().lastIndexOf("received from");
         // The seller's message text sits just before its "Received from" label.
         const before = bodyText.slice(Math.max(0, idx - 300), idx)
           .replace(/\b\d{1,2}:\d{2}\s*(AM|PM)?\b/gi, " ")
           .replace(/PD ?#:?\s*\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/gi, " ")
+          .replace(/received from|sent to/gi, " ")
           .replace(/\b(Today|Yesterday|Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday)\b/gi, " ")
+          .replace(/\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g, " ")
           .replace(/\s+/g, " ").trim();
-        out.replyText = before.slice(-500) || "(seller replied — see REI chat)";
+        // Only count it as a real reply if there are ACTUAL seller words. A
+        // "Received from:" label with no text before it is an inbound CALL log,
+        // not a text reply — counting it created false "interested" leads
+        // (e.g. Ruben Perez). Also ignore our own outbound text.
+        const hasWords = /[a-z]{2,}/i.test(before.replace(/[^a-z]/gi, " "));
+        const ours = REVIVAL_NEEDLES.some((n) => before.toLowerCase().includes(n));
+        if (hasWords && !ours) {
+          out.replyReceived = true;
+          if (out.deliveryStatus === "Unknown") out.deliveryStatus = "Sent";
+          out.replyText = before.slice(-500);
+        }
       }
 
       // 4) Backfill the property address so a recheck fills the (often empty)

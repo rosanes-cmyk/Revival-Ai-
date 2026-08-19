@@ -29,10 +29,24 @@ const els = {
 // "interested" badge. The server now drops these, but we ALSO scrub here so an
 // already-loaded/cached row can never show as interested in the dashboard.
 const REPLY_CHROME_RE = /(message length|credits\s*:?\s*\d|associated deals|no deals to display|personalize\s+from|highlights for crm|purpose of call|information provided|check number|trigger workflow|current workflows?|upcoming tasks?|write your reply|primary details|social profiles|filter by\s*:|reply yes or no)/i;
+// True only if the "reply" has real words, not just chat labels/phones/times
+// (e.g. "Received from: (760) 851-2351" repeated = inbound call logs, no text).
+function hasRealReplyWords(text) {
+  const stripped = String(text || "")
+    .replace(/received from|sent to|pd ?#:?/gi, " ")
+    .replace(/\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g, " ")
+    .replace(/\b\d{1,2}:\d{2}\s*(am|pm)?\b/gi, " ")
+    .replace(/\b\d{1,2}\s*(am|pm)\b/gi, " ")
+    .replace(/\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+\d{1,2}(?:,?\s*\d{4})?/gi, " ")
+    .replace(/[^a-z]/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return /[a-z]{2,}/i.test(stripped);
+}
 function scrubRow(r) {
   if (!r) return r;
   const txt = String(r.replyText || "");
-  const bogus = r.replyReceived && (!txt.trim() || REPLY_CHROME_RE.test(txt));
+  const bogus = r.replyReceived && (!txt.trim() || REPLY_CHROME_RE.test(txt) || !hasRealReplyWords(txt));
   if (bogus) {
     r.replyReceived = false;
     r.replyText = "";

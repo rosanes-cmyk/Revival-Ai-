@@ -144,6 +144,24 @@ export function summarizeRows(rows) {
   };
 }
 
+// True only if a captured "reply" contains ACTUAL words — not just REI chat
+// labels ("Received from:", "Sent to:", "PD #:"), phone numbers, times, and
+// dates. An older build sometimes logged inbound CALL entries ("Received from:
+// (760)…") with no message text as a reply; those must not count as a real
+// seller reply (they'd otherwise default to Interested).
+export function hasRealReplyWords(text) {
+  const stripped = String(text || "")
+    .replace(/received from|sent to|pd ?#:?/gi, " ")
+    .replace(/\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g, " ")          // phone numbers
+    .replace(/\b\d{1,2}:\d{2}\s*(am|pm)?\b/gi, " ")                // times 5:21 PM
+    .replace(/\b\d{1,2}\s*(am|pm)\b/gi, " ")                       // "8 PM"
+    .replace(/\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+\d{1,2}(?:,?\s*\d{4})?/gi, " ")
+    .replace(/[^a-z]/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return /[a-z]{2,}/i.test(stripped); // at least one real word (2+ letters)
+}
+
 export function normalizeRow(r) {
   // AUTO-CORRECT a stale "Unknown" delivery status. If we have the exact text
   // we sent AND the timestamp of the send (both are only recorded on a CONFIRMED
@@ -172,7 +190,7 @@ export function normalizeRow(r) {
   // contains this chrome. Drop it so a non-reply lead can't show a reply badge
   // or count as interested.
   const REPLY_CHROME_RE = /(message length|credits\s*:|associated deals|no deals to display|personalize\s+from|highlights for crm|purpose of call|information provided|check number|trigger workflow|current workflows?|upcoming tasks?|write your reply|primary details|contact type|social profiles|filter by\s*:|reply yes or no)/i;
-  const bogusReply = !replyText.trim() || REPLY_CHROME_RE.test(replyText);
+  const bogusReply = !replyText.trim() || REPLY_CHROME_RE.test(replyText) || !hasRealReplyWords(replyText);
   if (replyReceived && bogusReply) {
     replyReceived = false;
     replyText = "";

@@ -2,7 +2,7 @@
 // Exercises every critical decision rule, safety gate, and calculation.
 import assert from "node:assert";
 import { decide, evaluateSafety, classifyReply, detectFailed } from "../server/automation/sop.js";
-import { categorizeRow, TAB, rowsForTab, tabCounts, normalizeRow } from "../server/data/store.js";
+import { categorizeRow, TAB, rowsForTab, tabCounts, normalizeRow, hasRealReplyWords } from "../server/data/store.js";
 import { computePercentageReport } from "../server/reports/percentage.js";
 import { cleanPersonName, firstNameFrom, renderMessage, getApprovedMessage, pickApprovedTemplate, assertMessageIntegrity, APPROVED_TEMPLATES } from "../server/automation/message.js";
 import { SentLedger } from "../server/data/sentLedger.js";
@@ -128,6 +128,14 @@ eq("Lies | Thank you → not_interested", classifyReply("Lies. | Thank you").cla
 eq("you are a liar → not_interested", classifyReply("you are a liar stop").classification, "not_interested");
 // Must NOT over-catch words that merely contain 'lie' (believe).
 eq("believe does not trigger", classifyReply("I believe I want to sell, call me").classification, "interested");
+// Label-only "reply" = an inbound CALL log, not a text (real bug: Ruben Perez).
+ok("received-from-only has no real words", hasRealReplyWords("8 PM Received from: (760) 851-2351 Received from: (760) 851-2351") === false);
+ok("real short reply has words", hasRealReplyWords("no thanks") === true);
+ok("phone-only has no real words", hasRealReplyWords("(650) 889-5897 3:57 PM") === false);
+{
+  const r = normalizeRow({ rowNumber: 5, ownerName: "Ruben Perez", replyReceived: true, replyText: "8 PM Received from: (760) 851-2351 Received from: (760) 851-2351 Received from: (760) 851-2351", replyClassification: "interested", activeDeal: true, disposition: "Text Sent" });
+  ok("label-only reply dropped", r.replyReceived === false && r.activeDeal === false && r.replyClassification === "");
+}
 // A page-scrape blob saved as a "reply" by an older build must be dropped, not
 // counted as an interested reply (real bug: Jose Quintero row).
 {
