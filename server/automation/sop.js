@@ -356,6 +356,9 @@ const INTERESTED_PHRASES = [
   "open to see", "open to hear", "open to an offer", "open to a offer", "open to offers",
   "open to selling", "open to sell", "see what it is", "see your offer", "see the offer",
   "hear your offer", "hear the offer", "hear an offer", "whats it worth", "what's it worth",
+  // Scheduling / more-info intent (clear interest, low collision with negation):
+  "when can we", "when can i", "tell me more", "still available", "is it available",
+  "schedule a call", "schedule a time", "set up a call", "set up a time",
 ];
 const NOT_INTERESTED_PHRASES = [
   "not interested", "no longer interested", "not selling", "i'm not selling",
@@ -363,6 +366,10 @@ const NOT_INTERESTED_PHRASES = [
   "sold already", "wrong number", "wrong person", "not the owner", "leave me alone",
   "lose my number", "take me off", "stop texting", "stop contacting", "do not want",
   "no thanks", "no thank you", "not right now never",
+  // Extra explicit no's + "property already gone" signals (NOT bare "closed"):
+  "no interested", "not for me", "changed my mind", "changed our mind",
+  "not looking to sell", "under contract", "in escrow", "deal closed",
+  "already closed", "we closed",
 ];
 
 /**

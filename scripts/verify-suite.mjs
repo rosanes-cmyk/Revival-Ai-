@@ -109,6 +109,19 @@ eq("stop harassing → optout", classifyReply("stop harassing me").optOut, true)
 eq("scam → not_interested", classifyReply("this is a scam, go away").classification, "not_interested");
 // Profanity + genuine interest still stays warm.
 eq("hell yes sell → interested", classifyReply("hell yes I want to sell, make me an offer").classification, "interested");
+// Added vocabulary (2-bucket rules unchanged: unclear→interested, mixed→interested).
+eq("under contract → not_interested", classifyReply("sorry it's under contract now").classification, "not_interested");
+eq("in escrow → not_interested", classifyReply("we're in escrow already").classification, "not_interested");
+eq("deal closed → not_interested", classifyReply("that deal closed already").classification, "not_interested");
+eq("changed my mind → not_interested", classifyReply("I changed my mind, keeping it").classification, "not_interested");
+eq("not for me → not_interested", classifyReply("this is not for me").classification, "not_interested");
+eq("when can we → interested", classifyReply("great, when can we talk?").classification, "interested");
+eq("tell me more → interested", classifyReply("tell me more about this").classification, "interested");
+eq("still available → interested", classifyReply("is it still available?").classification, "interested");
+// Conditional seller still protected (negative does NOT auto-win).
+eq("conditional still interested (vocab)", classifyReply("not selling unless the price is right").classification, "interested");
+// 'closed' generic must NOT false-trigger (office/road closed).
+eq("generic closed not a signal", classifyReply("the road was closed so I was late, anyway yes call me").classification, "interested");
 // A page-scrape blob saved as a "reply" by an older build must be dropped, not
 // counted as an interested reply (real bug: Jose Quintero row).
 {
